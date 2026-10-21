@@ -1,8 +1,24 @@
 # SmartMaint implementation plan
 
-Last updated: 2026-10-16
+Last updated: 2026-10-21
 
-Status: planning recorded; application implementation has not started. Await the user's design interface before implementing the visual design.
+## Staff-access scope expansion
+
+The latest brief supersedes the earlier frontend-only boundary for staff authorization.
+
+- [x] Convex schema, authenticated resolver/applications, scoped administration, audit and protected operational source.
+- [x] Internal-only, allowlisted first-administrator bootstrap source; never executed.
+- [x] Clerk bridge, locked status states, session/grant cache isolation and capability-filtered native navigation.
+- [x] 71 automated tests pass, including direct Convex mock authorization tests.
+- [x] Android sign-in/registration captured and inspected; visual discrepancies recorded.
+- [ ] Configure a real Convex deployment and validate Clerk claims/live identity flows.
+- [ ] Obtain institutional verification/role policy approval; verification remains disabled by user instruction.
+- [ ] Authorized operator bootstrap and real-device staff lifecycle acceptance.
+- [ ] Complete design acceptance, safety policy integration and deferred operational features.
+
+See docs/STAFF_ACCESS.md and VALIDATION.md. No production completion is claimed.
+
+Status: implementation started on 2026-10-20. The supplied Design folder contains 73 approved references mapped to 67 screen families. Development workflows are being implemented and validated. See DESIGN_IMPLEMENTATION_AUDIT.md for evidence; no final visual or production acceptance is claimed.
 
 ## 1. Objective and delivery boundaries
 
@@ -347,7 +363,7 @@ Each item may be a route, reusable screen state, form step, sheet, or dialog. Re
 - [x] Inspect repository, versions, existing tabs, styling, and backend availability.
 - [x] Record UI/adapters scope, provisional task model, missing-policy behavior, and in-memory offline scope.
 - [x] Add Clerk to the planned architecture.
-- [ ] Receive the user's design and map it to roles, screen families, component states, and mobile constraints.
+- [x] Receive the user's design and map it to roles, screen families, component states, and mobile constraints.
 - [ ] Resolve any design contradictions with the workflow/permission rules before implementing affected screens.
 - [ ] Inventory Clerk configuration, provider settings, app identifiers, Convex deployment, and hospital policy inputs without requesting secrets in chat.
 - [ ] Confirm supported staff-ID/PIN integration or retain its explicit blocked status.
@@ -462,7 +478,7 @@ Add a project test command with an Expo-compatible test setup for the behavioral
 
 ### Current prerequisites and blockers
 
-- User-provided design: pending; visual implementation waits.
+- User-provided design: received in `Design/`; 73 images mapped before implementation.
 - Clerk application configuration, supported provider setup, and app identifiers: not yet verified/provided.
 - Staff ID + PIN, activation delivery, recovery policy, and biometric integration details: require compatibility/policy resolution.
 - Convex deployment/schema/functions, server authorization, audit enforcement, upload/sync, and idempotency: absent.

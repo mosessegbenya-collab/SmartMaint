@@ -1,17 +1,6 @@
 import { useState } from "react";
 import { router } from "expo-router";
-import {
-  Badge,
-  Button,
-  Card,
-  Choices,
-  Detail,
-  LinkRow,
-  Notice,
-  Row,
-  Screen,
-  Txt,
-} from "@/components/smart/ui";
+import { Badge, Button, Card, Choices, Detail, LinkRow, Notice, Row, Screen, Txt } from "@/components/smart/ui";
 import { allowed } from "@/domain/policy";
 import { reviewApplication } from "@/services/development";
 import { useApp } from "@/state/app-state";

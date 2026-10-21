@@ -1,24 +1,8 @@
 import { useState } from "react";
-import {
-  Badge,
-  Button,
-  Card,
-  Choices,
-  Detail,
-  Field,
-  LinkRow,
-  Notice,
-  Screen,
-  Section,
-  Txt,
-} from "@/components/smart/ui";
+import { Badge, Button, Card, Choices, Detail, Field, LinkRow, Notice, Screen, Section, Txt } from "@/components/smart/ui";
 import type { CheckResult } from "@/domain/models";
 import { allowed } from "@/domain/policy";
-import {
-  clinicalChecks,
-  technicalChecks,
-  equipment,
-} from "@/services/fixtures";
+import { clinicalChecks, technicalChecks, equipment } from "@/services/fixtures";
 import { verify } from "@/services/development";
 import { useApp } from "@/state/app-state";
 import { go } from "@/navigation/go";

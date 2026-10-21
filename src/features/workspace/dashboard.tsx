@@ -1,22 +1,12 @@
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import {
-  Badge,
-  Card,
-  Icon,
-  LinkRow,
-  Row,
-  Screen,
-  Section,
-  Txt,
-  type IconName,
-} from "@/components/smart/ui";
+import { Badge, Card, Icon, LinkRow, Row, Screen, Section, Txt, type IconName } from "@/components/smart/ui";
 import { allowed } from "@/domain/policy";
 import { useApp } from "@/state/app-state";
 import { visibleReports } from "@/services/development";
 import { go } from "@/navigation/go";
 export function Dashboard() {
-  const { account, state, online } = useApp();
+  const { account, state, online, startReport } = useApp();
   if (!account) return null;
   const clinician = account.role === "Clinician";
   const technician = account.role === "Biomedical Technician";
@@ -38,7 +28,10 @@ export function Dashboard() {
           title: "Report a Fault",
           detail: "Report an issue with equipment",
           icon: "warning-outline",
-          onPress: () => go("manual"),
+          onPress: () => {
+            startReport("");
+            go("manual");
+          },
         },
         {
           title: "My Reports",

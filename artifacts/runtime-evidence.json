@@ -1,0 +1,60 @@
+{
+    "Design/Saved locally, pending sync-2.png":  {
+                                                     "screenshot":  "artifacts/runtime/submitted-verified-native.png",
+                                                     "visualResult":  "Not compared",
+                                                     "functionalResult":  "Earlier native preview created DEMO-REP-017 with pending sync; no server receipt",
+                                                     "accessibility":  "Not accepted; screen-reader and text-scaling tests pending",
+                                                     "discrepancies":  "Matching-state comparison pending. Reporting captures predate latest Clerk auth.",
+                                                     "accepted":  false
+                                                 },
+    "Design/SmartMaint equipment reports dashboard-7.png":  {
+                                                                "screenshot":  "artifacts/runtime/reports-verified-native.png",
+                                                                "visualResult":  "Not compared",
+                                                                "functionalResult":  "Earlier native preview list included newly saved DEMO-REP-017",
+                                                                "accessibility":  "Not accepted; screen-reader and text-scaling tests pending",
+                                                                "discrepancies":  "Matching-state comparison pending. Reporting captures predate latest Clerk auth.",
+                                                                "accepted":  false
+                                                            },
+    "Design/SmartMaint medical equipment splash screen-2.png":  {
+                                                                    "screenshot":  "artifacts/runtime/welcome-final-runtime.png",
+                                                                    "visualResult":  "Welcome compared; button/hero/header corrections made; final comparison pending",
+                                                                    "functionalResult":  "Welcome to sign-in navigation exercised",
+                                                                    "accessibility":  "Not accepted; screen-reader and text-scaling tests pending",
+                                                                    "discrepancies":  "Matching-state comparison pending. Reporting captures predate latest Clerk auth.",
+                                                                    "accepted":  false
+                                                                },
+    "Design/SmartMaint stage 3 fault review-3.png":  {
+                                                         "screenshot":  "artifacts/runtime/review-verified-native.png",
+                                                         "visualResult":  "Not compared",
+                                                         "functionalResult":  "Earlier native preview retained entered equipment, symptoms, priority and condition",
+                                                         "accessibility":  "Not accepted; screen-reader and text-scaling tests pending",
+                                                         "discrepancies":  "Matching-state comparison pending. Reporting captures predate latest Clerk auth.",
+                                                         "accepted":  false
+                                                     },
+    "Design/SmartMaint welcome with ventilator hero-3.png":  {
+                                                                 "screenshot":  "artifacts/runtime/welcome-final-runtime.png",
+                                                                 "visualResult":  "Welcome compared; button/hero/header corrections made; final comparison pending",
+                                                                 "functionalResult":  "Welcome to sign-in navigation exercised",
+                                                                 "accessibility":  "Not accepted; screen-reader and text-scaling tests pending",
+                                                                 "discrepancies":  "Matching-state comparison pending. Reporting captures predate latest Clerk auth.",
+                                                                 "accepted":  false
+                                                             },
+    "Design/SmartMaint Staff Sign-In Screen-1.png":  {
+                                                         "screenshot":  "artifacts/runtime/staff-sign-in-native-current.png",
+                                                         "comparison":  "artifacts/comparisons/staff-sign-in.jpg",
+                                                         "visualResult":  "Inspected; discrepancies in design-qa.md",
+                                                         "functionalResult":  "Empty email denied; request-account navigation rendered",
+                                                         "accessibility":  "Text scaling and screen-reader acceptance pending",
+                                                         "discrepancies":  "Email-code strategy, header scale, spacing, SSO notice and surfaces",
+                                                         "accepted":  false
+                                                     },
+    "Design/SmartMaint Staff Registration Mockup-1.png":  {
+                                                              "screenshot":  "artifacts/runtime/staff-registration-native-final.png",
+                                                              "comparison":  "artifacts/comparisons/staff-registration-before-fix.jpg",
+                                                              "visualResult":  "Fresh capture inspected; text/image overlap fixed",
+                                                              "functionalResult":  "Identity/requested department/role fields rendered; no real submission",
+                                                              "accessibility":  "Text scaling and screen-reader acceptance pending",
+                                                              "discrepancies":  "Header/date, field icons, glass, spacing and scroll",
+                                                              "accepted":  false
+                                                          }
+}

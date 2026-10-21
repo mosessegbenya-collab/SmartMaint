@@ -1,1 +1,3 @@
-export { ProfileScreen as default } from "@/features/workspace/support";
+import { ProfileScreen } from "@/features/workspace/support";
+import { StaffWorkspaceRoute } from "@/features/staff/workspace";
+export default function Route() { return <StaffWorkspaceRoute screen="profile" preview={ProfileScreen} />; }

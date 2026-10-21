@@ -1,0 +1,38 @@
+env: load .env
+env: export EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
+Networking has been disabled
+Starting project at C:\Users\Edem Segbenya\Desktop\SmartMaint\SmartMaint
+Using src/app as the root directory for Expo Router.
+React Compiler enabled
+Metro is running in CI mode, reloads are disabled. Remove CI=true to enable watch mode.
+Starting Metro Bundler
+
+Waiting on http://localhost:8081
+
+Logs for your project will appear below.
+| (node:15680) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:15680) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:15680) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+Android Bundling failed 34247ms node_modules\expo-router\entry.js (2064 modules)
+Unable to resolve "@/assets/brand/registration-hero.png" from "src\components\smart\ui.tsx"
+[0m [90m 27 |[39m   hero[33m:[39m require([32m"@/assets/brand/hero.png"[39m)[33m,[39m
+ [90m 28 |[39m   authHero[33m:[39m require([32m"@/assets/brand/auth-hero.png"[39m)[33m,[39m
+[31m[1m>[22m[39m[90m 29 |[39m   registrationHero[33m:[39m require([32m"@/assets/brand/registration-hero.png"[39m)[33m,[39m
+ [90m    |[39m                              [31m[1m^[22m[39m
+ [90m 30 |[39m   logo[33m:[39m require([32m"@/assets/brand/approved-logo.png"[39m)[33m,[39m
+ [90m 31 |[39m }[33m;[39m
+ [90m 32 |[39m [36mexport[39m [36mfunction[39m usePalette() {[0m
+
+Import stack:
+
+ src\components\smart\ui.tsx
+ | import "@/assets/brand/registration-hero.png"
+
+ src\app\_layout.tsx
+ | import "@/components/smart/ui"
+
+ src\app (require.context)
+

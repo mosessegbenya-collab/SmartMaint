@@ -61,10 +61,8 @@ export function visibleReports(
         account.capabilities.some((c) =>
           ["repair", "assign", "triage", "analytics"].includes(c),
         )) &&
-      (!equipment.find((e) => e.id === r.equipmentId) ||
-        account.scope.includes(
-          equipment.find((e) => e.id === r.equipmentId)!.department,
-        )),
+      account.status === "approved" &&
+      account.scope.includes(r.department),
   );
 }
 export function submitReport(
@@ -77,6 +75,9 @@ export function submitReport(
   const item = equipment.find((e) => e.id === draft.equipmentId);
   if (item && !account.scope.includes(item.department))
     throw new Error("Equipment is outside your scope.");
+  const department = item?.department ?? draft.provisional?.location;
+  if (!department || !account.scope.includes(department))
+    throw new Error("Choose an authorized provisional equipment department.");
   const errors = validateFault(draft);
   if (errors.length) throw new Error(errors.join("\n"));
   const existing = state.reports.find(
@@ -90,7 +91,9 @@ export function submitReport(
     ownerId: account.id,
     createdAt: new Date().toISOString(),
     sync: online ? "Pending synchronization" : "Saved locally",
-    unverified: draft.unverified || !item?.verified,
+    unverified: draft.unverified,
+    equipmentProvisional: !item?.verified,
+    department,
   };
   return {
     report,
@@ -145,7 +148,7 @@ export function updateTask(
       "Unsupported task transition. Use the authorized assignment operation.",
     );
   if (
-    update.assigneeId &&
+    update.assigneeId !== undefined &&
     !["biomedical-technician", "biomedical-technician-verifier"].includes(
       update.assigneeId,
     )
@@ -157,7 +160,7 @@ export function updateTask(
     update.state === "Cancelled"
   )
     requireCapability(account, "assign", item.department);
-  if (update.dueAt && !Number.isFinite(Date.parse(update.dueAt)))
+  if (update.dueAt !== undefined && !Number.isFinite(Date.parse(update.dueAt)))
     throw new Error("Enter a valid due date.");
   const isWork =
     update.notes !== undefined ||
@@ -222,7 +225,11 @@ export function verify(
       "A technical pass is required before clinical verification.",
     );
   const required = kind === "technical" ? technicalChecks : clinicalChecks;
-  if (required.some((key) => !checks[key]))
+  if (
+    required.some(
+      (key) => !["Pass", "Fail", "Unable to Verify"].includes(checks[key]),
+    )
+  )
     throw new Error("Complete every checklist item.");
   const outcome: CheckResult = required.some((k) => checks[k] === "Fail")
     ? "Fail"
@@ -327,7 +334,7 @@ export function triage(
 ): DemoState {
   const report = state.reports.find((r) => r.id === id);
   if (!report) throw new Error("Report not found.");
-  const item = scoped(account, report.equipmentId);
+  const item = scoped(account, report.linkedEquipmentId ?? report.equipmentId);
   requireCapability(account, "triage", item.department);
   if (!reason.trim())
     throw new Error("Record the reason for this triage decision.");
@@ -367,10 +374,91 @@ export function reviewApplication(
     id,
   );
 }
-export function demoExport(state: DemoState, account: Account): string {
+export function reconcileReport(
+  state: DemoState,
+  account: Account,
+  reportId: string,
+  equipmentId: string,
+  reason: string,
+): DemoState {
+  const item = scoped(account, equipmentId);
+  requireCapability(account, "reconcile", item.department);
+  const report = visibleReports(state, account).find((r) => r.id === reportId);
+  if (!report || !report.equipmentProvisional)
+    throw new Error("Select an accessible provisional report.");
+  if (!item.verified || !reason.trim())
+    throw new Error(
+      "A verified matching identity and review reason are required.",
+    );
+  return event(
+    {
+      ...state,
+      reports: state.reports.map((r) =>
+        r.id === reportId
+          ? { ...r, linkedEquipmentId: item.id, equipmentProvisional: false }
+          : r,
+      ),
+    },
+    account,
+    `Synthetic equipment reconciliation: ${reason}`,
+    reportId,
+  );
+}
+export function createMaintenance(
+  state: DemoState,
+  account: Account,
+  reportId: string,
+  dueAt: string,
+): DemoState {
+  const report = visibleReports(state, account).find((r) => r.id === reportId);
+  if (!report) throw new Error("Report not found in your scope.");
+  const item = scoped(account, report.linkedEquipmentId ?? report.equipmentId);
+  requireCapability(account, "assign", item.department);
+  if (report.equipmentProvisional || !item.verified)
+    throw new Error("Equipment must be reconciled before maintenance.");
+  if (report.unverified)
+    throw new Error(
+      "Unverified emergency reports require authorized reporter review before maintenance.",
+    );
+  if (state.tasks.some((t) => t.reportId === reportId)) return state;
+  if (!Number.isFinite(Date.parse(dueAt)))
+    throw new Error("Choose an explicit due date for this work order.");
+  const task = {
+    id: `WO-${reportId}`,
+    equipmentId: item.id,
+    reportId,
+    state: "Unassigned" as const,
+    dueAt,
+    diagnosis: "",
+    notes: "",
+    parts: [],
+    cycle: 1,
+  };
+  return event(
+    { ...state, tasks: [...state.tasks, task] },
+    account,
+    "Synthetic maintenance task created",
+    task.id,
+  );
+}
+export function demoExport(
+  state: DemoState,
+  account: Account,
+  filters?: { from?: string; to?: string; priority?: Priority },
+): string {
   requireCapability(account, "export");
+  const from = filters?.from ? Date.parse(filters.from) : -Infinity;
+  const to = filters?.to ? Date.parse(filters.to) : Infinity;
+  if (Number.isNaN(from) || Number.isNaN(to) || from > to)
+    throw new Error("Choose a valid date range.");
   const rows = visibleReports(state, account).filter(
-    (r) => !r.unverified && r.sync === "Simulated acknowledgment",
+    (r) =>
+      !r.unverified &&
+      !r.equipmentProvisional &&
+      r.sync === "Simulated acknowledgment" &&
+      Date.parse(r.createdAt) >= from &&
+      Date.parse(r.createdAt) <= to &&
+      (!filters?.priority || r.priority === filters.priority),
   );
   return [
     ["SYNTHETIC DEMONSTRATION DATA — no confirmed hospital records"],

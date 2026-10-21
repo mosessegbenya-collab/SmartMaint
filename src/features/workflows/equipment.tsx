@@ -1,15 +1,5 @@
 import { Image } from "react-native";
-import {
-  brandAssets,
-  Button,
-  Card,
-  Detail,
-  LinkRow,
-  Notice,
-  Screen,
-  Section,
-  Txt,
-} from "@/components/smart/ui";
+import { brandAssets, Button, Card, Detail, LinkRow, Notice, Screen, Section, Txt } from "@/components/smart/ui";
 import { equipment } from "@/services/fixtures";
 import { allowed, releaseBlockers } from "@/domain/policy";
 import { useApp } from "@/state/app-state";
@@ -93,8 +83,7 @@ export function EquipmentWorkflow({
               label="Report a Fault"
               icon="document-text-outline"
               onPress={() => {
-                if (app.draft.equipmentId !== item.id)
-                  app.startReport(item.id, !item.verified);
+                app.startReport(item.id);
                 go("fault-details");
               }}
             />

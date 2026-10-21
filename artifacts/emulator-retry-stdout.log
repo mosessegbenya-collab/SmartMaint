@@ -111,3 +111,64 @@ INFO         | setDisplayActiveConfig: id:0, 1080x2400
 INFO         | emulatorSetupEnvironment: Environment scene is not required
 USER_INFO    | Emulator is performing a full startup. This may take upto two minutes, or more.
 INFO         | Boot completed in 292701 ms
+INFO         | Increasing screen off timeout, logcat buffer size to 2M.
+INFO         | IPv4 server found: 192.168.1.94
+INFO         | Ignore IPv6 address: 1060:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 1060:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 1060:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 2866:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 2866:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 2866:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: d873:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: d873:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: d873:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: f879:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: f879:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: f879:57ab:f701:0:1060:57ab:f701:0
+INFO         | IPv4 server found: 192.168.1.94
+INFO         | Ignore IPv6 address: 1060:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 1060:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 1060:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 2866:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 2866:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 2866:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: d873:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: d873:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: d873:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: f879:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: f879:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: f879:57ab:f701:0:1060:57ab:f701:0
+INFO         | IPv4 server found: 192.168.1.94
+INFO         | Ignore IPv6 address: 1060:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 1060:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 1060:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 2866:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 2866:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: 2866:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: d873:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: d873:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: d873:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: f879:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: f879:57ab:f701:0:1060:57ab:f701:0
+INFO         | Ignore IPv6 address: f879:57ab:f701:0:1060:57ab:f701:0
+INFO         | IPv4 server found: 192.168.1.94
+INFO         | Ignore IPv6 address: 4064:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 4064:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 4064:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 586a:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 586a:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 586a:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 878:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 878:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 878:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 287e:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 287e:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 287e:c790:f701:0:4064:c790:f701:0
+INFO         | IPv4 server found: 192.168.1.94
+INFO         | Ignore IPv6 address: 4064:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 4064:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 4064:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 586a:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 586a:c790:f701:0:4064:c790:f701:0
+INFO         | Ignore IPv6 address: 586a:c790:f701:0:4064:c790:f701:0
+INFO        

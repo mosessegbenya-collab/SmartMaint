@@ -33,10 +33,13 @@ export function validateFault(draft: FaultDraft): string[] {
   const errors: string[] = [];
   if (!draft.equipmentId.trim()) errors.push("Enter the equipment identifier.");
   if (!draft.category) errors.push("Select a fault category.");
+  if (!["Urgent", "High", "Routine"].includes(draft.priority))
+    errors.push("Select a valid priority.");
   if (!draft.symptoms.trim()) errors.push("Describe the specific symptoms.");
   if (!draft.condition) errors.push("Select the reported equipment condition.");
-  if (draft.inUse === null)
+  if (typeof draft.inUse !== "boolean")
     errors.push("Confirm whether the equipment is in use.");
+  if (draft.photos.length > 5) errors.push("Attach no more than five photos.");
   const timestamp = Date.parse(draft.noticedAt);
   if (!Number.isFinite(timestamp) || timestamp > Date.now())
     errors.push("Enter a valid noticed time that is not in the future.");

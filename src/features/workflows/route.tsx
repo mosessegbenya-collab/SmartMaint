@@ -1,4 +1,4 @@
-import { Redirect, useLocalSearchParams } from "expo-router";
+import { Redirect, useLocalSearchParams, router } from "expo-router";
 import { Button, Notice, Screen } from "@/components/smart/ui";
 import { useApp } from "@/state/app-state";
 import { allowed } from "@/domain/policy";
@@ -21,6 +21,7 @@ import {
   SyncWorkflow,
 } from "./support";
 import { EmergencyWorkflow } from "./emergency";
+import { LiveFlow } from "@/features/staff/workspace";
 const publicScreens = [
   "help",
   "emergency",
@@ -30,17 +31,19 @@ const publicScreens = [
   "emergency-result",
 ];
 export function FlowRoute() {
-  const params = useLocalSearchParams<{ screen: string; id?: string }>();
+  const params = useLocalSearchParams<{ view: string; id?: string }>();
+  const { account } = useApp();
   return (
     <FlowScreen
-      key={`${params.screen}-${params.id ?? ""}`}
-      screen={params.screen}
+      key={`${account?.id ?? "public"}-${params.view}-${params.id ?? ""}`}
+      screen={params.view}
       id={params.id}
     />
   );
 }
 function FlowScreen({ screen, id }: { screen: string; id?: string }) {
-  const { account, previewEnabled } = useApp();
+  const { account, previewEnabled, mode } = useApp();
+  if (mode === "live" && !["help", "settings"].includes(screen)) return <LiveFlow screen={screen} id={id} />;
   if (!publicScreens.includes(screen) && !account)
     return <Redirect href="/access/sign-in" />;
   if (
@@ -127,7 +130,7 @@ function FlowScreen({ screen, id }: { screen: string; id?: string }) {
   return (
     <Screen title="Page unavailable">
       <Notice>This route is not supported.</Notice>
-      <Button label="Return to welcome" onPress={() => {}} disabled />
+      <Button label="Return to welcome" onPress={() => router.replace("/")} />
     </Screen>
   );
 }

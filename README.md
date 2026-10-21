@@ -1,56 +1,56 @@
-# Welcome to your Expo app 👋
+# SmartMaint
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo SDK 57 / React Native application for equipment identification, fault reporting, maintenance and independent safety verification. The approved references are in `Design/`.
 
-## Get started
+This implementation includes Clerk identity, trusted Convex staff-access source and an isolated synthetic preview. No Convex deployment or approved institutional verification policy exists yet; verification remains disabled. See [staff access](docs/STAFF_ACCESS.md), [validation](VALIDATION.md) and [the design audit](DESIGN_IMPLEMENTATION_AUDIT.md).
 
-1. Install dependencies
+## Run
 
-   ```bash
-   npm install
-   ```
+Use Node 22.13 or newer and npm. Avoid running simultaneous installers in this directory.
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```powershell
+npm ci
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Open **Staff Sign In**, scroll to **Development preview**, choose a role, and tap **Open development preview**. The independent technician scenario is separate from the repairing technician. Preview changes are held in memory and are lost on restart.
 
-### Other setup steps
+For Android, start a compatible emulator and run `npx expo start --android`. For iOS, use Expo Go on a compatible physical device or an EAS development build; Windows cannot run an iOS simulator. Browser preview is available with `npx expo start --web` and does not establish native compatibility.
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Configuration
 
-## Learn more
+Copy `.env.example` to `.env.local` and set public identifiers only. Clerk's publishable key enables email-code sign-in/registration, secure sessions and configured Google/Apple SSO. See [authentication setup and acceptance](docs/AUTHENTICATION.md). Staff approval remains separate from identity authentication. There is no local PIN credential store and no automatic grant of live application access.
 
-To learn more about developing your project with Expo, look at the following resources:
+Convex source now enforces staff approval, scope, capabilities, revisions and audit. Deployment, Clerk claim verification, approved institutional verification and operator bootstrap remain required. Upload/sync and safety/release policies remain deferred. Setting a deployment URL alone does not enable live staff access. See [operator handover](docs/STAFF_ACCESS.md).
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Native modules and permissions are declared in `app.json`. After changing native capabilities, use a compatible Expo Go runtime or create a development build:
 
-## Join the community
+```powershell
+npx eas-cli@latest build --profile development
+```
 
-Join our community of developers creating universal apps.
+EAS project/profile configuration and credentials are required; no cloud build or deployment is implied by this command.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Checks
+
+```powershell
+npm run typecheck
+npm run lint
+npm test
+npx expo install --check
+npx expo-doctor
+npx expo export --platform android
+npx expo export --platform ios
+npx expo export --platform web
+```
+
+The domain tests cover permission boundaries, scope, duplicate submissions, provisional identity, independent verification, linked rework, release blockers, synchronization and CSV safety. They do not replace native interaction, camera, accessibility or screenshot comparison tests.
+
+## Evidence
+
+- [Reference mapping](artifacts/design-inventory.json): 73 images and their routes.
+- [Design implementation audit](DESIGN_IMPLEMENTATION_AUDIT.md): screen-by-screen status and evidence.
+- [Implementation notes](docs/IMPLEMENTATION.md): architecture, integration contracts, limitations and deliberate platform/accessibility deviations.
+- `artifacts/`: reference contact sheets, runtime evidence and validation artifacts when available.
+
+No production readiness or pixel-perfect identity is claimed without the required runtime comparisons and workflow validation.

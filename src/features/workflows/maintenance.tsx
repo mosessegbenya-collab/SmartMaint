@@ -1,23 +1,12 @@
 import { useState } from "react";
-import { View } from "react-native";
-import {
-  Badge,
-  Button,
-  Card,
-  Choices,
-  Detail,
-  Field,
-  LinkRow,
-  Notice,
-  Screen,
-  Section,
-  Txt,
-} from "@/components/smart/ui";
+
+import { Badge, Button, Card, Choices, Detail, Field, LinkRow, Notice, Screen, Section, Txt } from "@/components/smart/ui";
 import { allowed, canRepair } from "@/domain/policy";
 import { updateTask, canSeeTask } from "@/services/development";
 import { equipment } from "@/services/fixtures";
 import { useApp } from "@/state/app-state";
 import { go } from "@/navigation/go";
+import { DateTimeField } from '@/components/smart/date-time-field';
 const titles: Record<string, string> = {
   "task-detail": "Maintenance Task",
   assignment: "Assign Technician",
@@ -155,16 +144,16 @@ export function MaintenanceWorkflow({
             icon="time-outline"
             onPress={() => go("maintenance-history", task.id)}
           />
-          <LinkRow
+          {allowed(account,'technical') && task.assigneeId !== account.id && <LinkRow
             title="Technical Verification"
             icon="shield-checkmark-outline"
             onPress={() => go("technical-checklist", task.id)}
-          />
-          <LinkRow
+          />}
+          {allowed(account,'clinical') && <LinkRow
             title="Clinical Verification"
             icon="medkit-outline"
             onPress={() => go("clinical-checklist", task.id)}
-          />
+          />}
         </>
       )}
       {screen === "assignment" && (
@@ -188,15 +177,12 @@ export function MaintenanceWorkflow({
       )}
       {screen === "due-date" && (
         <>
-          <Field
-            label="Due date and time (ISO, UTC)"
+          <DateTimeField
+            label="Due date and time"
             value={due}
-            onChangeText={setDue}
-            autoCapitalize="none"
+            onChange={setDue}
+            required
           />
-          <Txt muted size={12}>
-            Example: 2026-10-22T17:00:00.000Z · Displayed in device time.
-          </Txt>
           <Button
             label="Save Due Date"
             disabled={!assign}

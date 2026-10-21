@@ -1,14 +1,6 @@
 import { useState } from "react";
 import { router } from "expo-router";
-import {
-  Button,
-  Field,
-  Icon,
-  Notice,
-  Screen,
-  Section,
-  Txt,
-} from "@/components/smart/ui";
+import { Button, Field, Icon, Notice, Screen, Section, Txt } from "@/components/smart/ui";
 import { useApp } from "@/state/app-state";
 import { go } from "@/navigation/go";
 export function EmergencyWorkflow({ screen }: { screen: string }) {

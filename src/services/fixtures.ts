@@ -1,34 +1,10 @@
 import type {
   Account,
-  Capability,
   DemoState,
   Equipment,
   Role,
 } from "../domain/models";
-const permissions: Record<Role, Capability[]> = {
-  Clinician: ["report", "clinical"],
-  "Biomedical Technician": [
-    "report",
-    "repair",
-    "technical",
-    "triage",
-    "reconcile",
-  ],
-  "Unit Head": ["report", "assign", "triage", "hold", "analytics"],
-  "Maintenance Supervisor": ["report", "assign", "triage", "hold", "analytics"],
-  "Equipment Department Head": ["analytics", "export"],
-  "Technical Services Director": ["analytics", "export"],
-  Administrator: [
-    "accounts",
-    "roles",
-    "suspend",
-    "reconcile",
-    "audit",
-    "analytics",
-    "export",
-  ],
-  "Registration Approver": ["accounts"],
-};
+import { roleCapabilities as permissions } from "../domain/role-policy";
 export function demoAccount(role: Role, independent = false): Account {
   const id = `${role.toLowerCase().replaceAll(" ", "-")}${independent ? "-verifier" : ""}`;
   return {
@@ -125,6 +101,8 @@ export function initialState(): DemoState {
         noticedAt: "2026-10-16T10:24:00.000Z",
         photos: [],
         unverified: false,
+        equipmentProvisional: false,
+        department: "Critical Care",
         createdAt: "2026-10-16T10:24:00.000Z",
         sync: "Pending synchronization",
       },
@@ -142,6 +120,8 @@ export function initialState(): DemoState {
         noticedAt: "2026-10-14T16:11:00.000Z",
         photos: [],
         unverified: false,
+        equipmentProvisional: false,
+        department: "General Ward",
         createdAt: "2026-10-14T16:11:00.000Z",
         sync: "Simulated acknowledgment",
       },

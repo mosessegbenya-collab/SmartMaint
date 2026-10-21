@@ -1,25 +1,13 @@
 import { useState } from "react";
 import { Image, Pressable, View } from "react-native";
-import {
-  Badge,
-  brandAssets,
-  Button,
-  Card,
-  Choices,
-  Detail,
-  Field,
-  Icon,
-  Notice,
-  Row,
-  Screen,
-  Txt,
-} from "@/components/smart/ui";
+import { Badge, brandAssets, Button, Card, Choices, Detail, Field, Icon, Notice, Row, Screen, Txt } from "@/components/smart/ui";
 import { equipment } from "@/services/fixtures";
-import { releaseBlockers } from "@/domain/policy";
+import { releaseBlockers, allowed } from "@/domain/policy";
 import { canSeeTask, visibleReports } from "@/services/development";
 import type { Equipment } from "@/domain/models";
 import { useApp } from "@/state/app-state";
 import { go } from "@/navigation/go";
+import { useCurrentTime } from '@/hooks/use-current-time';
 export function EquipmentCard({
   item,
   onPress,
@@ -108,7 +96,10 @@ export function EquipmentList() {
       <Button
         label="Enter ID manually"
         variant="secondary"
-        onPress={() => go("manual")}
+        onPress={() => {
+          app.startReport("");
+          go("manual");
+        }}
       />
     </Screen>
   );
@@ -181,7 +172,7 @@ export function ReportsList() {
               label="Reported"
               value={new Date(r.createdAt).toLocaleString()}
             />
-            {r.unverified && (
+            {(r.unverified || r.equipmentProvisional) && (
               <Badge label="UNVERIFIED / PROVISIONAL" tone="danger" />
             )}
           </Card>
@@ -192,6 +183,7 @@ export function ReportsList() {
   );
 }
 export function TasksList() {
+  const now = useCurrentTime();
   const { account, state } = useApp();
   const [filter, setFilter] = useState("Active");
   if (!account) return null;
@@ -252,7 +244,7 @@ export function TasksList() {
               label={t.state}
               tone={t.state === "Completed" ? "success" : "warning"}
             />
-            {Date.parse(t.dueAt) < Date.now() &&
+            {Date.parse(t.dueAt) < now &&
               !["Completed", "Cancelled"].includes(t.state) && (
                 <Badge label="Overdue" tone="danger" />
               )}
@@ -260,16 +252,16 @@ export function TasksList() {
         </Pressable>
       ))}
       {!items.length && <Notice>No tasks match this view.</Notice>}
-      <Button
+      {allowed(account,'technical') && <Button
         label="Technical Verification Queue"
         variant="secondary"
         onPress={() => go("technical-queue")}
-      />
-      <Button
+      />}
+      {allowed(account,'clinical') && <Button
         label="Clinical Verification Queue"
         variant="secondary"
         onPress={() => go("clinical-queue")}
-      />
+      />}
     </Screen>
   );
 }

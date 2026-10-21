@@ -13,6 +13,20 @@ require.extensions[".ts"] = (module, filename) =>
   );
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+const { canOpenPreviewWorkspace, authErrorMessage } = require("../src/features/access/auth-policy.ts");
+test("Clerk identity and loading sessions cannot enter synthetic workspaces", () => {
+  const approved = { status: "approved" };
+  assert.equal(canOpenPreviewWorkspace(approved, { loaded: false, signedIn: false }), false);
+  assert.equal(canOpenPreviewWorkspace(approved, { loaded: true, signedIn: true }), false);
+  assert.equal(canOpenPreviewWorkspace(null, { loaded: true, signedIn: false }), false);
+  assert.equal(canOpenPreviewWorkspace({ status: "pending" }, { loaded: true, signedIn: false }), false);
+  assert.equal(canOpenPreviewWorkspace(approved, { loaded: true, signedIn: false }), true);
+});
+test("Clerk structured errors and offline failures produce usable messages", () => {
+  assert.equal(authErrorMessage({ errors: [{ message: "Invalid code", longMessage: "The code has expired." }] }), "The code has expired.");
+  assert.equal(authErrorMessage(new Error("Network unavailable")), "Network unavailable");
+  assert.match(authErrorMessage(null), /connection/);
+});
 const {
   allowed,
   releaseBlockers,
@@ -108,11 +122,20 @@ test("unknown identifiers remain provisional without inventory creation", () => 
   const r = submitReport(
     initialState(),
     clinician,
-    { ...draft(), equipmentId: "UNKNOWN-RAW-ID" },
+    {
+      ...draft(),
+      equipmentId: "UNKNOWN-RAW-ID",
+      provisional: {
+        type: "Ventilator",
+        location: "Critical Care",
+        notes: "Asset label unclear",
+      },
+    },
     true,
   ).report;
   assert.equal(r.equipmentId, "UNKNOWN-RAW-ID");
-  assert.equal(r.unverified, true);
+  assert.equal(r.equipmentProvisional, true);
+  assert.equal(r.unverified, false);
   assert.equal(equipment.length, count);
 });
 test("reports outside known equipment scope are denied", () => {
@@ -419,4 +442,126 @@ test("exports exclude pending/provisional records and neutralize formulas", () =
 });
 test("unconfigured production adapter never reports success", async () => {
   await assert.rejects(unavailable.execute(), /Clerk/);
+});
+test("provisional reconciliation preserves raw identity and allows authorized linked maintenance", () => {
+  const {
+    reconcileReport,
+    createMaintenance,
+  } = require("../src/services/development.ts");
+  const saved = submitReport(
+    initialState(),
+    clinician,
+    {
+      ...draft(),
+      equipmentId: "RAW-UNKNOWN",
+      provisional: { type: "Ventilator", location: "Critical Care", notes: "" },
+    },
+    true,
+  );
+  assert.throws(
+    () =>
+      createMaintenance(
+        saved.state,
+        supervisor,
+        saved.report.id,
+        "2026-10-25T17:00:00Z",
+      ),
+    /unverified|scope|reconciled/,
+  );
+  assert.throws(() =>
+    reconcileReport(
+      saved.state,
+      clinician,
+      saved.report.id,
+      "DEMO-VENT-014",
+      "Matched asset tag",
+    ),
+  );
+  const linked = reconcileReport(
+    saved.state,
+    tech,
+    saved.report.id,
+    "DEMO-VENT-014",
+    "Matched asset tag",
+  );
+  assert.equal(linked.reports[0].equipmentId, "RAW-UNKNOWN");
+  assert.equal(linked.reports[0].linkedEquipmentId, "DEMO-VENT-014");
+  assert.equal(linked.reports[0].equipmentProvisional, false);
+  assert.throws(
+    () => createMaintenance(linked, supervisor, saved.report.id, ""),
+    /due date/,
+  );
+  const withTask = createMaintenance(
+    linked,
+    supervisor,
+    saved.report.id,
+    "2026-10-25T17:00:00Z",
+  );
+  assert.equal(withTask.tasks.at(-1).equipmentId, "DEMO-VENT-014");
+  assert.equal(withTask.tasks.at(-1).state, "Unassigned");
+  assert.equal(
+    createMaintenance(
+      withTask,
+      supervisor,
+      saved.report.id,
+      "2026-10-25T17:00:00Z",
+    ).tasks.length,
+    withTask.tasks.length,
+  );
+});
+test("unknown department records are denied and unverified reporter remains independent of equipment identity", () => {
+  assert.throws(
+    () =>
+      submitReport(
+        initialState(),
+        clinician,
+        { ...draft(), equipmentId: "RAW" },
+        true,
+      ),
+    /department/,
+  );
+  const r = submitReport(
+    initialState(),
+    clinician,
+    { ...draft(), unverified: true },
+    true,
+  ).report;
+  assert.equal(r.unverified, true);
+  assert.equal(r.equipmentProvisional, false);
+  assert.equal(
+    visibleReports(
+      { ...initialState(), reports: [{ ...r, department: "UNKNOWN" }] },
+      admin,
+    ).length,
+    0,
+  );
+});
+test("runtime-invalid checklist outcomes, assignments, dates and export ranges are rejected", () => {
+  assert.throws(
+    () =>
+      verify(
+        completed(),
+        verifier,
+        "WO-DEMO-014",
+        "technical",
+        checks(technicalChecks, "NOT-VALID"),
+        "",
+        true,
+      ),
+    /every/,
+  );
+  assert.throws(() =>
+    updateTask(initialState(), supervisor, "WO-DEMO-014", { assigneeId: "" }),
+  );
+  assert.throws(() =>
+    updateTask(initialState(), supervisor, "WO-DEMO-014", { dueAt: "" }),
+  );
+  assert.throws(() =>
+    demoExport(initialState(), admin, { from: "2026-10-22", to: "2026-10-01" }),
+  );
+  assert(
+    !demoExport(initialState(), admin, { priority: "Urgent" }).includes(
+      "DEMO-REP-013",
+    ),
+  );
 });

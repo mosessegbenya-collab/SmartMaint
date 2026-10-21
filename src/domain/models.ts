@@ -67,8 +67,12 @@ export interface FaultDraft {
   noticedAt: string;
   photos: Attachment[];
   unverified: boolean;
+  provisional?: { type: string; location: string; notes: string };
 }
 export interface FaultReport extends FaultDraft {
+  department: string;
+  equipmentProvisional: boolean;
+  linkedEquipmentId?: string;
   id: string;
   ownerId: string;
   createdAt: string;

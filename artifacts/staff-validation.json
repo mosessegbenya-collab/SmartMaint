@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-21",
+  "scope": "Staff-access source and local validation; no production acceptance",
+  "tests": { "domain": 29, "backendAndClient": 42, "passed": 71, "failed": 0 },
+  "typecheck": "passed",
+  "lint": "passed",
+  "expoCompatibility": "dependencies up to date",
+  "expoDoctor": { "passed": 21, "total": 21 },
+  "export": { "platforms": ["android", "ios", "web"], "result": "passed", "staticRoutes": 13, "files": 89, "directory": "artifacts/bundles" },
+  "nativeEvidence": ["artifacts/runtime/staff-sign-in-native-current.png", "artifacts/runtime/staff-sign-in-validation.png", "artifacts/runtime/staff-registration-native-final.png"],
+  "codegen": "blocked: no CONVEX_DEPLOYMENT",
+  "deploymentConfigured": false,
+  "institutionalPolicyApproved": false,
+  "verificationEnabled": false,
+  "bootstrapExecuted": false,
+  "liveStaffLifecycleValidated": false,
+  "visualAcceptance": false
+}

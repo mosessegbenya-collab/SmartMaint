@@ -1,1 +1,3 @@
-export { AccountsScreen as default } from "@/features/workspace/support";
+import { AccountsScreen } from "@/features/workspace/support";
+import { StaffWorkspaceRoute } from "@/features/staff/workspace";
+export default function Route() { return <StaffWorkspaceRoute screen="accounts" preview={AccountsScreen} />; }

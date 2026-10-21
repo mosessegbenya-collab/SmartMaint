@@ -2,31 +2,15 @@ import { useRef, useState } from "react";
 import { Image, Platform, Pressable, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
-import {
-  Badge,
-  brandAssets,
-  Button,
-  Card,
-  Choices,
-  Detail,
-  Field,
-  Icon,
-  LinkRow,
-  Notice,
-  Row,
-  Screen,
-  Select,
-  Section,
-  Txt,
-} from "@/components/smart/ui";
+import { router, useLocalSearchParams } from "expo-router";
+import { Badge, Button, Card, Choices, Detail, Field, Icon, LinkRow, Notice, Row, Screen, Select, Section, Txt } from "@/components/smart/ui";
 import { allowed, validateFault } from "@/domain/policy";
-import { categories, equipment } from "@/services/fixtures";
+import { categories, equipment, demoAccount } from "@/services/fixtures";
 import { submitReport } from "@/services/development";
 import { useApp } from "@/state/app-state";
 import { go } from "@/navigation/go";
 import { EquipmentCard } from "@/features/workspace/lists";
-import { demoAccount } from "@/services/fixtures";
+import { DateTimeField } from '@/components/smart/date-time-field';
 
 export function Steps({ step }: { step: 1 | 2 | 3 }) {
   return (
@@ -46,6 +30,7 @@ export function Steps({ step }: { step: 1 | 2 | 3 }) {
   );
 }
 export function Identification({ screen }: { screen: string }) {
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
   const app = useApp();
   const [identifier, setIdentifier] = useState("");
   const [message, setMessage] = useState("");
@@ -57,10 +42,12 @@ export function Identification({ screen }: { screen: string }) {
     app.setDraft((d) => ({
       ...d,
       equipmentId: identifier,
-      unverified: !equipment.find((e) => e.id === identifier)?.verified,
     }));
     const match = equipment.find((e) => e.id === identifier);
-    go(match ? "equipment-detail" : "unmatched", identifier);
+    go(
+      match ? (edit === "1" ? "review" : "equipment-detail") : "unmatched",
+      identifier,
+    );
   };
   if (screen === "manual")
     return (
@@ -143,10 +130,62 @@ export function Identification({ screen }: { screen: string }) {
         value={app.draft.equipmentId}
         onChangeText={(v) => app.setDraft((d) => ({ ...d, equipmentId: v }))}
       />
+      <Select
+        label="Equipment type *"
+        values={[
+          "Ventilator",
+          "Infusion Pump",
+          "Patient Monitor",
+          "Other / Unknown",
+        ]}
+        value={app.draft.provisional?.type ?? ""}
+        onChange={(type) =>
+          app.setDraft((d) => ({
+            ...d,
+            provisional: {
+              type,
+              location: d.provisional?.location ?? "",
+              notes: d.provisional?.notes ?? "",
+            },
+          }))
+        }
+      />
+      <Select
+        label="Department / location *"
+        values={app.account?.scope ?? []}
+        value={app.draft.provisional?.location ?? ""}
+        onChange={(location) =>
+          app.setDraft((d) => ({
+            ...d,
+            provisional: {
+              type: d.provisional?.type ?? "",
+              location,
+              notes: d.provisional?.notes ?? "",
+            },
+          }))
+        }
+      />
+      <Field
+        label="Equipment identity notes"
+        value={app.draft.provisional?.notes ?? ""}
+        onChangeText={(notes) =>
+          app.setDraft((d) => ({
+            ...d,
+            provisional: {
+              type: d.provisional?.type ?? "",
+              location: d.provisional?.location ?? "",
+              notes,
+            },
+          }))
+        }
+        multiline
+      />
       <Button
         label="Create Provisional Report"
+        disabled={
+          !app.draft.provisional?.type || !app.draft.provisional?.location
+        }
         onPress={() => {
-          app.setDraft((d) => ({ ...d, unverified: true }));
           go("fault-details");
         }}
       />
@@ -438,6 +477,14 @@ export function FaultDetails({ emergency = false }: { emergency?: boolean }) {
     >
       {!emergency && <Steps step={1} />}
       {emergency && (
+        <Field
+          label="Equipment identifier *"
+          value={d.equipmentId}
+          onChangeText={(v) => patch({ equipmentId: v })}
+          autoCapitalize="none"
+        />
+      )}
+      {emergency && (
         <Notice tone="danger">
           UNVERIFIED EMERGENCY REPORT{"\n"}Identity is unconfirmed. This report
           does not grant account access. Do not include patient information.
@@ -452,6 +499,24 @@ export function FaultDetails({ emergency = false }: { emergency?: boolean }) {
         </Card>
       )}
       {errors.length > 0 && <Notice tone="danger">{errors.join("\n")}</Notice>}
+      {!matched && (
+        <Select
+          label="Provisional department / location *"
+          values={
+            app.account?.scope ?? ["Critical Care", "General Ward", "Emergency"]
+          }
+          value={d.provisional?.location ?? ""}
+          onChange={(location) =>
+            patch({
+              provisional: {
+                type: d.provisional?.type ?? "Other / Unknown",
+                location,
+                notes: d.provisional?.notes ?? "",
+              },
+            })
+          }
+        />
+      )}
       {message && <Notice>{message}</Notice>}
       <Select
         label="Fault category *"
@@ -495,11 +560,11 @@ export function FaultDetails({ emergency = false }: { emergency?: boolean }) {
         value={d.inUse === null ? "" : d.inUse ? "Yes" : "No"}
         onChange={(v) => patch({ inUse: v === "Yes" })}
       />
-      <Field
-        label="Time noticed * (ISO date and time)"
+      <DateTimeField
+        label="Time noticed *"
         value={d.noticedAt}
-        onChangeText={(v) => patch({ noticedAt: v })}
-        autoCapitalize="none"
+        onChange={(v) => patch({ noticedAt: v })}
+        required
       />
       <Button
         label="Save Draft"
@@ -534,13 +599,22 @@ export function ReviewReport({ emergency = false }: { emergency?: boolean }) {
     lock.current = true;
     setBusy(true);
     try {
-      const actor = app.account ?? {
-        ...demoAccount("Clinician"),
-        id: "unverified-emergency",
-        name: "Unverified emergency reporter",
-      };
+      const actor = emergency
+        ? {
+            ...demoAccount("Clinician"),
+            id: `emergency:${d.operationId}`,
+            name: "Unverified emergency reporter",
+            capabilities: ["report"] as const,
+          }
+        : app.account;
+      if (!actor) throw new Error("An approved session is required.");
       const payload = { ...d, unverified: emergency || d.unverified };
-      const result = submitReport(app.state, actor, payload, app.online);
+      const result = submitReport(
+        app.state,
+        { ...actor, capabilities: [...actor.capabilities] },
+        payload,
+        app.online,
+      );
       app.setState(result.state);
       go(emergency ? "emergency-result" : "submitted", result.report.id);
     } catch (e) {
@@ -569,12 +643,25 @@ export function ReviewReport({ emergency = false }: { emergency?: boolean }) {
             label="Equipment"
             value={item?.name ?? "Provisional equipment"}
           />
-          <Detail label="Location" value={item?.location ?? "Unverified"} />
-          <Detail label="Department" value={item?.department ?? "Unverified"} />
+          <Detail
+            label="Location"
+            value={item?.location ?? d.provisional?.location ?? "Unverified"}
+          />
+          <Detail
+            label="Department"
+            value={item?.department ?? d.provisional?.location ?? "Unverified"}
+          />
           <Button
             label="Edit equipment"
             variant="secondary"
-            onPress={() => go("manual")}
+            onPress={() =>
+              emergency
+                ? go("emergency-form")
+                : router.push({
+                    pathname: "/flow/[view]",
+                    params: { view: "manual", edit: "1" },
+                  })
+            }
           />
         </Card>
       </Section>
@@ -608,7 +695,7 @@ export function ReviewReport({ emergency = false }: { emergency?: boolean }) {
         <Detail label="Suggested priority" value={d.priority} />
         <Detail label="Condition" value={d.condition} />
         <Detail label="Equipment in use" value={d.inUse ? "Yes" : "No"} />
-        <Detail label="Time noticed" value={d.noticedAt} />
+        <Detail label="Time noticed" value={new Date(d.noticedAt).toLocaleString()} />
         <Button
           label="Edit fault details"
           variant="secondary"
@@ -645,12 +732,14 @@ export function SubmissionResult({
   id?: string;
   emergency?: boolean;
 }) {
-  const { account, state, startReport } = useApp();
+  const { account, state, startReport, draft } = useApp();
   const report = state.reports.find(
     (r) =>
       r.id === id &&
       (r.ownerId === account?.id ||
-        (emergency && r.ownerId === "unverified-emergency" && r.unverified)),
+        (emergency &&
+          r.ownerId === `emergency:${draft.operationId}` &&
+          r.unverified)),
   );
   return (
     <Screen title={emergency ? "Unverified Emergency Report" : "Saved locally"}>

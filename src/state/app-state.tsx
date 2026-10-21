@@ -2,6 +2,8 @@ import React, { createContext, useContext, useRef, useState } from "react";
 import { useColorScheme } from "react-native";
 import type { Account, DemoState, FaultDraft, Role } from "../domain/models";
 import { demoAccount, initialState } from "../services/fixtures";
+import { useIdentity } from "../features/access/identity";
+import { useStaffAccess } from "../features/staff/provider";
 
 let counter = 0;
 export const newDraft = (equipmentId = "DEMO-VENT-014"): FaultDraft => ({
@@ -26,6 +28,7 @@ type Preferences = {
   notifications: Record<string, boolean>;
 };
 type Context = {
+  mode: "preview" | "live" | "locked";
   account: Account | null;
   state: DemoState;
   setState: React.Dispatch<React.SetStateAction<DemoState>>;
@@ -46,8 +49,12 @@ type Context = {
 };
 const AppContext = createContext<Context | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [account, setAccount] = useState<Account | null>(null);
-  const [state, setState] = useState(initialState);
+  const identity = useIdentity();
+  const access = useStaffAccess();
+  const [previewAccount, setAccount] = useState<Account | null>(null);
+  const account = identity.signedIn ? access.account : previewAccount;
+  const mode = identity.signedIn ? (account ? "live" : "locked") : "preview";
+  const [state, setState] = useState<DemoState>(() => identity.signedIn ? { reports: [], tasks: [], attempts: [], holds: [], queue: [], audit: [], applications: [], notifications: [] } : initialState());
   const [draft, setDraft] = useState(newDraft);
   const [online, setOnline] = useState(true);
   const [expired, setExpired] = useState(false);
@@ -62,7 +69,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
   const scheme = useColorScheme();
   const previewEnabled =
-    __DEV__ || process.env.EXPO_PUBLIC_ENABLE_DEMO === "true";
+    identity.loaded && !identity.signedIn && (__DEV__ || process.env.EXPO_PUBLIC_ENABLE_DEMO === "true");
   const enter = (role: Role, independent = false) => {
     if (!previewEnabled) return;
     setAccount(demoAccount(role, independent));
@@ -93,6 +100,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         account,
+        mode,
         state,
         setState,
         enter,

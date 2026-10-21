@@ -14,7 +14,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useApp } from "@/state/app-state";
 import { palette, tokens } from "@/design/tokens";
@@ -25,6 +25,8 @@ export const brandAssets = {
   pump: require("@/assets/brand/pump.png"),
   monitor: require("@/assets/brand/monitor.png"),
   hero: require("@/assets/brand/hero.png"),
+  authHero: require("@/assets/brand/auth-hero.png"),
+  registrationHero: require("@/assets/brand/registration-hero.png"),
   logo: require("@/assets/brand/approved-logo.png"),
 };
 export function usePalette() {
@@ -46,12 +48,14 @@ export function Txt({
   muted = false,
   color,
   style,
+  lineHeight,
 }: {
   children: React.ReactNode;
   size?: number;
   weight?: "400" | "500" | "600" | "700" | "800";
   muted?: boolean;
   color?: string;
+  lineHeight?: number;
   style?: React.ComponentProps<typeof Text>["style"];
 }) {
   const p = usePalette();
@@ -61,7 +65,7 @@ export function Txt({
       style={[
         {
           fontSize: size * (preferences.largeText ? 1.18 : 1),
-          lineHeight: size * 1.38 * (preferences.largeText ? 1.18 : 1),
+          lineHeight: (lineHeight ?? size * 1.38) * (preferences.largeText ? 1.18 : 1),
           fontWeight: preferences.bold ? "700" : weight,
           color: color ?? (muted ? p.secondary : p.text),
         },
@@ -148,6 +152,9 @@ export function Screen({
   back = true,
   footer,
   scroll = true,
+  header,
+  padding,
+  safeBottom = back,
 }: {
   children: React.ReactNode;
   title?: string;
@@ -155,11 +162,14 @@ export function Screen({
   back?: boolean;
   footer?: React.ReactNode;
   scroll?: boolean;
+  header?: React.ReactNode;
+  padding?: number;
+  safeBottom?: boolean;
 }) {
   const p = usePalette();
-  const { account } = useApp();
+  const { account, mode } = useApp();
   const content = (
-    <View style={styles.content}>
+    <View style={[styles.content, padding !== undefined && { padding }]}>
       {title && (
         <View style={{ gap: 4, marginBottom: 8 }}>
           <Txt size={26} weight="800">
@@ -173,7 +183,7 @@ export function Screen({
   );
   return (
     <SafeAreaView
-      edges={["top", "left", "right"]}
+      edges={safeBottom ? ['top','left','right','bottom'] : ['top','left','right']}
       style={{ flex: 1, backgroundColor: p.background }}
     >
       <KeyboardAvoidingView
@@ -181,8 +191,8 @@ export function Screen({
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.frame}>
-          <Brand back={back} />
-          {account && (
+          {header ?? <Brand back={back} />}
+          {account && mode === "preview" && (
             <View style={{ paddingHorizontal: 18, paddingBottom: 5 }}>
               <Txt size={10} color={tokens.warning}>
                 DEVELOPMENT PREVIEW · Synthetic data · Memory only
@@ -201,7 +211,7 @@ export function Screen({
           )}
           {footer && (
             <SafeAreaView
-              edges={["bottom"]}
+              edges={safeBottom ? [] : ['bottom']}
               style={{
                 padding: 16,
                 borderTopWidth: 1,
@@ -270,13 +280,16 @@ export function Button({
   loading?: boolean;
 }) {
   const p = usePalette();
+  const [pressed, setPressed] = useState(false);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: disabled || loading, busy: loading }}
       disabled={disabled || loading}
       onPress={onPress}
-      style={({ pressed }) => ({
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={{
         minHeight: 48,
         borderRadius: 12,
         paddingHorizontal: 14,
@@ -294,7 +307,7 @@ export function Button({
               : tokens.blue,
         borderColor: variant === "secondary" ? p.border : "transparent",
         borderWidth: 1,
-      })}
+      }}
     >
       {icon && (
         <Icon
