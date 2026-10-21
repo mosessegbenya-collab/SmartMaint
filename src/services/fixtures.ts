@@ -1,0 +1,231 @@
+import type {
+  Account,
+  Capability,
+  DemoState,
+  Equipment,
+  Role,
+} from "../domain/models";
+const permissions: Record<Role, Capability[]> = {
+  Clinician: ["report", "clinical"],
+  "Biomedical Technician": [
+    "report",
+    "repair",
+    "technical",
+    "triage",
+    "reconcile",
+  ],
+  "Unit Head": ["report", "assign", "triage", "hold", "analytics"],
+  "Maintenance Supervisor": ["report", "assign", "triage", "hold", "analytics"],
+  "Equipment Department Head": ["analytics", "export"],
+  "Technical Services Director": ["analytics", "export"],
+  Administrator: [
+    "accounts",
+    "roles",
+    "suspend",
+    "reconcile",
+    "audit",
+    "analytics",
+    "export",
+  ],
+  "Registration Approver": ["accounts"],
+};
+export function demoAccount(role: Role, independent = false): Account {
+  const id = `${role.toLowerCase().replaceAll(" ", "-")}${independent ? "-verifier" : ""}`;
+  return {
+    id,
+    role,
+    name: `Demo ${independent ? "Independent Verifier" : role}`,
+    status: "approved",
+    scope: ["Critical Care", "General Ward", "Emergency"],
+    capabilities: [...permissions[role]],
+  };
+}
+export const equipment: Equipment[] = [
+  {
+    id: "DEMO-VENT-014",
+    name: "Ventilator",
+    model: "Ventilator VX",
+    location: "Critical Care / Bay 3",
+    department: "Critical Care",
+    verified: true,
+    asset: "ventilator",
+    releasePolicy: false,
+  },
+  {
+    id: "DEMO-INF-002",
+    name: "Infusion Pump",
+    model: "Infusion P2",
+    location: "General Ward / Bay 1",
+    department: "General Ward",
+    verified: true,
+    asset: "pump",
+    releasePolicy: false,
+  },
+  {
+    id: "DEMO-MON-007",
+    name: "Patient Monitor",
+    model: "Monitor M7",
+    location: "Emergency / Room 6",
+    department: "Emergency",
+    verified: true,
+    asset: "monitor",
+    releasePolicy: false,
+  },
+  {
+    id: "DEMO-VENT-017",
+    name: "Ventilator",
+    model: "Ventilator VX",
+    location: "Critical Care / Bay 1",
+    department: "Critical Care",
+    verified: false,
+    asset: "ventilator",
+    releasePolicy: false,
+  },
+];
+export const categories = [
+  "Electrical/Power",
+  "Mechanical/Physical",
+  "Performance/Function",
+  "Controls/Display",
+  "Accessories/Connections",
+  "Alarm/Safety Concern",
+  "Other/Unknown",
+];
+export const clinicalChecks = [
+  "Equipment identity",
+  "Physical condition",
+  "Accessories / connections",
+  "Startup / indicators",
+  "Controls and safety features",
+  "Intended function",
+];
+export const technicalChecks = [
+  "Visual inspection",
+  "Power supply test",
+  "Electrical safety",
+  "Functional test",
+  "Alarms and indicators",
+  "Documentation",
+];
+export function initialState(): DemoState {
+  return {
+    reports: [
+      {
+        id: "DEMO-REP-014",
+        operationId: "seed-report-014",
+        ownerId: "clinician",
+        equipmentId: "DEMO-VENT-014",
+        category: "Electrical/Power",
+        symptoms: "Device does not power on",
+        description:
+          "No display or indicator lights when mains power is connected.",
+        priority: "High",
+        condition: "Not functioning (reported)",
+        inUse: false,
+        noticedAt: "2026-10-16T10:24:00.000Z",
+        photos: [],
+        unverified: false,
+        createdAt: "2026-10-16T10:24:00.000Z",
+        sync: "Pending synchronization",
+      },
+      {
+        id: "DEMO-REP-013",
+        operationId: "seed-report-013",
+        ownerId: "clinician",
+        equipmentId: "DEMO-INF-002",
+        category: "Alarm/Safety Concern",
+        symptoms: "Battery warning",
+        description: "Intermittent battery alarm.",
+        priority: "Routine",
+        condition: "Functioning with concern",
+        inUse: false,
+        noticedAt: "2026-10-14T16:11:00.000Z",
+        photos: [],
+        unverified: false,
+        createdAt: "2026-10-14T16:11:00.000Z",
+        sync: "Simulated acknowledgment",
+      },
+    ],
+    tasks: [
+      {
+        id: "WO-DEMO-014",
+        equipmentId: "DEMO-VENT-014",
+        reportId: "DEMO-REP-014",
+        state: "Assigned",
+        assigneeId: "biomedical-technician",
+        dueAt: "2026-10-21T17:00:00.000Z",
+        diagnosis: "Suspected internal power-supply fault",
+        notes: "Inspect power supply.",
+        parts: [],
+        cycle: 1,
+      },
+      {
+        id: "WO-DEMO-002",
+        equipmentId: "DEMO-INF-002",
+        reportId: "DEMO-REP-013",
+        state: "Unassigned",
+        dueAt: "2026-10-22T17:00:00.000Z",
+        diagnosis: "Battery test",
+        notes: "",
+        parts: [],
+        cycle: 1,
+      },
+    ],
+    attempts: [],
+    holds: [
+      {
+        id: "HOLD-DEMO-014",
+        equipmentId: "DEMO-VENT-014",
+        active: true,
+        reason:
+          "Required verification accessory unavailable. Authorized review required.",
+        actorId: "maintenance-supervisor",
+        createdAt: "2026-10-16T11:00:00.000Z",
+      },
+    ],
+    queue: [
+      {
+        id: "seed-report-014",
+        ownerId: "clinician",
+        reportId: "DEMO-REP-014",
+        state: "Pending synchronization",
+        attempts: 0,
+      },
+    ],
+    audit: [],
+    applications: [
+      {
+        id: "APP-001",
+        name: "Demo Applicant",
+        email: "demo@applicant.invalid",
+        staffId: "DEMO-1047",
+        requestedRole: "Clinician",
+        state: "Pending",
+      },
+      {
+        id: "APP-002",
+        name: "Demo Technician",
+        email: "demo@technician.invalid",
+        staffId: "DEMO-1048",
+        requestedRole: "Biomedical Technician",
+        state: "Pending",
+      },
+    ],
+    notifications: [
+      {
+        id: "N-001",
+        title: "Verification pending",
+        detail: "Review the equipment safety checklist.",
+        read: false,
+        kind: "High",
+      },
+      {
+        id: "N-002",
+        title: "Demonstration queue ready",
+        detail: "One synthetic fault report awaits synchronization.",
+        read: false,
+        kind: "System",
+      },
+    ],
+  };
+}

@@ -1,0 +1,367 @@
+[
+  {
+    "screen": "hold-detail",
+    "reference": "Design/Active Safety Hold_ Demo Ventilator-6.png",
+    "route": "/flow/hold-detail"
+  },
+  {
+    "screen": "emergency",
+    "reference": "Design/Emergency equipment reporting introduction-4.png",
+    "route": "/flow/emergency"
+  },
+  {
+    "screen": "emergency-verify",
+    "reference": "Design/Emergency identity verification screen-5.png",
+    "route": "/flow/emergency-verify"
+  },
+  {
+    "screen": "provisional",
+    "reference": "Design/Provisional ventilator identity review-4.png",
+    "route": "/flow/provisional"
+  },
+  {
+    "screen": "export",
+    "reference": "Design/Restricted SmartMaint export report screen-3.png",
+    "route": "/flow/export"
+  },
+  {
+    "screen": "reconcile",
+    "reference": "Design/Restricted equipment identity review-2.png",
+    "route": "/flow/reconcile"
+  },
+  {
+    "screen": "availability",
+    "reference": "Design/Safety hold blocks ventilator availability-4.png",
+    "route": "/flow/availability"
+  },
+  {
+    "screen": "submitted",
+    "reference": "Design/Saved locally, pending sync-2.png",
+    "route": "/flow/submitted"
+  },
+  {
+    "screen": "tasks",
+    "reference": "Design/SmartMaint Assigned Maintenance Tasks-2.png",
+    "route": "/workspace/tasks"
+  },
+  {
+    "screen": "clinical-checklist",
+    "reference": "Design/SmartMaint Clinical Safety Checklist-1.png",
+    "route": "/flow/clinical-checklist"
+  },
+  {
+    "screen": "due-date",
+    "reference": "Design/SmartMaint October 17 Due Date-4.png",
+    "route": "/flow/due-date"
+  },
+  {
+    "screen": "recovery",
+    "reference": "Design/SmartMaint PIN Recovery Screen-5.png",
+    "route": "/access/recovery"
+  },
+  {
+    "screen": "pin",
+    "reference": "Design/SmartMaint PIN setup screen-3.png",
+    "route": "/access/pin"
+  },
+  {
+    "screen": "completion",
+    "reference": "Design/SmartMaint Repair Complete, Not Released-3.png",
+    "route": "/flow/completion"
+  },
+  {
+    "screen": "register",
+    "reference": "Design/SmartMaint Staff Registration Mockup-1.png",
+    "route": "/access/register"
+  },
+  {
+    "screen": "sign-in",
+    "reference": "Design/SmartMaint Staff Sign-In Screen-1.png",
+    "route": "/access/sign-in"
+  },
+  {
+    "screen": "settings",
+    "reference": "Design/SmartMaint accessibility and settings screen-7.png",
+    "route": "/flow/settings"
+  },
+  {
+    "screen": "suspend",
+    "reference": "Design/SmartMaint account suspension controls-4.png",
+    "route": "/flow/suspend"
+  },
+  {
+    "screen": "holds",
+    "reference": "Design/SmartMaint active safety hold screen-7.png",
+    "route": "/flow/holds"
+  },
+  {
+    "screen": "home",
+    "reference": "Design/SmartMaint admin hub with approvals and audits-4.png",
+    "route": "/workspace/home"
+  },
+  {
+    "screen": "audit",
+    "reference": "Design/SmartMaint administrator audit history screen-5.png",
+    "route": "/flow/audit"
+  },
+  {
+    "screen": "analytics",
+    "reference": "Design/SmartMaint administrator data quality dashboard.png",
+    "route": "/flow/analytics"
+  },
+  {
+    "screen": "role",
+    "reference": "Design/SmartMaint administrator role assignment-1.png",
+    "route": "/flow/role"
+  },
+  {
+    "screen": "pending",
+    "reference": "Design/SmartMaint application awaiting approval-2.png",
+    "route": "/access/pending"
+  },
+  {
+    "screen": "triage",
+    "reference": "Design/SmartMaint authorised priority triage-1.png",
+    "route": "/flow/triage"
+  },
+  {
+    "screen": "biometric",
+    "reference": "Design/SmartMaint biometric unlock setup-6.png",
+    "route": "/access/biometric"
+  },
+  {
+    "screen": "clinical-queue",
+    "reference": "Design/SmartMaint clinical verification queue-2.png",
+    "route": "/flow/clinical-queue"
+  },
+  {
+    "screen": "home",
+    "reference": "Design/SmartMaint clinician home dashboard-2.png",
+    "route": "/workspace/home"
+  },
+  {
+    "screen": "profile",
+    "reference": "Design/SmartMaint clinician profile and security-6.png",
+    "route": "/workspace/profile"
+  },
+  {
+    "screen": "activation",
+    "reference": "Design/SmartMaint demo account activation screen-4.png",
+    "route": "/access/activation"
+  },
+  {
+    "screen": "diagnosis",
+    "reference": "Design/SmartMaint diagnosis_ suspected power-supply fault-1.png",
+    "route": "/flow/diagnosis"
+  },
+  {
+    "screen": "attachments",
+    "reference": "Design/SmartMaint equipment photo attachments-1.png",
+    "route": "/flow/attachments"
+  },
+  {
+    "screen": "reports",
+    "reference": "Design/SmartMaint equipment reports dashboard-7.png",
+    "route": "/workspace/reports"
+  },
+  {
+    "screen": "technical-checklist",
+    "reference": "Design/SmartMaint equipment safety checklist-4.png",
+    "route": "/flow/technical-checklist"
+  },
+  {
+    "screen": "upload-failed",
+    "reference": "Design/SmartMaint failed upload retry screen-4.png",
+    "route": "/flow/upload-failed"
+  },
+  {
+    "screen": "fault-details",
+    "reference": "Design/SmartMaint fault details screen-5.png",
+    "route": "/flow/fault-details"
+  },
+  {
+    "screen": "rework",
+    "reference": "Design/SmartMaint follow-up rework task-2.png",
+    "route": "/flow/rework"
+  },
+  {
+    "screen": "conflict",
+    "reference": "Design/SmartMaint local versus server conflict-1.png",
+    "route": "/flow/conflict"
+  },
+  {
+    "screen": "home",
+    "reference": "Design/SmartMaint management overview dashboard-3.png",
+    "route": "/workspace/home"
+  },
+  {
+    "screen": "manual",
+    "reference": "Design/SmartMaint manual equipment ID entry-2.png",
+    "route": "/flow/manual"
+  },
+  {
+    "screen": "welcome",
+    "reference": "Design/SmartMaint medical equipment splash screen-2.png",
+    "route": "/"
+  },
+  {
+    "screen": "notification-settings",
+    "reference": "Design/SmartMaint notification preferences screen-3.png",
+    "route": "/flow/notification-settings"
+  },
+  {
+    "screen": "sync",
+    "reference": "Design/SmartMaint offline sync status-2.png",
+    "route": "/flow/sync"
+  },
+  {
+    "screen": "accounts",
+    "reference": "Design/SmartMaint pending signup approvals-4.png",
+    "route": "/workspace/accounts"
+  },
+  {
+    "screen": "queue",
+    "reference": "Design/SmartMaint pending sync queue-2.png",
+    "route": "/flow/queue"
+  },
+  {
+    "screen": "release",
+    "reference": "Design/SmartMaint release blocked by safety hold-5.png",
+    "route": "/flow/release"
+  },
+  {
+    "screen": "parts",
+    "reference": "Design/SmartMaint repair notes and parts-2.png",
+    "route": "/flow/parts"
+  },
+  {
+    "screen": "maintenance-history",
+    "reference": "Design/SmartMaint repair timeline with pending verification-1.png",
+    "route": "/flow/maintenance-history"
+  },
+  {
+    "screen": "filters",
+    "reference": "Design/SmartMaint report filters screen-2.png",
+    "route": "/flow/filters"
+  },
+  {
+    "screen": "report-detail",
+    "reference": "Design/SmartMaint report timeline screen-3.png",
+    "route": "/flow/report-detail"
+  },
+  {
+    "screen": "expired",
+    "reference": "Design/SmartMaint session expired prompt-1.png",
+    "route": "/access/expired"
+  },
+  {
+    "screen": "session-recovery",
+    "reference": "Design/SmartMaint session recovery-3.png",
+    "route": "/access/session-recovery"
+  },
+  {
+    "screen": "review",
+    "reference": "Design/SmartMaint stage 3 fault review-3.png",
+    "route": "/flow/review"
+  },
+  {
+    "screen": "home",
+    "reference": "Design/SmartMaint supervisor home dashboard-2.png",
+    "route": "/workspace/home"
+  },
+  {
+    "screen": "notifications",
+    "reference": "Design/SmartMaint system notification centre-1.png",
+    "route": "/workspace/notifications"
+  },
+  {
+    "screen": "technical-queue",
+    "reference": "Design/SmartMaint technical verification queue-3.png",
+    "route": "/flow/technical-queue"
+  },
+  {
+    "screen": "assignment",
+    "reference": "Design/SmartMaint technician assignment screen-3.png",
+    "route": "/flow/assignment"
+  },
+  {
+    "screen": "home",
+    "reference": "Design/SmartMaint technician task dashboard-1.png",
+    "route": "/workspace/home"
+  },
+  {
+    "screen": "scan",
+    "reference": "Design/SmartMaint ventilator QR scanner-1.png",
+    "route": "/flow/scan"
+  },
+  {
+    "screen": "equipment-detail",
+    "reference": "Design/SmartMaint ventilator details screen-2.png",
+    "route": "/flow/equipment-detail"
+  },
+  {
+    "screen": "equipment-history",
+    "reference": "Design/SmartMaint ventilator maintenance timeline-1.png",
+    "route": "/flow/equipment-history"
+  },
+  {
+    "screen": "task-detail",
+    "reference": "Design/SmartMaint ventilator repair task details-1.png",
+    "route": "/flow/task-detail"
+  },
+  {
+    "screen": "equipment",
+    "reference": "Design/SmartMaint ventilator search results-1.png",
+    "route": "/workspace/equipment"
+  },
+  {
+    "screen": "clinical-result",
+    "reference": "Design/SmartMaint verification_ accessory unavailable-3.png",
+    "route": "/flow/clinical-result"
+  },
+  {
+    "screen": "welcome",
+    "reference": "Design/SmartMaint welcome with ventilator hero-3.png",
+    "route": "/"
+  },
+  {
+    "screen": "progress",
+    "reference": "Design/SmartMaint work progress screen-5.png",
+    "route": "/flow/progress"
+  },
+  {
+    "screen": "technical-result",
+    "reference": "Design/Technical Results_ Ventilator Verification-5.png",
+    "route": "/flow/technical-result"
+  },
+  {
+    "screen": "unmatched",
+    "reference": "Design/Unmatched QR equipment alert-3.png",
+    "route": "/flow/unmatched"
+  },
+  {
+    "screen": "emergency-result",
+    "reference": "Design/Unverified Emergency Report.png",
+    "route": "/flow/emergency-result"
+  },
+  {
+    "screen": "emergency-form",
+    "reference": "Design/Unverified emergency report screen-6.png",
+    "route": "/flow/emergency-form"
+  },
+  {
+    "screen": "release",
+    "reference": "Design/Ventilator equipment release checklist-2.png",
+    "route": "/flow/release"
+  },
+  {
+    "screen": "camera",
+    "reference": "Design/Ventilator fault photo capture-6.png",
+    "route": "/flow/camera"
+  },
+  {
+    "screen": "status-timeline",
+    "reference": "Design/Ventilator safety hold timeline.png",
+    "route": "/flow/status-timeline"
+  }
+]
