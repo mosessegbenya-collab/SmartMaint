@@ -1,0 +1,95 @@
+{
+  "at": "2026-10-24T17:36:08.541Z",
+  "device": "emulator-5556",
+  "platform": "Android 15",
+  "scenario": "Actual app force-stop/relaunch; verify encrypted photo draft Unicode and other-owner isolation",
+  "screenshot": "validation/current/recovery-native-restarted.png",
+  "hierarchy": "validation/current/recovery-native-restarted.xml",
+  "labels": [
+    {
+      "text": "",
+      "label": "Tools",
+      "bounds": "[937,205][1005,273]"
+    },
+    {
+      "text": "",
+      "label": "Go back",
+      "bounds": "[0,139][126,265]"
+    },
+    {
+      "text": "",
+      "label": "",
+      "bounds": "[34,172][92,233]"
+    },
+    {
+      "text": "",
+      "label": "SmartMaint gear and heartbeat logo",
+      "bounds": "[350,160][434,244]"
+    },
+    {
+      "text": "SmartMaint",
+      "label": "",
+      "bounds": "[447,165][729,238]"
+    },
+    {
+      "text": "",
+      "label": "About SmartMaint",
+      "bounds": "[954,139][1080,265]"
+    },
+    {
+      "text": "",
+      "label": "",
+      "bounds": "[988,172][1046,233]"
+    },
+    {
+      "text": "Development Storage Check",
+      "label": "",
+      "bounds": "[47,322][1033,417]"
+    },
+    {
+      "text": "",
+      "label": "",
+      "bounds": "[81,509][134,564]"
+    },
+    {
+      "text": "Isolated synthetic probe only. This tests native encryption and restart persistence, not approved offline access or server integration.",
+      "label": "",
+      "bounds": "[160,509][998,641]"
+    },
+    {
+      "text": "",
+      "label": "Save native storage probe",
+      "bounds": "[86,751][992,877]"
+    },
+    {
+      "text": "Save native storage probe",
+      "label": "",
+      "bounds": "[306,788][772,839]"
+    },
+    {
+      "text": "",
+      "label": "Verify native storage probe",
+      "bounds": "[86,914][992,1040]"
+    },
+    {
+      "text": "Verify native storage probe",
+      "label": "",
+      "bounds": "[296,951][782,1002]"
+    },
+    {
+      "text": "",
+      "label": "Remove native storage probe",
+      "bounds": "[86,1077][992,1203]"
+    },
+    {
+      "text": "Remove native storage probe",
+      "label": "",
+      "bounds": "[278,1114][800,1165]"
+    },
+    {
+      "text": "PROBE VERIFIED: native draft/photo persistence, Unicode and owner isolation passed.",
+      "label": "",
+      "bounds": "[47,1279][1033,1381]"
+    }
+  ]
+}

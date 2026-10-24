@@ -1,0 +1,49 @@
+{
+  "at": "2026-10-24T18:24:12.547Z",
+  "device": "emulator-5556",
+  "original": {
+    "fontScale": "1.0",
+    "services": "null",
+    "accessibility": "0"
+  },
+  "restored": {
+    "fontScale": "1.0",
+    "services": "null",
+    "accessibility": "0"
+  },
+  "checks": [
+    {
+      "scenario": "probe restart persistence recheck",
+      "passed": true,
+      "evidence": "recovery-final-before-remove.json"
+    },
+    {
+      "scenario": "probe removal",
+      "passed": true,
+      "evidence": "recovery-final-removed.json"
+    },
+    {
+      "scenario": "2x font setting applied",
+      "passed": true,
+      "evidence": [
+        "settings-font-2x.json",
+        "settings-font-2x-bottom.json"
+      ],
+      "limitation": "Requires visual review; this is not all-screen text acceptance."
+    },
+    {
+      "scenario": "keyboard input",
+      "passed": false,
+      "limitation": "Full-name control not found in the visible hierarchy; inspect registration manually."
+    },
+    {
+      "scenario": "TalkBack service activation and traversal attempt",
+      "passed": true,
+      "evidence": [
+        "talkback-enabled.json",
+        "talkback-next-focus.json"
+      ],
+      "limitation": "Service activation and screenshots do not prove speech correctness or all-screen reading/focus order."
+    }
+  ]
+}

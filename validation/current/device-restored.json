@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-24T18:53:00.609Z",
+  "device": "emulator-5556",
+  "verifiedBy": "Final ADB settings queries",
+  "airplane": "0",
+  "wifi": "1",
+  "mobile": "1",
+  "fontScale": "1.0",
+  "accessibilityEnabled": "0",
+  "syntheticMetroSessionStopped": true,
+  "activeMetro": "8081; existing public Clerk configuration"
+}

@@ -93,7 +93,7 @@ export function AdminWorkflow({ screen, id }: { screen: string; id?: string }) {
       title={titles[screen]}
       subtitle="Restricted, synthetic development operations."
     >
-      {message && <Notice tone="warning">{message}</Notice>}
+      {!!message && <Notice tone="warning">{message}</Notice>}
       {screen === "role" && (
         <>
           <Card style={{ gap: 10 }}>
@@ -387,7 +387,7 @@ export function AdminWorkflow({ screen, id }: { screen: string; id?: string }) {
               }
             }}
           />
-          {csv && (
+          {!!csv && (
             <Field
               label="Generated synthetic CSV"
               value={csv}

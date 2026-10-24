@@ -1,0 +1,40 @@
+{
+  "at": "2026-10-24T17:19:45.513Z",
+  "device": "emulator-5556",
+  "platform": "Android 15",
+  "scenario": "Synthetic native encrypted draft/photo save; no live account or server receipt",
+  "screenshot": "validation/current/recovery-native-saved.png",
+  "hierarchy": "validation/current/recovery-native-saved.xml",
+  "labels": [
+    {
+      "text": "",
+      "label": "Tools",
+      "bounds": "[937,205][1005,273]"
+    },
+    {
+      "text": "",
+      "label": "Restoring secure session",
+      "bounds": "[514,1013][568,1066]"
+    },
+    {
+      "text": "Restoring secure session…",
+      "label": "",
+      "bounds": "[304,1096][776,1147]"
+    },
+    {
+      "text": "Identity services are taking too long to respond.",
+      "label": "",
+      "bounds": "[123,1179][957,1230]"
+    },
+    {
+      "text": "",
+      "label": "Retry secure sign-in",
+      "bounds": "[320,1262][760,1388]"
+    },
+    {
+      "text": "Retry secure sign-in",
+      "label": "",
+      "bounds": "[359,1299][721,1350]"
+    }
+  ]
+}

@@ -3,6 +3,8 @@ import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import type { GenericId } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import { Badge, Button, Card, Choices, Detail, Field, LinkRow, Notice, Screen, Section, Select, Txt } from "@/components/smart/ui";
+import { ProfileIdentity } from "@/components/smart/settings-ui";
+import { TimelineItem } from "@/components/smart/status-ui";
 import { roles, type Capability, type Role } from "@/domain/models";
 import { roleCapabilities } from "@/domain/role-policy";
 import { staffApi } from "@/services/staff-api";
@@ -22,13 +24,19 @@ function ApplicationList() {
   const [department, setDepartment] = useState(() => account?.scope[0] ?? null);
   const page = usePaginatedQuery(staffApi.administration.applicationPage, department && account ? { status, departmentId: department } : "skip", { initialNumItems: 20 });
   const applications = page.results;
-  return <Screen title="Staff Applications" subtitle="Verify institutional identity and review staff access." back={false}>
+  return <Screen title="Signup Approvals" subtitle="Verify institutional identity and review staff access." back={false}>
     <Choices label="Application status" values={["pending", "approved", "rejected"]} value={status} onChange={setStatus} />
     <DepartmentFilter value={department} onChange={setDepartment} />
     {page.status === "LoadingFirstPage" && <Notice>Loading authorized applications…</Notice>}
     {applications.length === 0 && page.status === "Exhausted" && <Card><Txt muted>No {status} applications in this department.</Txt></Card>}
-    {applications?.map((r) => <LinkRow key={r.id} title={r.name} detail={`${r.staffId} · ${r.department}\n${r.requestedRole} · ${r.verificationStatus}\n${new Date(r.submittedAt).toLocaleDateString()}`}
-      tail={<Badge label={r.status} tone="warning" />} onPress={() => go("staff-review", r.id)} />)}
+    <Badge label={applications.length + " applications loaded"} />
+    {applications.map((r) => <Card key={r.id} style={{ gap: 12 }}>
+      <ProfileIdentity name={r.name} role={r.requestedRole} staffId={r.staffId} department={r.department} />
+      <Detail label="Submitted" value={new Date(r.submittedAt).toLocaleString()} />
+      <Detail label="Institutional verification" value={r.verificationStatus} />
+      <Badge label={r.status} tone={r.status === "approved" ? "success" : r.status === "rejected" ? "danger" : "warning"} />
+      <Button label="Review application" icon="person-outline" onPress={() => go("staff-review", r.id)} />
+    </Card>)}
     {(account?.capabilities.includes("roles") || account?.capabilities.includes("suspend")) && <LinkRow title="Staff roles and access" icon="people-outline" onPress={() => go("staff-accounts")} />}
     {account?.capabilities.includes("audit") && <LinkRow title="Authorization audit" icon="shield-checkmark-outline" onPress={() => go("staff-audit")} />}
     {page.status !== "Exhausted" && <Button label="Load more applications" variant="secondary" loading={page.isLoading} disabled={page.status !== "CanLoadMore"} onPress={() => page.loadMore(20)} />}
@@ -154,7 +162,7 @@ function RoleForm({ target, focus }: { target: FunctionReturnType<typeof staffAp
   const self = target.id === account?.id;
   const locked = self || target.status === "revoked";
   return <Screen title={focus === 'suspend' ? 'Account Suspension Controls' : 'Staff Role Assignment'} subtitle={focus === 'suspend' ? 'Manage staff account access with an audited reason.' : 'Review the staff member’s role, permissions and department scope.'}>
-    <Card style={{ gap: 10 }}><Txt size={22} weight="800">{target.name}</Txt><Detail label="Verified Staff ID" value={target.staffId} /><Detail label="Current role" value={target.role} /><Badge label={target.status} tone="warning" /></Card>
+    <ProfileIdentity name={target.name} role={target.role} staffId={target.staffId} department={`${target.scope.length} authorized department(s)`} /><Badge label={target.status} tone={target.status === "approved" ? "success" : "warning"} />
     {self && <Notice>You cannot change your own authorization or access status.</Notice>}
     {target.status === "revoked" && <Notice>Revoked access requires a separate authorized revalidation procedure.</Notice>}
     {focus !== 'suspend' && account?.capabilities.includes("roles") && !locked && <GrantFields value={grant} onChange={setGrant} />}
@@ -182,12 +190,19 @@ function AuditList() {
   const { account } = useStaffAccess();
   const [department, setDepartment] = useState<GenericId<"departments"> | null>(() => account?.scope[0] ?? null);
   const page = usePaginatedQuery(staffApi.administration.auditPage, account ? { departmentId: department ?? undefined } : "skip", { initialNumItems: 20 });
-  const records = page.results;
-  return <Screen title="Authorization Audit">
+  const [search, setSearch] = useState("");
+  const [decision, setDecision] = useState<"All" | "Allowed" | "Rejected">("All");
+  const records = page.results.filter((record) => (decision === "All" || record.decision === decision.toLowerCase()) && `${record.action} ${record.target} ${record.reason}`.toLowerCase().includes(search.trim().toLowerCase()));
+  return <Screen title="Administrator Audit History" subtitle="Review recorded decisions in your authorized scope.">
+    <Field label="Search loaded events" icon="search-outline" value={search} onChangeText={setSearch} placeholder="Action, target or reason" />
+    <Choices label="Filter loaded decisions" values={["All", "Allowed", "Rejected"]} value={decision} onChange={setDecision} />
     <DepartmentFilter value={department} onChange={setDepartment} operator={account?.role === "Administrator"} />
     {page.status === "LoadingFirstPage" && <Notice>Loading authorized audit events…</Notice>}
-    {records.length === 0 && page.status === "Exhausted" && <Notice>No audit events in this authorized scope.</Notice>}
-    {records?.map((r) => <Card key={r._id} style={{ gap: 7 }}><Txt weight="700">{r.action}</Txt><Detail label="Actor" value={r.actorId ?? r.actorKind} /><Detail label="Target" value={r.target} /><Detail label="Decision" value={r.decision} /><Txt size={12}>{r.reason}</Txt><Txt size={11} muted>{new Date(r.at).toLocaleString()}</Txt></Card>)}
+    {records.length === 0 && page.status === "Exhausted" && <Notice>No loaded audit events match this selection.</Notice>}
+    {records.map((r, index) => <Section key={r._id} title={r.decision === "allowed" ? "Recorded action" : "Rejected decision"}>
+      <TimelineItem title={r.action} detail={r.reason} at={r.at} icon="shield-checkmark-outline" tone={r.decision === "allowed" ? "info" : "danger"} last={index === records.length - 1} />
+      <Card style={{ gap: 8 }}><Detail label="Actor" value={r.actorId ?? r.actorKind} /><Detail label="Target" value={r.target} />{!!r.from && <Detail label="Previous value" value={r.from} />}{!!r.to && <Detail label="New value" value={r.to} />}</Card>
+    </Section>)}
     {page.status !== "Exhausted" && <Button label="Load more audit events" variant="secondary" loading={page.isLoading} disabled={page.status !== "CanLoadMore"} onPress={() => page.loadMore(20)} />}
   </Screen>;
 }

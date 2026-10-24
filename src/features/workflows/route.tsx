@@ -22,6 +22,7 @@ import {
 } from "./support";
 import { EmergencyWorkflow } from "./emergency";
 import { LiveFlow } from "@/features/staff/workspace";
+import { settingsScreens } from "./settings";
 const publicScreens = [
   "help",
   "emergency",
@@ -43,7 +44,7 @@ export function FlowRoute() {
 }
 function FlowScreen({ screen, id }: { screen: string; id?: string }) {
   const { account, previewEnabled, mode } = useApp();
-  if (mode === "live" && !["help", "settings", "notification-settings"].includes(screen)) return <LiveFlow screen={screen} id={id} />;
+  if (mode === "live" && !settingsScreens.includes(screen) && screen !== "more") return <LiveFlow screen={screen} id={id} />;
   if (!publicScreens.includes(screen) && !account)
     return <Redirect href="/access/sign-in" />;
   if (
@@ -120,7 +121,7 @@ function FlowScreen({ screen, id }: { screen: string; id?: string }) {
     return <VerificationWorkflow screen={screen} id={id} />;
   if (["sync", "queue", "upload-failed", "conflict"].includes(screen))
     return <SyncWorkflow screen={screen} />;
-  if (["settings", "notification-settings", "help"].includes(screen))
+  if (settingsScreens.includes(screen))
     return <SettingsWorkflow screen={screen} />;
   if (["report-detail", "triage", "filters"].includes(screen))
     return <ReportWorkflow screen={screen} id={id} />;

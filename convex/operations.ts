@@ -167,8 +167,37 @@ export const analytics = query({ args: {}, handler: async (ctx) => {
   const reports = await scopedReports(ctx, actor);
   return { scopeCount: actor.scope.length, reports: reports.length, highPriority: reports.filter((r) => (r.triagedPriority ?? r.priority) !== "Routine").length, truncatedAtPerDepartment: 100 };
 } });
-export const exportReports = query({ args: {}, handler: async (ctx) => {
-  const actor = await requireAccount(ctx, "export");
-  const reports = await scopedReports(ctx, actor);
-  return { csv: "Report,Equipment,Category,Priority\r\n" + reports.map((r) => [r._id, r.equipmentId, r.category, r.triagedPriority ?? r.priority].map(csvCell).join(",")).join("\r\n"), truncatedAtPerDepartment: 100 };
+export const exportReports = query({ args: { departmentId: v.optional(v.id("departments")), from: v.optional(v.number()), to: v.optional(v.number()), priority: v.optional(priority) }, handler: async (ctx, args) => {
+  const actor = await requireAccount(ctx, "export", args.departmentId);
+  if ((args.from !== undefined && !Number.isFinite(args.from)) || (args.to !== undefined && !Number.isFinite(args.to)) || (args.from !== undefined && args.to !== undefined && args.from > args.to)) deny("Choose a valid chronological date range.");
+  const scoped = args.departmentId ? { ...actor, scope: [args.departmentId] } : actor;
+  const reports = (await scopedReports(ctx, scoped)).filter((report) => (args.from === undefined || report.createdAt >= args.from) && (args.to === undefined || report.createdAt <= args.to) && (!args.priority || (report.triagedPriority ?? report.priority) === args.priority));
+  return { csv: "Report,Equipment,Category,Priority\r\n" + reports.map((r) => [r._id, r.equipmentId, r.category, r.triagedPriority ?? r.priority].map(csvCell).join(",")).join("\r\n"), count: reports.length, truncatedAtPerDepartment: 100 };
+} });
+export const managementSummary = query({ args: {}, handler: async (ctx) => {
+  const actor = await requireAccount(ctx, "analytics");
+  const limit = 100;
+  const departments = await Promise.all(actor.scope.map(async (departmentId) => {
+    const [inventory, reports, tasks, holds] = await Promise.all([
+      ctx.db.query("equipment").withIndex("by_department", (q) => q.eq("departmentId", departmentId)).order("desc").take(limit),
+      ctx.db.query("faultReports").withIndex("by_department", (q) => q.eq("departmentId", departmentId)).filter((q) => q.neq(q.field("submissionState"), "draft")).order("desc").take(limit),
+      ctx.db.query("maintenanceTasks").withIndex("by_department", (q) => q.eq("departmentId", departmentId)).order("desc").take(limit),
+      ctx.db.query("safetyHolds").withIndex("by_department", (q) => q.eq("departmentId", departmentId)).filter((q) => q.eq(q.field("active"), true)).take(limit),
+    ]);
+    return { inventory, reports, tasks, holds, limited: [inventory, reports, tasks, holds].some((rows) => rows.length === limit) };
+  }));
+  const inventory = departments.flatMap((d) => d.inventory);
+  const reports = departments.flatMap((d) => d.reports);
+  const tasks = departments.flatMap((d) => d.tasks);
+  const complete = inventory.filter((e) => [e.assetId, e.name, e.model, e.location].every((s) => s.trim().length > 0));
+  return {
+    scopeCount: actor.scope.length, equipment: inventory.length, reports: reports.length,
+    activeHolds: departments.reduce((n, d) => n + d.holds.length, 0),
+    completedRepairs: tasks.filter((t) => t.state === "Completed").length,
+    openTasks: tasks.filter((t) => !["Completed", "Cancelled"].includes(t.state)).length,
+    verifiedIdentities: inventory.filter((e) => e.identityVerified).length,
+    completeRecords: complete.length, incompleteRecords: inventory.length - complete.length,
+    priorities: (["Urgent", "High", "Routine"] as const).map((priority) => ({ label: priority, count: reports.filter((r) => (r.triagedPriority ?? r.priority) === priority).length })),
+    limit, limited: departments.some((d) => d.limited),
+  };
 } });

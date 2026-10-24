@@ -1,0 +1,105 @@
+{
+  "at": "2026-10-24T17:18:42.888Z",
+  "device": "emulator-5556",
+  "platform": "Android 15",
+  "scenario": "Current Metro bundle after developer introduction",
+  "screenshot": "validation/current/app-current.png",
+  "hierarchy": "validation/current/app-current.xml",
+  "labels": [
+    {
+      "text": "",
+      "label": "App Icon",
+      "bounds": "[63,1022][179,1138]"
+    },
+    {
+      "text": "SmartMaint",
+      "label": "",
+      "bounds": "[221,1027][451,1078]"
+    },
+    {
+      "text": "Runtime version: exposdk:57.0.0",
+      "label": "",
+      "bounds": "[221,1089][743,1134]"
+    },
+    {
+      "text": "",
+      "label": "Close",
+      "bounds": "[949,1060][991,1102]"
+    },
+    {
+      "text": "",
+      "label": "Reload",
+      "bounds": "[105,1259][158,1312]"
+    },
+    {
+      "text": "Reload",
+      "label": "",
+      "bounds": "[179,1263][292,1308]"
+    },
+    {
+      "text": "",
+      "label": "Home",
+      "bounds": "[592,1259][645,1312]"
+    },
+    {
+      "text": "Go home",
+      "label": "",
+      "bounds": "[666,1263][816,1308]"
+    },
+    {
+      "text": "TOOLS",
+      "label": "",
+      "bounds": "[63,1453][158,1494]"
+    },
+    {
+      "text": "",
+      "label": "Performance monitor",
+      "bounds": "[105,1594][158,1647]"
+    },
+    {
+      "text": "Toggle performance monitor",
+      "label": "",
+      "bounds": "[179,1598][642,1643]"
+    },
+    {
+      "text": "",
+      "label": "Element inspector",
+      "bounds": "[105,1763][158,1816]"
+    },
+    {
+      "text": "Toggle element inspector",
+      "label": "",
+      "bounds": "[179,1767][591,1812]"
+    },
+    {
+      "text": "",
+      "label": "DevTools",
+      "bounds": "[105,1932][158,1985]"
+    },
+    {
+      "text": "Open DevTools",
+      "label": "",
+      "bounds": "[179,1936][427,1981]"
+    },
+    {
+      "text": "",
+      "label": "React Native dev menu",
+      "bounds": "[105,2101][158,2154]"
+    },
+    {
+      "text": "Open React Native dev menu",
+      "label": "",
+      "bounds": "[179,2105][653,2150]"
+    },
+    {
+      "text": "",
+      "label": "Fast Refresh",
+      "bounds": "[105,2270][158,2323]"
+    },
+    {
+      "text": "Fast Refresh",
+      "label": "",
+      "bounds": "[179,2274][382,2319]"
+    }
+  ]
+}

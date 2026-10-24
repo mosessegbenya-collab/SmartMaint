@@ -1,0 +1,2805 @@
+{
+  "startedAt": "2026-10-24T15:11:48.920Z",
+  "platform": "Windows",
+  "androidDevice": "emulator-5556",
+  "screens": [
+    {
+      "number": 1,
+      "screen": "hold-detail",
+      "reference": "Design/Active Safety Hold_ Demo Ventilator-6.png",
+      "route": "/flow/hold-detail",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-01-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-01-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 2,
+      "screen": "emergency",
+      "reference": "Design/Emergency equipment reporting introduction-4.png",
+      "route": "/flow/emergency",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-02-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-02-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 3,
+      "screen": "emergency-verify",
+      "reference": "Design/Emergency identity verification screen-5.png",
+      "route": "/flow/emergency-verify",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-03-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-03-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 4,
+      "screen": "provisional",
+      "reference": "Design/Provisional ventilator identity review-4.png",
+      "route": "/flow/provisional",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-04-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-04-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 5,
+      "screen": "export",
+      "reference": "Design/Restricted SmartMaint export report screen-3.png",
+      "route": "/flow/export",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-05-administrator-extra.json",
+          "validation/current/reference-05-administrator.json"
+        ],
+        "preferredEvidence": "validation/current/reference-05-administrator-extra.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 6,
+      "screen": "reconcile",
+      "reference": "Design/Restricted equipment identity review-2.png",
+      "route": "/flow/reconcile",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-06-administrator.json"
+        ],
+        "preferredEvidence": "validation/current/reference-06-administrator.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 7,
+      "screen": "availability",
+      "reference": "Design/Safety hold blocks ventilator availability-4.png",
+      "route": "/flow/availability",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-07-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-07-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 8,
+      "screen": "submitted",
+      "reference": "Design/Saved locally, pending sync-2.png",
+      "route": "/flow/submitted",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-08-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-08-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 9,
+      "screen": "tasks",
+      "reference": "Design/SmartMaint Assigned Maintenance Tasks-2.png",
+      "route": "/workspace/tasks",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-09-technician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-09-technician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 10,
+      "screen": "clinical-checklist",
+      "reference": "Design/SmartMaint Clinical Safety Checklist-1.png",
+      "route": "/flow/clinical-checklist",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-10-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-10-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 11,
+      "screen": "due-date",
+      "reference": "Design/SmartMaint October 17 Due Date-4.png",
+      "route": "/flow/due-date",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-11-supervisor.json"
+        ],
+        "preferredEvidence": "validation/current/reference-11-supervisor.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 12,
+      "screen": "recovery",
+      "reference": "Design/SmartMaint PIN Recovery Screen-5.png",
+      "route": "/access/recovery",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-12-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-12-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 13,
+      "screen": "pin",
+      "reference": "Design/SmartMaint PIN setup screen-3.png",
+      "route": "/access/pin",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-13-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-13-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 14,
+      "screen": "completion",
+      "reference": "Design/SmartMaint Repair Complete, Not Released-3.png",
+      "route": "/flow/completion",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-14-technician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-14-technician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 15,
+      "screen": "register",
+      "reference": "Design/SmartMaint Staff Registration Mockup-1.png",
+      "route": "/access/register",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": "validation/screens/15/implementation.png",
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-15-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-15-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 16,
+      "screen": "sign-in",
+      "reference": "Design/SmartMaint Staff Sign-In Screen-1.png",
+      "route": "/access/sign-in",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": "validation/screens/16/implementation.png",
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-16-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-16-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 17,
+      "screen": "settings",
+      "reference": "Design/SmartMaint accessibility and settings screen-7.png",
+      "route": "/flow/settings",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-17-administrator-extra.json",
+          "validation/current/reference-17-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-17-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 18,
+      "screen": "suspend",
+      "reference": "Design/SmartMaint account suspension controls-4.png",
+      "route": "/flow/suspend",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-18-administrator.json"
+        ],
+        "preferredEvidence": "validation/current/reference-18-administrator.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 19,
+      "screen": "holds",
+      "reference": "Design/SmartMaint active safety hold screen-7.png",
+      "route": "/flow/holds",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-19-administrator-extra.json",
+          "validation/current/reference-19-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-19-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 20,
+      "screen": "home",
+      "reference": "Design/SmartMaint admin hub with approvals and audits-4.png",
+      "route": "/workspace/home",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-20-administrator.json"
+        ],
+        "preferredEvidence": "validation/current/reference-20-administrator.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 21,
+      "screen": "audit",
+      "reference": "Design/SmartMaint administrator audit history screen-5.png",
+      "route": "/flow/audit",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-21-administrator.json"
+        ],
+        "preferredEvidence": "validation/current/reference-21-administrator.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 22,
+      "screen": "analytics",
+      "reference": "Design/SmartMaint administrator data quality dashboard.png",
+      "route": "/flow/analytics",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-22-administrator.json"
+        ],
+        "preferredEvidence": "validation/current/reference-22-administrator.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 23,
+      "screen": "role",
+      "reference": "Design/SmartMaint administrator role assignment-1.png",
+      "route": "/flow/role",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-23-administrator.json"
+        ],
+        "preferredEvidence": "validation/current/reference-23-administrator.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 24,
+      "screen": "pending",
+      "reference": "Design/SmartMaint application awaiting approval-2.png",
+      "route": "/access/pending",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-24-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-24-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 25,
+      "screen": "triage",
+      "reference": "Design/SmartMaint authorised priority triage-1.png",
+      "route": "/flow/triage",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-25-technician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-25-technician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 26,
+      "screen": "biometric",
+      "reference": "Design/SmartMaint biometric unlock setup-6.png",
+      "route": "/access/biometric",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-26-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-26-clinician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 27,
+      "screen": "clinical-queue",
+      "reference": "Design/SmartMaint clinical verification queue-2.png",
+      "route": "/flow/clinical-queue",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-27-clinician-final.json",
+          "validation/current/reference-27-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-27-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 28,
+      "screen": "home",
+      "reference": "Design/SmartMaint clinician home dashboard-2.png",
+      "route": "/workspace/home",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-28-clinician-extra.json",
+          "validation/current/reference-28-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-28-clinician-extra.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 29,
+      "screen": "profile",
+      "reference": "Design/SmartMaint clinician profile and security-6.png",
+      "route": "/workspace/profile",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-29-clinician-final.json",
+          "validation/current/reference-29-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-29-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 30,
+      "screen": "activation",
+      "reference": "Design/SmartMaint demo account activation screen-4.png",
+      "route": "/access/activation",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-30-clinician-extra.json"
+        ],
+        "preferredEvidence": "validation/current/reference-30-clinician-extra.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 31,
+      "screen": "diagnosis",
+      "reference": "Design/SmartMaint diagnosis_ suspected power-supply fault-1.png",
+      "route": "/flow/diagnosis",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-31-technician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-31-technician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 32,
+      "screen": "attachments",
+      "reference": "Design/SmartMaint equipment photo attachments-1.png",
+      "route": "/flow/attachments",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-32-clinician-extra.json",
+          "validation/current/reference-32-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-32-clinician-extra.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 33,
+      "screen": "reports",
+      "reference": "Design/SmartMaint equipment reports dashboard-7.png",
+      "route": "/workspace/reports",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-33-clinician-final.json",
+          "validation/current/reference-33-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-33-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 34,
+      "screen": "technical-checklist",
+      "reference": "Design/SmartMaint equipment safety checklist-4.png",
+      "route": "/flow/technical-checklist",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-34-technician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-34-technician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 35,
+      "screen": "upload-failed",
+      "reference": "Design/SmartMaint failed upload retry screen-4.png",
+      "route": "/flow/upload-failed",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-35-clinician-extra.json"
+        ],
+        "preferredEvidence": "validation/current/reference-35-clinician-extra.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 36,
+      "screen": "fault-details",
+      "reference": "Design/SmartMaint fault details screen-5.png",
+      "route": "/flow/fault-details",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-36-clinician-final.json",
+          "validation/current/reference-36-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-36-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 37,
+      "screen": "rework",
+      "reference": "Design/SmartMaint follow-up rework task-2.png",
+      "route": "/flow/rework",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-37-technician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-37-technician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 38,
+      "screen": "conflict",
+      "reference": "Design/SmartMaint local versus server conflict-1.png",
+      "route": "/flow/conflict",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-38-clinician-final.json",
+          "validation/current/reference-38-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-38-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 39,
+      "screen": "home",
+      "reference": "Design/SmartMaint management overview dashboard-3.png",
+      "route": "/workspace/home",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-39-administrator.json",
+          "validation/current/reference-39-management.json"
+        ],
+        "preferredEvidence": "validation/current/reference-39-management.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 40,
+      "screen": "manual",
+      "reference": "Design/SmartMaint manual equipment ID entry-2.png",
+      "route": "/flow/manual",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-40-clinician-final.json",
+          "validation/current/reference-40-clinician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-40-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "Native keyboard and visible focused field captured in equipment-keyboard.json; other fields and devices pending",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 41,
+      "screen": "welcome",
+      "reference": "Design/SmartMaint medical equipment splash screen-2.png",
+      "route": "/",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": "artifacts/runtime/corrective-native-welcome.png",
+      "android": {
+        "status": "Attempt captured a redirect or wrong state; excluded from coverage",
+        "evidence": [
+          "validation/current/reference-41-clinician-extra.json"
+        ],
+        "preferredEvidence": null,
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "not run",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Distinct splash reference not captured: its mapped / route shows welcome",
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 42,
+      "screen": "notification-settings",
+      "reference": "Design/SmartMaint notification preferences screen-3.png",
+      "route": "/flow/notification-settings",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-42-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-42-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 43,
+      "screen": "sync",
+      "reference": "Design/SmartMaint offline sync status-2.png",
+      "route": "/flow/sync",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-43-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-43-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 44,
+      "screen": "accounts",
+      "reference": "Design/SmartMaint pending signup approvals-4.png",
+      "route": "/workspace/accounts",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-44-administrator.json"
+        ],
+        "preferredEvidence": "validation/current/reference-44-administrator.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 45,
+      "screen": "queue",
+      "reference": "Design/SmartMaint pending sync queue-2.png",
+      "route": "/flow/queue",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-45-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-45-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 46,
+      "screen": "release",
+      "reference": "Design/SmartMaint release blocked by safety hold-5.png",
+      "route": "/flow/release",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-46-supervisor.json"
+        ],
+        "preferredEvidence": "validation/current/reference-46-supervisor.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 47,
+      "screen": "parts",
+      "reference": "Design/SmartMaint repair notes and parts-2.png",
+      "route": "/flow/parts",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-47-technician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-47-technician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 48,
+      "screen": "maintenance-history",
+      "reference": "Design/SmartMaint repair timeline with pending verification-1.png",
+      "route": "/flow/maintenance-history",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-48-technician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-48-technician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 49,
+      "screen": "filters",
+      "reference": "Design/SmartMaint report filters screen-2.png",
+      "route": "/flow/filters",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-49-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-49-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 50,
+      "screen": "report-detail",
+      "reference": "Design/SmartMaint report timeline screen-3.png",
+      "route": "/flow/report-detail",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-50-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-50-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 51,
+      "screen": "expired",
+      "reference": "Design/SmartMaint session expired prompt-1.png",
+      "route": "/access/expired",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-51-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-51-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 52,
+      "screen": "session-recovery",
+      "reference": "Design/SmartMaint session recovery-3.png",
+      "route": "/access/session-recovery",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-52-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-52-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 53,
+      "screen": "review",
+      "reference": "Design/SmartMaint stage 3 fault review-3.png",
+      "route": "/flow/review",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-53-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-53-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 54,
+      "screen": "home",
+      "reference": "Design/SmartMaint supervisor home dashboard-2.png",
+      "route": "/workspace/home",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-54-supervisor.json"
+        ],
+        "preferredEvidence": "validation/current/reference-54-supervisor.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 55,
+      "screen": "notifications",
+      "reference": "Design/SmartMaint system notification centre-1.png",
+      "route": "/workspace/notifications",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-55-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-55-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 56,
+      "screen": "technical-queue",
+      "reference": "Design/SmartMaint technical verification queue-3.png",
+      "route": "/flow/technical-queue",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-56-technician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-56-technician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 57,
+      "screen": "assignment",
+      "reference": "Design/SmartMaint technician assignment screen-3.png",
+      "route": "/flow/assignment",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-57-supervisor.json"
+        ],
+        "preferredEvidence": "validation/current/reference-57-supervisor.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 58,
+      "screen": "home",
+      "reference": "Design/SmartMaint technician task dashboard-1.png",
+      "route": "/workspace/home",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-58-technician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-58-technician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 59,
+      "screen": "scan",
+      "reference": "Design/SmartMaint ventilator QR scanner-1.png",
+      "route": "/flow/scan",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-59-clinician-extra.json"
+        ],
+        "preferredEvidence": "validation/current/reference-59-clinician-extra.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 60,
+      "screen": "equipment-detail",
+      "reference": "Design/SmartMaint ventilator details screen-2.png",
+      "route": "/flow/equipment-detail",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-60-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-60-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 61,
+      "screen": "equipment-history",
+      "reference": "Design/SmartMaint ventilator maintenance timeline-1.png",
+      "route": "/flow/equipment-history",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-61-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-61-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 62,
+      "screen": "task-detail",
+      "reference": "Design/SmartMaint ventilator repair task details-1.png",
+      "route": "/flow/task-detail",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-62-technician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-62-technician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 63,
+      "screen": "equipment",
+      "reference": "Design/SmartMaint ventilator search results-1.png",
+      "route": "/workspace/equipment",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-63-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-63-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 64,
+      "screen": "clinical-result",
+      "reference": "Design/SmartMaint verification_ accessory unavailable-3.png",
+      "route": "/flow/clinical-result",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-64-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-64-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 65,
+      "screen": "welcome",
+      "reference": "Design/SmartMaint welcome with ventilator hero-3.png",
+      "route": "/",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-65-clinician-final.json",
+          "validation/current/welcome-final-1x.json"
+        ],
+        "preferredEvidence": "validation/current/welcome-final-1x.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "2x native header regression fixed and captured in welcome-final-2x.json; full screen scaling acceptance pending",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 66,
+      "screen": "progress",
+      "reference": "Design/SmartMaint work progress screen-5.png",
+      "route": "/flow/progress",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-66-technician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-66-technician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 67,
+      "screen": "technical-result",
+      "reference": "Design/Technical Results_ Ventilator Verification-5.png",
+      "route": "/flow/technical-result",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-67-technician.json"
+        ],
+        "preferredEvidence": "validation/current/reference-67-technician.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 68,
+      "screen": "unmatched",
+      "reference": "Design/Unmatched QR equipment alert-3.png",
+      "route": "/flow/unmatched",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-68-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-68-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 69,
+      "screen": "emergency-result",
+      "reference": "Design/Unverified Emergency Report.png",
+      "route": "/flow/emergency-result",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-69-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-69-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 70,
+      "screen": "emergency-form",
+      "reference": "Design/Unverified emergency report screen-6.png",
+      "route": "/flow/emergency-form",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-70-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-70-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 71,
+      "screen": "release",
+      "reference": "Design/Ventilator equipment release checklist-2.png",
+      "route": "/flow/release",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-71-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-71-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 72,
+      "screen": "camera",
+      "reference": "Design/Ventilator fault photo capture-6.png",
+      "route": "/flow/camera",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-72-clinician-extra.json"
+        ],
+        "preferredEvidence": "validation/current/reference-72-clinician-extra.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison",
+        "cameraPermission": "Android denial captured in camera-denied.json; physical camera and gallery acceptance pending"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    },
+    {
+      "number": 73,
+      "screen": "status-timeline",
+      "reference": "Design/Ventilator safety hold timeline.png",
+      "route": "/flow/status-timeline",
+      "implementation": "Source exists; visual/functional completeness must be assessed",
+      "historicalEvidence": null,
+      "android": {
+        "status": "Native synthetic/public variant captured; matching-state acceptance pending",
+        "evidence": [
+          "validation/current/reference-73-clinician-final.json"
+        ],
+        "preferredEvidence": "validation/current/reference-73-clinician-final.json",
+        "matchingStateAccepted": false,
+        "liveAccepted": false
+      },
+      "ios": {
+        "status": "unavailable on Windows; no attached iOS device",
+        "evidence": []
+      },
+      "accessibility": {
+        "labels": "Native hierarchy captured; spoken labels not yet accepted",
+        "readingOrder": "not run",
+        "focus": "not run",
+        "touchTargets": "not run",
+        "contrast": "not run",
+        "textScaling": "not run",
+        "reducedMotion": "not run",
+        "screenReader": "not run",
+        "keyboard": "pending per-state native input/focus test",
+        "safeAreas": "pending per-state comparison"
+      },
+      "liveWorkflow": "blocked: no deployment binding or approved staff/policy",
+      "blockers": [
+        "Exact reference-state and full accessibility comparison remains pending",
+        "Live integration requires selected deployment and approved accounts/policy"
+      ]
+    }
+  ],
+  "updatedAt": "2026-10-24T18:50:08.430Z",
+  "coverage": {
+    "total": 73,
+    "requestedRoutesWithArtifacts": 73,
+    "nativeVariantsReached": 72,
+    "matchingStatesAccepted": 0,
+    "liveStatesAccepted": 0,
+    "note": "Native synthetic variants and auth denials are separate from matching-state or live acceptance."
+  }
+}

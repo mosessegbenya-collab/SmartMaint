@@ -1,6 +1,30 @@
 export type QueueState = "PENDING" | "SYNCING" | "SYNCED" | "FAILED" | "CONFLICT";
-export type PendingPublication = { id: string; owner: string; reportId: string; expectedRevision: number; expectedAttachmentRevision?: number; createdAt: number; updatedAt: number; state: QueueState; retryCount: number; lastAttempt?: number; lastError?: string; serverId?: string };
+export type PendingPublication = { id: string; owner: string; reportId: string; expectedRevision: number; expectedAttachmentRevision?: number; createdAt: number; updatedAt: number; state: QueueState; retryCount: number; lastAttempt?: number; lastError?: string; serverId?: string; retryable?: boolean; nextRetryAt?: number };
 export type PrivateStore = { get: (key: string) => Promise<string | null>; set: (key: string, value: string) => Promise<void>; remove: (key: string) => Promise<void> };
+export function requireMatchingReceipt(reportId: string, receipt: unknown): string {
+  if (receipt !== reportId) throw Error("The server returned an unexpected report receipt.");
+  return reportId;
+}
+export function validatePublicationRows(rows: unknown, owner: string): asserts rows is PendingPublication[] {
+  const validId = (value: unknown) => typeof value === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(value);
+  if (!Array.isArray(rows) || rows.length > 20) throw Error("Private queue is full or invalid.");
+  const ids = new Set<string>(), reports = new Set<string>();
+  for (const row of rows) {
+    if (!row || row.owner !== owner || !validId(row.id) || !validId(row.reportId) || ids.has(row.id) || reports.has(row.reportId)
+      || !["PENDING", "SYNCING", "SYNCED", "FAILED", "CONFLICT"].includes(row.state)
+      || !Number.isSafeInteger(row.expectedRevision) || row.expectedRevision < 1
+      || (row.expectedAttachmentRevision !== undefined && (!Number.isSafeInteger(row.expectedAttachmentRevision) || row.expectedAttachmentRevision < 0))
+      || (row.state === "SYNCED" && row.serverId !== row.reportId)
+      || !Number.isSafeInteger(row.retryCount) || row.retryCount < 0
+      || !Number.isFinite(row.createdAt) || !Number.isFinite(row.updatedAt)
+      || (row.lastAttempt !== undefined && !Number.isFinite(row.lastAttempt))
+      || (row.nextRetryAt !== undefined && (!Number.isFinite(row.nextRetryAt) || row.nextRetryAt < 0))
+      || (row.retryable !== undefined && typeof row.retryable !== "boolean")
+      || (row.lastError !== undefined && (typeof row.lastError !== "string" || row.lastError.length > 4000))) throw Error("Private queue contents are invalid or duplicated.");
+    ids.add(row.id); reports.add(row.reportId);
+  }
+}
+
 type Manifest = { generation: string; count: number };
 // Every chunk is at most 1536 UTF-8 bytes, including non-ASCII text. The manifest changes last.
 export class EncryptedReportQueue {
@@ -12,24 +36,32 @@ export class EncryptedReportQueue {
     if (!value || !/^[A-Za-z0-9_-]+$/.test(value.generation) || !Number.isInteger(value.count) || value.count < 1 || value.count > 100) throw Error("Private queue metadata is invalid.");
     return value;
   }
-  async load(owner: string): Promise<PendingPublication[]> {
+  private async read(owner: string): Promise<PendingPublication[]> {
     const key = this.key(owner); const manifest = await this.manifest(key); if (!manifest) return [];
     const chunks = await Promise.all(Array.from({ length: manifest.count }, (_, i) => this.store.get(`${key}.${manifest.generation}.${i}`)));
     if (chunks.some((chunk) => chunk === null)) throw Error("Private queue is incomplete. Do not assume pending reports were received.");
     const rows: unknown = JSON.parse(chunks.join(""));
-    if (!Array.isArray(rows) || rows.length > 20 || rows.some((r) => !r || r.owner !== owner || typeof r.id !== "string" || typeof r.reportId !== "string" || !["PENDING", "SYNCING", "SYNCED", "FAILED", "CONFLICT"].includes(r.state) || !Number.isSafeInteger(r.expectedRevision) || r.expectedRevision < 1 || (r.expectedAttachmentRevision !== undefined && (!Number.isSafeInteger(r.expectedAttachmentRevision) || r.expectedAttachmentRevision < 0)) || (r.state === "SYNCED" && r.serverId !== r.reportId) || !Number.isSafeInteger(r.retryCount) || r.retryCount < 0 || !Number.isFinite(r.createdAt) || !Number.isFinite(r.updatedAt))) throw Error("Private queue contents are invalid.");
+    validatePublicationRows(rows, owner);
     return rows as PendingPublication[];
+  }
+  load(owner: string): Promise<PendingPublication[]> {
+    const operation = this.serial.catch(() => {}).then(() => this.read(owner));
+    this.serial = operation;
+    return operation;
   }
   update(owner: string, change: (rows: PendingPublication[]) => PendingPublication[]): Promise<PendingPublication[]> {
     const operation = this.serial.catch(() => {}).then(async () => {
-      const key = this.key(owner); const prior = await this.manifest(key); const rows = change(await this.load(owner));
-      if (rows.length > 20 || rows.some((r) => r.owner !== owner)) throw Error("Private queue is full or owner does not match.");
+      const key = this.key(owner); const prior = await this.manifest(key); const rows = change(await this.read(owner));
+      validatePublicationRows(rows, owner);
       const characters = Array.from(JSON.stringify(rows)); const chunks = Array.from({ length: Math.max(1, Math.ceil(characters.length / 384)) }, (_, i) => characters.slice(i * 384, (i + 1) * 384).join(""));
       if (chunks.length > 100) throw Error("Private queue exceeds its storage limit.");
       const generation = this.generation();
       if (!/^[A-Za-z0-9_-]+$/.test(generation) || prior?.generation === generation) throw Error("Private storage generation must be unique.");
       try { for (let i = 0; i < chunks.length; i++) await this.store.set(`${key}.${generation}.${i}`, chunks[i]); await this.store.set(key, JSON.stringify({ generation, count: chunks.length })); }
-      catch (error) { await Promise.all(chunks.map((_, i) => this.store.remove(`${key}.${generation}.${i}`).catch(() => {}))); throw error; }
+      catch (error) {
+        try { const committed = await this.manifest(key); if (committed?.generation !== generation) await Promise.all(chunks.map((_, i) => this.store.remove(`${key}.${generation}.${i}`).catch(() => {}))); } catch { /* Preserve uncertain writes and surface the original storage failure. */ }
+        throw error;
+      }
       if (prior) await Promise.all(Array.from({ length: prior.count }, (_, i) => this.store.remove(`${key}.${prior.generation}.${i}`).catch(() => {})));
       return rows;
     });

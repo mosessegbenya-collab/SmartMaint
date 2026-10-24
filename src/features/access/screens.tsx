@@ -47,15 +47,17 @@ export function WelcomeScreen() {
             paddingVertical: 8,
             minHeight: 56,
             justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 8,
           }}
         >
-          <Row style={{ gap: 5 }}>
+          <Row style={{ gap: 5, flexShrink: 1, maxWidth: "100%" }}>
             <Image
               source={brandAssets.logo}
               style={{ width: 36, height: 36 }}
               accessibilityLabel="SmartMaint gear and heartbeat logo"
             />
-            <Txt size={22} weight="800">
+            <Txt size={22} weight="800" style={{ flexShrink: 1 }}>
               Smart
               <Txt size={22} weight="800" color="#0866E8">
                 Maint
@@ -70,10 +72,12 @@ export function WelcomeScreen() {
               borderRadius: 18,
               paddingHorizontal: 10,
               paddingVertical: 8,
+              maxWidth: "100%",
+              flexShrink: 1,
             }}
           >
             <Icon name="calendar-outline" size={15} />
-            <Txt size={11} muted>
+            <Txt size={11} muted style={{ flexShrink: 1 }}>
               {new Date(now).toLocaleDateString(undefined, {
                 day: "2-digit",
                 month: "short",
@@ -251,7 +255,7 @@ function AccessScreen({ screen }: { screen: string }) {
           <Txt size={14} lineHeight={18} muted>Request access to SmartMaint. Your staff details require administrator approval.</Txt>
         </View>
       </Card>}
-      {message && <Notice tone="warning">{message}</Notice>}
+      {!!message && <Notice tone="warning">{message}</Notice>}
       {screen === "sign-in" && (
         <Card style={{ gap: 10, padding: 20, borderRadius: 28, marginTop: -14 }}>
             <Txt size={40} lineHeight={44} weight="800">Staff Sign In</Txt>

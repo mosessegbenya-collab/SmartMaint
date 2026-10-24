@@ -20,6 +20,20 @@ async function setup() {
   });
   return { t, ...records, user: (name: string) => t.withIdentity(identity(name)) };
 }
+
+test('an uncertain draft update retries the identical snapshot without another revision or report', async () => {
+  const f = await setup();
+  const fields = { equipmentId: f.equipment, operationId: 'UNCERTAIN-DRAFT', category: 'Other/Unknown', symptoms: 'Initial symptoms', description: '', priority: 'High' as const, condition: 'Unknown', inUse: false, noticedAt: 1, emergency: false };
+  const created = await f.user('reporter').mutation(api.reporting.saveDraft, fields);
+  const update = { ...fields, symptoms: 'Reviewed symptoms', expectedRevision: created.revision };
+  const committed = await f.user('reporter').mutation(api.reporting.saveDraft, update);
+  expect(await f.user('reporter').mutation(api.reporting.saveDraft, update)).toEqual(committed);
+  await expect(f.user('reporter').mutation(api.reporting.saveDraft, { ...update, symptoms: 'Different contents' })).rejects.toThrow(/conflict/);
+  expect(await f.t.run((ctx) => ctx.db.query('faultReports').collect())).toHaveLength(1);
+  expect((await f.t.run((ctx) => ctx.db.get(committed.id)))?.revision).toBe(2);
+  await f.t.run((ctx) => ctx.db.patch(f.reporter, { status: 'revoked' }));
+  await expect(f.user('reporter').mutation(api.reporting.saveDraft, update)).rejects.toThrow();
+});
 test('inbox filters paginate matching notices and preserve recipient and department isolation', async () => {
   const f = await setup();
   const unread = await f.t.run(async (ctx) => {
@@ -344,4 +358,59 @@ test("preventive schedules enforce scoped supervisor authority and occurrence ge
   await f.user("tech").mutation(api.operations.recordWork, { ...work, preventiveResults: [{ label: "TEST maintenance check", passed: true }] });
   const history = await f.user("tech").query(api.workflows.workHistory, { id: a, paginationOpts: { cursor: null, numItems: 20 } }); expect(history.page[0].preventiveResults?.[0].passed).toBe(true);
   await expect(f.user("supervisor").mutation(api.preventive.reschedule, { id, expectedRevision: 1, nextDueAt: dueAt, active: false, reason: "Test" })).rejects.toThrow(/changed/);
+});
+
+test('management overview counts only scoped operational records and excludes private drafts', async () => {
+  const f = await setup();
+  await f.t.run(async (ctx) => {
+    await ctx.db.insert('equipment', { assetId: 'TEST-INCOMPLETE', name: 'Test', model: '', location: '', departmentId: f.a, identityVerified: false });
+    await ctx.db.insert('equipment', { assetId: 'OTHER-SCOPE', name: 'Other', model: 'Other', location: 'Other', departmentId: f.b, identityVerified: true });
+    const base = { equipmentId: f.equipment, departmentId: f.a, reporterId: f.reporter, operationId: 'overview', category: 'Other', symptoms: 'Test only', description: '', priority: 'Routine' as const, condition: 'Unknown', inUse: false, noticedAt: 1, createdAt: 1 };
+    await ctx.db.insert('faultReports', { ...base, submissionState: 'submitted', triagedPriority: 'Urgent' });
+    await ctx.db.insert('faultReports', { ...base, operationId: 'private', submissionState: 'draft' });
+    await ctx.db.insert('safetyHolds', { equipmentId: f.equipment, departmentId: f.a, active: true, reason: 'Test hold', createdBy: f.admin, createdAt: 1 });
+  });
+  const result = await f.user('admin').query(api.operations.managementSummary);
+  expect(result).toMatchObject({ equipment: 2, reports: 1, completeRecords: 1, incompleteRecords: 1, activeHolds: 1, verifiedIdentities: 1, limited: false });
+  expect(result.priorities).toContainEqual({ label: 'Urgent', count: 1 });
+  expect(result.priorities).toContainEqual({ label: 'Routine', count: 0 });
+  await expect(f.user('reporter').query(api.operations.managementSummary)).rejects.toThrow();
+  await expect(f.t.query(api.operations.managementSummary)).rejects.toThrow(/Sign in/);
+});
+
+test('report exports enforce scope, effective priority and chronological dates before generating CSV', async () => {
+  const f = await setup();
+  await f.t.run(async (ctx) => {
+    const base = { equipmentId: f.equipment, departmentId: f.a, reporterId: f.reporter, category: '=TEST()', symptoms: 'Test only', description: '', priority: 'Routine' as const, condition: 'Unknown', inUse: false, noticedAt: 1, submissionState: 'submitted' as const };
+    await ctx.db.insert('faultReports', { ...base, operationId: 'one', createdAt: 100, triagedPriority: 'Urgent' });
+    await ctx.db.insert('faultReports', { ...base, operationId: 'two', createdAt: 200 });
+    await ctx.db.insert('faultReports', { ...base, operationId: 'three', createdAt: 100, submissionState: 'draft', triagedPriority: 'Urgent' });
+  });
+  const args = { departmentId: f.a, from: 100, to: 100, priority: 'Urgent' as const };
+  const result = await f.user('admin').query(api.operations.exportReports, args);
+  expect(result.count).toBe(1);
+  expect(result.csv).toContain("'=TEST()");
+  expect((await f.user('admin').query(api.operations.exportReports, { ...args, from: 101, to: 200 })).count).toBe(0);
+  await expect(f.user('admin').query(api.operations.exportReports, { ...args, from: 200, to: 100 })).rejects.toThrow(/date range/);
+  await expect(f.user('admin').query(api.operations.exportReports, { ...args, departmentId: f.b })).rejects.toThrow(/scope/);
+  await expect(f.t.query(api.operations.exportReports, args)).rejects.toThrow(/Sign in/);
+});
+
+test('equipment status orders real events while keeping drafts and other reporters private', async () => {
+  const f = await setup();
+  await f.t.run(async (ctx) => {
+    const base = { equipmentId: f.equipment, departmentId: f.a, category: 'Other', description: '', priority: 'Routine' as const, condition: 'Unknown', inUse: false, noticedAt: 1 };
+    await ctx.db.insert('faultReports', { ...base, reporterId: f.reporter, operationId: 'own', symptoms: 'Own report', createdAt: 100, submissionState: 'submitted' });
+    await ctx.db.insert('faultReports', { ...base, reporterId: f.tech, operationId: 'other', symptoms: 'Other staff report', createdAt: 200, submissionState: 'submitted' });
+    await ctx.db.insert('faultReports', { ...base, reporterId: f.reporter, operationId: 'draft', symptoms: 'PRIVATE DRAFT', createdAt: 300, submissionState: 'draft' });
+    await ctx.db.insert('safetyHolds', { equipmentId: f.equipment, departmentId: f.a, active: false, reason: 'Test restriction', createdBy: f.admin, createdAt: 400, resolvedAt: 500, resolvedBy: f.admin, resolutionReason: 'Test resolution' });
+  });
+  const result = await f.user('reporter').query(api.workflows.equipmentStatus, { id: f.equipment });
+  expect(result.events.map((event) => event.at)).toEqual([500, 400, 100]);
+  expect(JSON.stringify(result)).not.toContain('PRIVATE DRAFT');
+  expect(JSON.stringify(result)).not.toContain('Other staff report');
+  const supervisor = await f.user('supervisor').query(api.workflows.equipmentStatus, { id: f.equipment });
+  expect(supervisor.events.map((event) => event.at)).toEqual([500, 400, 200, 100]);
+  await expect(f.user('other').query(api.workflows.equipmentStatus, { id: f.equipment })).rejects.toThrow(/scope/);
+  await expect(f.t.query(api.workflows.equipmentStatus, { id: f.equipment })).rejects.toThrow(/Sign in/);
 });

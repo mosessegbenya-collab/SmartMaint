@@ -70,7 +70,7 @@ export function ConfiguredSSO() {
         disabled={busy || requiresBuild}
         onPress={() => void start("oauth_apple")}
       />
-      {message && (
+      {!!message && (
         <>
           <Notice>{message}</Notice>
           <Button

@@ -5,6 +5,7 @@ import { action, internalMutation, internalQuery, mutation, query } from "./lib/
 import type { QueryCtx } from "./lib/server";
 import { audit, deny, identity, requireAccount, requiredText } from "./lib/access";
 import { photoDimensions } from "../src/domain/photo-validation";
+import { finishStoredEvidence } from "./lib/evidence-storage";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 async function reportAccess(ctx: QueryCtx, id: GenericId<"faultReports">, write = false) {
@@ -38,9 +39,15 @@ export const list = query({ args: { reportId: v.id("faultReports") }, handler: a
 export const readMetadata = internalQuery({ args: { id: v.id("reportAttachments") }, handler: async (ctx, { id }) => {
   await requireAccount(ctx); const item = await ctx.db.get(id); if (!item || item.deletedAt) deny("Attachment unavailable."); await reportAccess(ctx, item.reportId); return { storageId: item.storageId, contentType: item.contentType };
 } });
+export const uploadReference = internalQuery({ args: { reportId: v.id("faultReports"), operationId: v.string(), storageId: v.id("_storage") }, handler: async (ctx, args) => {
+  const { actor } = await reportAccess(ctx, args.reportId);
+  const prior = await ctx.db.query("reportAttachments").withIndex("by_owner_operation", (q) => q.eq("ownerId", actor._id).eq("operationId", args.operationId)).unique();
+  return !!prior && prior.reportId === args.reportId && prior.storageId === args.storageId && !prior.deletedAt;
+} });
 const authorize = makeFunctionReference<"query", { reportId: GenericId<"faultReports"> }, boolean>("attachments:authorizeUpload");
 const finish = makeFunctionReference<"mutation", { reportId: GenericId<"faultReports">; storageId: GenericId<"_storage">; operationId: string; contentType: string; size: number }, { id: GenericId<"reportAttachments">; storageId: GenericId<"_storage"> }>("attachments:finishUpload");
 const metadata = makeFunctionReference<"query", { id: GenericId<"reportAttachments"> }, { storageId: GenericId<"_storage">; contentType: string }>("attachments:readMetadata");
+const reference = makeFunctionReference<"query", { reportId: GenericId<"faultReports">; operationId: string; storageId: GenericId<"_storage"> }, boolean>("attachments:uploadReference");
 export const upload = action({ args: { reportId: v.id("faultReports"), operationId: v.string(), contentType: v.string(), base64: v.string() }, handler: async (ctx, args): Promise<{ id: GenericId<"reportAttachments"> }> => {
   await identity(ctx);
   await ctx.runQuery(authorize, { reportId: args.reportId });
@@ -55,11 +62,13 @@ export const upload = action({ args: { reportId: v.id("faultReports"), operation
   if (!valid) deny("Photo contents do not match the declared image type.");
   if (!photoDimensions(bytes, args.contentType)) deny("Choose a valid equipment photo no larger than 4096 × 4096 pixels.");
   const storageId = await ctx.storage.store(new Blob([bytes as BlobPart], { type: args.contentType }));
-  try {
-    const result = await ctx.runMutation(finish, { reportId: args.reportId, storageId, operationId, contentType: args.contentType, size: bytes.length });
-    if (result.storageId !== storageId) await ctx.storage.delete(storageId);
-    return { id: result.id };
-  } catch (error) { await ctx.storage.delete(storageId); throw error; }
+  const result = await finishStoredEvidence(
+    () => ctx.runMutation(finish, { reportId: args.reportId, storageId, operationId, contentType: args.contentType, size: bytes.length }),
+    () => ctx.runQuery(reference, { reportId: args.reportId, storageId, operationId }),
+    () => ctx.storage.delete(storageId),
+  );
+  if (result.storageId !== storageId) await ctx.storage.delete(storageId);
+  return { id: result.id };
 } });
 export const read = action({ args: { id: v.id("reportAttachments") }, handler: async (ctx, args): Promise<{ dataUri: string }> => {
   await identity(ctx); const row = await ctx.runQuery(metadata, args); const blob = await ctx.storage.get(row.storageId);

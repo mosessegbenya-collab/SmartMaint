@@ -32,7 +32,7 @@ export function ConfirmAction({ label, title, detail, onConfirm, disabled = fals
       <View accessibilityViewIsModal style={{ flex: 1, justifyContent: "center", padding: 24, backgroundColor: "#07172E99" }}>
         <Card style={{ gap: 16 }}>
           <Txt size={22} weight="800">{title}</Txt><Txt>{detail}</Txt>
-          {error && <Notice tone="warning">{error}</Notice>}
+          {!!error && <Notice tone="warning">{error}</Notice>}
           <Row><View style={{ flex: 1 }}><Button label="Cancel" variant="secondary" disabled={busy} onPress={() => setOpen(false)} /></View>
             <View style={{ flex: 1 }}><Button label="Confirm" variant={danger ? "danger" : "primary"} loading={busy} onPress={() => void confirm()} /></View></Row>
         </Card>

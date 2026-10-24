@@ -64,7 +64,7 @@ export function Identification({ screen }: { screen: string }) {
             autoCapitalize="none"
             placeholder="DEMO-VENT-014"
           />
-          {message && <Notice tone="danger">{message}</Notice>}
+          {!!message && <Notice tone="danger">{message}</Notice>}
           <Button
             label="Search Equipment"
             icon="arrow-forward"
@@ -262,7 +262,7 @@ export function CaptureScreen({ scan = false }: { scan?: boolean }) {
       }
     >
       {!scan && <Steps step={2} />}
-      {message && <Notice tone="warning">{message}</Notice>}
+      {!!message && <Notice tone="warning">{message}</Notice>}
       {permission?.granted ? (
         <View
           style={{
@@ -418,7 +418,7 @@ export function CaptureScreen({ scan = false }: { scan?: boolean }) {
               </View>
             ))}
           </Row>
-          {selected && (
+          {!!selected && (
             <>
               <Image
                 source={{ uri: selected }}
@@ -517,7 +517,7 @@ export function FaultDetails({ emergency = false }: { emergency?: boolean }) {
           }
         />
       )}
-      {message && <Notice>{message}</Notice>}
+      {!!message && <Notice>{message}</Notice>}
       <Select
         label="Fault category *"
         values={categories}
@@ -635,7 +635,7 @@ export function ReviewReport({ emergency = false }: { emergency?: boolean }) {
           UNVERIFIED EMERGENCY REPORT · No verified identity
         </Notice>
       )}
-      {error && <Notice tone="danger">{error}</Notice>}
+      {!!error && <Notice tone="danger">{error}</Notice>}
       <Section title="Equipment">
         <Card style={{ gap: 9 }}>
           <Detail label="Asset ID" value={d.equipmentId} />

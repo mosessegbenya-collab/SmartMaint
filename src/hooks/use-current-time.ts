@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-export function useCurrentTime() {
+export function useCurrentTime(interval = 60000) {
   const [now,setNow]=useState(Date.now);
-  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),60000);return()=>clearInterval(timer);},[]);
+  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),interval);return()=>clearInterval(timer);},[interval]);
   return now;
 }

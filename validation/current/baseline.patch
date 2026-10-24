@@ -1,0 +1,1249 @@
+diff --git a/convex/operations.ts b/convex/operations.ts
+index 40c3ff5..d5757ba 100644
+--- a/convex/operations.ts
++++ b/convex/operations.ts
+@@ -167,8 +167,37 @@ export const analytics = query({ args: {}, handler: async (ctx) => {
+   const reports = await scopedReports(ctx, actor);
+   return { scopeCount: actor.scope.length, reports: reports.length, highPriority: reports.filter((r) => (r.triagedPriority ?? r.priority) !== "Routine").length, truncatedAtPerDepartment: 100 };
+ } });
+-export const exportReports = query({ args: {}, handler: async (ctx) => {
+-  const actor = await requireAccount(ctx, "export");
+-  const reports = await scopedReports(ctx, actor);
+-  return { csv: "Report,Equipment,Category,Priority\r\n" + reports.map((r) => [r._id, r.equipmentId, r.category, r.triagedPriority ?? r.priority].map(csvCell).join(",")).join("\r\n"), truncatedAtPerDepartment: 100 };
++export const exportReports = query({ args: { departmentId: v.optional(v.id("departments")), from: v.optional(v.number()), to: v.optional(v.number()), priority: v.optional(priority) }, handler: async (ctx, args) => {
++  const actor = await requireAccount(ctx, "export", args.departmentId);
++  if ((args.from !== undefined && !Number.isFinite(args.from)) || (args.to !== undefined && !Number.isFinite(args.to)) || (args.from !== undefined && args.to !== undefined && args.from > args.to)) deny("Choose a valid chronological date range.");
++  const scoped = args.departmentId ? { ...actor, scope: [args.departmentId] } : actor;
++  const reports = (await scopedReports(ctx, scoped)).filter((report) => (args.from === undefined || report.createdAt >= args.from) && (args.to === undefined || report.createdAt <= args.to) && (!args.priority || (report.triagedPriority ?? report.priority) === args.priority));
++  return { csv: "Report,Equipment,Category,Priority\r\n" + reports.map((r) => [r._id, r.equipmentId, r.category, r.triagedPriority ?? r.priority].map(csvCell).join(",")).join("\r\n"), count: reports.length, truncatedAtPerDepartment: 100 };
++} });
++export const managementSummary = query({ args: {}, handler: async (ctx) => {
++  const actor = await requireAccount(ctx, "analytics");
++  const limit = 100;
++  const departments = await Promise.all(actor.scope.map(async (departmentId) => {
++    const [inventory, reports, tasks, holds] = await Promise.all([
++      ctx.db.query("equipment").withIndex("by_department", (q) => q.eq("departmentId", departmentId)).order("desc").take(limit),
++      ctx.db.query("faultReports").withIndex("by_department", (q) => q.eq("departmentId", departmentId)).filter((q) => q.neq(q.field("submissionState"), "draft")).order("desc").take(limit),
++      ctx.db.query("maintenanceTasks").withIndex("by_department", (q) => q.eq("departmentId", departmentId)).order("desc").take(limit),
++      ctx.db.query("safetyHolds").withIndex("by_department", (q) => q.eq("departmentId", departmentId)).filter((q) => q.eq(q.field("active"), true)).take(limit),
++    ]);
++    return { inventory, reports, tasks, holds, limited: [inventory, reports, tasks, holds].some((rows) => rows.length === limit) };
++  }));
++  const inventory = departments.flatMap((d) => d.inventory);
++  const reports = departments.flatMap((d) => d.reports);
++  const tasks = departments.flatMap((d) => d.tasks);
++  const complete = inventory.filter((e) => [e.assetId, e.name, e.model, e.location].every((s) => s.trim().length > 0));
++  return {
++    scopeCount: actor.scope.length, equipment: inventory.length, reports: reports.length,
++    activeHolds: departments.reduce((n, d) => n + d.holds.length, 0),
++    completedRepairs: tasks.filter((t) => t.state === "Completed").length,
++    openTasks: tasks.filter((t) => !["Completed", "Cancelled"].includes(t.state)).length,
++    verifiedIdentities: inventory.filter((e) => e.identityVerified).length,
++    completeRecords: complete.length, incompleteRecords: inventory.length - complete.length,
++    priorities: (["Urgent", "High", "Routine"] as const).map((priority) => ({ label: priority, count: reports.filter((r) => (r.triagedPriority ?? r.priority) === priority).length })),
++    limit, limited: departments.some((d) => d.limited),
++  };
+ } });
+diff --git a/convex/workflows.ts b/convex/workflows.ts
+index 57fc665..be4e1db 100644
+--- a/convex/workflows.ts
++++ b/convex/workflows.ts
+@@ -123,3 +123,36 @@ export const hasUnreadNotice = query({ args: {}, handler: async (ctx) => {
+   const actor = await requireAccount(ctx);
+   return !!await ctx.db.query("notifications").withIndex("by_recipient_read", (q) => q.eq("recipientId", actor._id).eq("readAt", undefined)).filter((q) => q.or(...actor.scope.map((id) => q.eq(q.field("departmentId"), id)))).first();
+ } });
++
++/** Bounded status history. Summary events never expose private draft content or verification evidence. */
++export const equipmentStatus = query({ args: { id: v.id("equipment") }, handler: async (ctx, { id }) => {
++  const { actor, item } = await equipmentAccess(ctx, id);
++  const limit = 50;
++  const [tasks, holds, releases, reports] = await Promise.all([
++    ctx.db.query("maintenanceTasks").withIndex("by_equipment", (q) => q.eq("equipmentId", id)).order("desc").take(limit),
++    ctx.db.query("safetyHolds").withIndex("by_equipment", (q) => q.eq("equipmentId", id)).order("desc").take(limit),
++    ctx.db.query("releaseRecords").withIndex("by_equipment", (q) => q.eq("equipmentId", id)).order("desc").take(limit),
++    ctx.db.query("faultReports").withIndex("by_equipment", (q) => q.eq("equipmentId", id)).filter((q) => q.neq(q.field("submissionState"), "draft")).order("desc").take(limit),
++  ]);
++  type Event = { id: string; at: number; title: string; detail: string; kind: "repair" | "hold" | "resolved" | "release" | "report" | "verification" };
++  const events: Event[] = [];
++  for (const hold of holds) {
++    events.push({ id: `${hold._id}:raised`, at: hold.createdAt, title: "Safety hold raised", detail: hold.reason, kind: "hold" });
++    if (hold.resolvedAt !== undefined) events.push({ id: `${hold._id}:resolved`, at: hold.resolvedAt, title: "Safety hold resolved", detail: hold.resolutionReason ?? "Resolution recorded. This does not release equipment.", kind: "resolved" });
++  }
++  for (const task of tasks) events.push({ id: task._id, at: task.updatedAt, title: task.state === "Completed" ? "Repair completed" : task.parentTaskId ? "Follow-up rework" : "Maintenance updated", detail: `Cycle ${task.cycle} · ${task.state}`, kind: "repair" });
++  for (const report of reports) {
++    if (report.reporterId === actor._id || actor.capabilities.some((c) => ["assign", "triage"].includes(c))) events.push({ id: report._id, at: report.createdAt, title: "Fault reported", detail: report.symptoms, kind: "report" });
++  }
++  for (const release of releases) events.push({ id: release._id, at: release.at, title: "Return-to-service decision", detail: "An authorized decision was recorded. Review current availability before use.", kind: "release" });
++  // The current cycle's latest decisions are sufficient for this status overview; full attempts remain in verifier history.
++  const current = tasks[0];
++  let attemptsLimited = false;
++  if (current) {
++    const attempts = await ctx.db.query("safetyAttempts").withIndex("by_task", (q) => q.eq("taskId", current._id)).order("desc").take(limit);
++    attemptsLimited = attempts.length === limit;
++    for (const attempt of attempts) events.push({ id: attempt._id, at: attempt.at, title: `${attempt.kind === "technical" ? "Technical" : "Clinical"} verification: ${attempt.outcome}`, detail: `Repair cycle ${current.cycle} · revision ${attempt.taskRevision}`, kind: "verification" });
++  }
++  events.sort((a, b) => b.at - a.at || a.id.localeCompare(b.id));
++  return { equipment: { assetId: item.assetId, name: item.name, location: item.location }, events: events.slice(0, 100), limit, limited: attemptsLimited || tasks.length === limit || holds.length === limit || releases.length === limit || reports.length === limit || events.length > 100 };
++} });
+diff --git a/src/components/smart/ui.tsx b/src/components/smart/ui.tsx
+index 2fe3450..6364c4b 100644
+--- a/src/components/smart/ui.tsx
++++ b/src/components/smart/ui.tsx
+@@ -172,15 +172,15 @@ export function Screen({
+   const { account, mode } = useApp();
+   const pathname = usePathname();
+   const { view } = useLocalSearchParams<{ view?: string }>();
+-  const flowNavigation = mode === 'live' && account && pathname.startsWith('/flow/') && view && ['equipment-detail', 'live-equipment', 'holds', 'hold-detail', 'status-timeline', 'equipment-history', 'task-detail', 'live-task', 'progress', 'parts', 'completion', 'rework', 'maintenance-history', 'technical-queue', 'clinical-queue', 'technical-result', 'clinical-result', 'analytics', 'live-analytics', 'export', 'live-export', 'audit', 'staff-audit', 'role', 'staff-role', 'suspend', 'sync', 'queue', 'upload-failed', 'report-detail', 'triage'].includes(view);
++  const flowNavigation = mode === 'live' && account && pathname.startsWith('/flow/') && !!view && ['settings', 'notification-settings', 'appearance', 'text-contrast', 'privacy', 'account-security', 'help', 'equipment-detail', 'live-equipment', 'holds', 'hold-detail', 'status-timeline', 'equipment-history', 'task-detail', 'live-task', 'progress', 'parts', 'completion', 'rework', 'maintenance-history', 'technical-queue', 'clinical-queue', 'technical-result', 'clinical-result', 'analytics', 'live-analytics', 'export', 'live-export', 'audit', 'staff-audit', 'role', 'staff-role', 'suspend', 'sync', 'queue', 'upload-failed', 'report-detail', 'triage'].includes(view);
+   const content = (
+     <View style={[styles.content, padding !== undefined && { padding }]}>
+-      {title && (
++      {!!title && (
+         <View style={{ gap: 4, marginBottom: 8 }}>
+           <Txt size={26} weight="800">
+             {title}
+           </Txt>
+-          {subtitle && <Txt muted>{subtitle}</Txt>}
++          {!!subtitle && <Txt muted>{subtitle}</Txt>}
+         </View>
+       )}
+       {children}
+@@ -214,7 +214,7 @@ export function Screen({
+           ) : (
+             content
+           )}
+-          {footer && (
++          {!!footer && (
+             <SafeAreaView
+               edges={safeBottom ? [] : ['bottom']}
+               style={{
+@@ -236,7 +236,7 @@ export function Screen({
+ function FlowNavigation({ view }: { view: string }) {
+   const { account } = useApp(); const p = usePalette();
+   if (!account) return null;
+-  const selected = ['sync', 'queue', 'upload-failed'].includes(view) ? 'profile' : ['audit', 'staff-audit', 'role', 'staff-role', 'suspend'].includes(view) ? 'accounts' : ['report-detail', 'triage', 'analytics', 'live-analytics', 'export', 'live-export'].includes(view) ? 'reports' : ['equipment-detail', 'live-equipment', 'holds', 'hold-detail', 'status-timeline', 'equipment-history'].includes(view) ? 'equipment' : 'tasks';
++  const selected = ['settings', 'notification-settings', 'appearance', 'text-contrast', 'privacy', 'account-security', 'help', 'sync', 'queue', 'upload-failed', 'conflict'].includes(view) ? 'profile' : ['audit', 'staff-audit', 'role', 'staff-role', 'suspend'].includes(view) ? 'accounts' : ['report-detail', 'triage', 'analytics', 'live-analytics', 'export', 'live-export'].includes(view) ? 'reports' : ['equipment-detail', 'live-equipment', 'holds', 'hold-detail', 'status-timeline', 'equipment-history'].includes(view) ? 'equipment' : 'tasks';
+   return <View accessibilityRole="tablist" style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: p.border, backgroundColor: p.card, paddingTop: 7, paddingBottom: 5 }}>{tabItems(account).map((tab) => <Pressable key={tab.name} accessibilityRole="tab" accessibilityLabel={tab.label} accessibilityState={{ selected: selected === tab.name }} onPress={() => router.replace(`/workspace/${tab.name}`)} style={{ flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 4 }}><Icon name={tab.icon} size={25} color={selected === tab.name ? tokens.blue : p.secondary} /><Txt size={10} color={selected === tab.name ? tokens.blue : p.secondary} weight={selected === tab.name ? '700' : '400'}>{tab.label}</Txt></Pressable>)}</View>;
+ }
+ export function Card({
+@@ -375,7 +375,7 @@ export function Field({
+       />
+       </View>
+       </View>
+-      {error && (
++      {!!error && (
+         <Txt size={12} color={tokens.danger}>
+           {error}
+         </Txt>
+@@ -643,7 +643,7 @@ export function LinkRow({
+           <Icon name={icon} />
+           <View style={{ flex: 1, gap: 3 }}>
+             <Txt weight="600">{title}</Txt>
+-            {detail && (
++            {!!detail && (
+               <Txt size={12} muted>
+                 {detail}
+               </Txt>
+diff --git a/src/features/access/screens.tsx b/src/features/access/screens.tsx
+index 7899973..61d204f 100644
+--- a/src/features/access/screens.tsx
++++ b/src/features/access/screens.tsx
+@@ -251,7 +251,7 @@ function AccessScreen({ screen }: { screen: string }) {
+           <Txt size={14} lineHeight={18} muted>Request access to SmartMaint. Your staff details require administrator approval.</Txt>
+         </View>
+       </Card>}
+-      {message && <Notice tone="warning">{message}</Notice>}
++      {!!message && <Notice tone="warning">{message}</Notice>}
+       {screen === "sign-in" && (
+         <Card style={{ gap: 10, padding: 20, borderRadius: 28, marginTop: -14 }}>
+             <Txt size={40} lineHeight={44} weight="800">Staff Sign In</Txt>
+diff --git a/src/features/access/sso.tsx b/src/features/access/sso.tsx
+index 4143bee..b555110 100644
+--- a/src/features/access/sso.tsx
++++ b/src/features/access/sso.tsx
+@@ -70,7 +70,7 @@ export function ConfiguredSSO() {
+         disabled={busy || requiresBuild}
+         onPress={() => void start("oauth_apple")}
+       />
+-      {message && (
++      {!!message && (
+         <>
+           <Notice>{message}</Notice>
+           <Button
+diff --git a/src/features/staff/administration.tsx b/src/features/staff/administration.tsx
+index 157febe..e371fe4 100644
+--- a/src/features/staff/administration.tsx
++++ b/src/features/staff/administration.tsx
+@@ -3,6 +3,8 @@ import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
+ import type { GenericId } from "convex/values";
+ import type { FunctionReturnType } from "convex/server";
+ import { Badge, Button, Card, Choices, Detail, Field, LinkRow, Notice, Screen, Section, Select, Txt } from "@/components/smart/ui";
++import { ProfileIdentity } from "@/components/smart/settings-ui";
++import { TimelineItem } from "@/components/smart/status-ui";
+ import { roles, type Capability, type Role } from "@/domain/models";
+ import { roleCapabilities } from "@/domain/role-policy";
+ import { staffApi } from "@/services/staff-api";
+@@ -22,13 +24,19 @@ function ApplicationList() {
+   const [department, setDepartment] = useState(() => account?.scope[0] ?? null);
+   const page = usePaginatedQuery(staffApi.administration.applicationPage, department && account ? { status, departmentId: department } : "skip", { initialNumItems: 20 });
+   const applications = page.results;
+-  return <Screen title="Staff Applications" subtitle="Verify institutional identity and review staff access." back={false}>
++  return <Screen title="Signup Approvals" subtitle="Verify institutional identity and review staff access." back={false}>
+     <Choices label="Application status" values={["pending", "approved", "rejected"]} value={status} onChange={setStatus} />
+     <DepartmentFilter value={department} onChange={setDepartment} />
+     {page.status === "LoadingFirstPage" && <Notice>Loading authorized applications…</Notice>}
+     {applications.length === 0 && page.status === "Exhausted" && <Card><Txt muted>No {status} applications in this department.</Txt></Card>}
+-    {applications?.map((r) => <LinkRow key={r.id} title={r.name} detail={`${r.staffId} · ${r.department}\n${r.requestedRole} · ${r.verificationStatus}\n${new Date(r.submittedAt).toLocaleDateString()}`}
+-      tail={<Badge label={r.status} tone="warning" />} onPress={() => go("staff-review", r.id)} />)}
++    <Badge label={applications.length + " applications loaded"} />
++    {applications.map((r) => <Card key={r.id} style={{ gap: 12 }}>
++      <ProfileIdentity name={r.name} role={r.requestedRole} staffId={r.staffId} department={r.department} />
++      <Detail label="Submitted" value={new Date(r.submittedAt).toLocaleString()} />
++      <Detail label="Institutional verification" value={r.verificationStatus} />
++      <Badge label={r.status} tone={r.status === "approved" ? "success" : r.status === "rejected" ? "danger" : "warning"} />
++      <Button label="Review application" icon="person-outline" onPress={() => go("staff-review", r.id)} />
++    </Card>)}
+     {(account?.capabilities.includes("roles") || account?.capabilities.includes("suspend")) && <LinkRow title="Staff roles and access" icon="people-outline" onPress={() => go("staff-accounts")} />}
+     {account?.capabilities.includes("audit") && <LinkRow title="Authorization audit" icon="shield-checkmark-outline" onPress={() => go("staff-audit")} />}
+     {page.status !== "Exhausted" && <Button label="Load more applications" variant="secondary" loading={page.isLoading} disabled={page.status !== "CanLoadMore"} onPress={() => page.loadMore(20)} />}
+@@ -154,7 +162,7 @@ function RoleForm({ target, focus }: { target: FunctionReturnType<typeof staffAp
+   const self = target.id === account?.id;
+   const locked = self || target.status === "revoked";
+   return <Screen title={focus === 'suspend' ? 'Account Suspension Controls' : 'Staff Role Assignment'} subtitle={focus === 'suspend' ? 'Manage staff account access with an audited reason.' : 'Review the staff member’s role, permissions and department scope.'}>
+-    <Card style={{ gap: 10 }}><Txt size={22} weight="800">{target.name}</Txt><Detail label="Verified Staff ID" value={target.staffId} /><Detail label="Current role" value={target.role} /><Badge label={target.status} tone="warning" /></Card>
++    <ProfileIdentity name={target.name} role={target.role} staffId={target.staffId} department={`${target.scope.length} authorized department(s)`} /><Badge label={target.status} tone={target.status === "approved" ? "success" : "warning"} />
+     {self && <Notice>You cannot change your own authorization or access status.</Notice>}
+     {target.status === "revoked" && <Notice>Revoked access requires a separate authorized revalidation procedure.</Notice>}
+     {focus !== 'suspend' && account?.capabilities.includes("roles") && !locked && <GrantFields value={grant} onChange={setGrant} />}
+@@ -182,12 +190,19 @@ function AuditList() {
+   const { account } = useStaffAccess();
+   const [department, setDepartment] = useState<GenericId<"departments"> | null>(() => account?.scope[0] ?? null);
+   const page = usePaginatedQuery(staffApi.administration.auditPage, account ? { departmentId: department ?? undefined } : "skip", { initialNumItems: 20 });
+-  const records = page.results;
+-  return <Screen title="Authorization Audit">
++  const [search, setSearch] = useState("");
++  const [decision, setDecision] = useState<"All" | "Allowed" | "Rejected">("All");
++  const records = page.results.filter((record) => (decision === "All" || record.decision === decision.toLowerCase()) && `${record.action} ${record.target} ${record.reason}`.toLowerCase().includes(search.trim().toLowerCase()));
++  return <Screen title="Administrator Audit History" subtitle="Review recorded decisions in your authorized scope.">
++    <Field label="Search loaded events" icon="search-outline" value={search} onChangeText={setSearch} placeholder="Action, target or reason" />
++    <Choices label="Filter loaded decisions" values={["All", "Allowed", "Rejected"]} value={decision} onChange={setDecision} />
+     <DepartmentFilter value={department} onChange={setDepartment} operator={account?.role === "Administrator"} />
+     {page.status === "LoadingFirstPage" && <Notice>Loading authorized audit events…</Notice>}
+-    {records.length === 0 && page.status === "Exhausted" && <Notice>No audit events in this authorized scope.</Notice>}
+-    {records?.map((r) => <Card key={r._id} style={{ gap: 7 }}><Txt weight="700">{r.action}</Txt><Detail label="Actor" value={r.actorId ?? r.actorKind} /><Detail label="Target" value={r.target} /><Detail label="Decision" value={r.decision} /><Txt size={12}>{r.reason}</Txt><Txt size={11} muted>{new Date(r.at).toLocaleString()}</Txt></Card>)}
++    {records.length === 0 && page.status === "Exhausted" && <Notice>No loaded audit events match this selection.</Notice>}
++    {records.map((r, index) => <Section key={r._id} title={r.decision === "allowed" ? "Recorded action" : "Rejected decision"}>
++      <TimelineItem title={r.action} detail={r.reason} at={r.at} icon="shield-checkmark-outline" tone={r.decision === "allowed" ? "info" : "danger"} last={index === records.length - 1} />
++      <Card style={{ gap: 8 }}><Detail label="Actor" value={r.actorId ?? r.actorKind} /><Detail label="Target" value={r.target} />{!!r.from && <Detail label="Previous value" value={r.from} />}{!!r.to && <Detail label="New value" value={r.to} />}</Card>
++    </Section>)}
+     {page.status !== "Exhausted" && <Button label="Load more audit events" variant="secondary" loading={page.isLoading} disabled={page.status !== "CanLoadMore"} onPress={() => page.loadMore(20)} />}
+   </Screen>;
+ }
+diff --git a/src/features/staff/operational-screens.tsx b/src/features/staff/operational-screens.tsx
+index 159bc38..5dfc310 100644
+--- a/src/features/staff/operational-screens.tsx
++++ b/src/features/staff/operational-screens.tsx
+@@ -13,7 +13,7 @@ import { go } from "@/navigation/go";
+ import { useStaffAccess } from "./provider";
+ import { ConfirmAction } from "./ui";
+ import { ReportPhotos } from "./report-photos";
+-import { ReleaseControls, ResolveHold } from "./safety-screens";
++import { ReleaseControls } from "./safety-screens";
+ 
+ export function ScopeSelect({ value, onChange }: { value: GenericId<"departments"> | null; onChange: (id: GenericId<"departments">) => void }) {
+   const { account } = useStaffAccess(); const departments = useQuery(staffApi.staff.departments);
+@@ -48,7 +48,7 @@ function EquipmentPage({ department }: { department: GenericId<"departments"> })
+ function ReportPage({ department, filters }: { department: GenericId<"departments">; filters: ReportSelection }) {
+   const [priority, setPriority] = useState<"All" | "Urgent" | "High" | "Routine">(filters.priority === 'Urgent' || filters.priority === 'High' || filters.priority === 'Routine' ? filters.priority : 'All'); const [submission, setSubmission] = useState<"All" | "Drafts" | "Submitted">(filters.submission === 'Drafts' || filters.submission === 'Submitted' ? filters.submission : 'All');
+   const page = usePaginatedQuery(staffApi.workflows.reportPage, { departmentId: department, priority: priority === "All" ? undefined : priority, submission: submission === "All" ? undefined : submission === "Drafts" ? "draft" : "submitted" }, { initialNumItems: 20 });
+-  return <><Choices label="Effective priority" values={["All", "Urgent", "High", "Routine"]} value={priority} onChange={setPriority} /><Choices label="Report status" values={["All", "Drafts", "Submitted"]} value={submission} onChange={setSubmission} />{page.results.map((r) => <LinkRow key={r._id} title={`${r.submissionState === "draft" ? "Draft · " : ""}${r.symptoms}`} detail={`${r.triagedPriority ?? r.priority} · ${new Date(r.createdAt).toLocaleString()}`} onPress={() => go("report-detail", r._id)} />)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /></>;
++  return <><Choices label="Effective priority" values={["All", "Urgent", "High", "Routine"]} value={priority} onChange={setPriority} /><Choices label="Report status" values={["All", "Drafts", "Submitted"]} value={submission} onChange={setSubmission} />{page.status === 'Exhausted' && page.results.length === 0 && <Card style={{ gap: 8 }}><Txt size={19} weight="700">No matching reports</Txt><Txt muted>Try another priority, status or department.</Txt></Card>}{page.results.map((r) => <LinkRow key={r._id} title={`${r.submissionState === "draft" ? "Draft · " : ""}${r.symptoms}`} detail={`${r.triagedPriority ?? r.priority} · ${new Date(r.createdAt).toLocaleString()}`} onPress={() => go("report-detail", r._id)} />)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /></>;
+ }
+ export function ReportFilters() {
+   const { account } = useStaffAccess();
+@@ -90,14 +90,6 @@ export function EquipmentRecord({ id }: { id: string }) {
+   const item = useQuery(staffApi.workflows.equipmentDetail, { id: id as GenericId<"equipment"> });
+   return <Screen title="Equipment Details">{item ? <><Card style={{ gap: 9 }}><Txt size={24} weight="800">{item.assetId}</Txt><Detail label="Equipment" value={item.name} /><Detail label="Model" value={item.model} /><Detail label="Location" value={item.location} /><Badge label={item.identityVerified ? "Verified inventory identity" : "Unverified identity"} tone="info" /></Card><ReleaseControls id={item._id} />{account?.capabilities.includes("report") && <Button label="Report fault" onPress={() => go("live-report", item._id)} />}{account?.capabilities.includes("assign") && <LinkRow title="Schedule preventive maintenance" onPress={() => go("preventive-create", item._id)} />}<LinkRow title="Maintenance timeline" onPress={() => go("equipment-history", item._id)} /><LinkRow title="Safety holds" onPress={() => go("holds", item._id)} /></> : <Notice>Loading authorized equipment…</Notice>}</Screen>;
+ }
+-export function HoldControls({ id }: { id: string }) {
+-  const equipmentId = id as GenericId<"equipment">; const holds = useQuery(staffApi.operations.holds, { equipmentId }); const { account } = useStaffAccess(); const create = useMutation(staffApi.operations.placeHold); const [reason, setReason] = useState("");
+-  return <Screen title="Equipment Safety Holds"><Notice>Active holds block return to service. Clearance requires approved institutional policy and explicit authority; resolution does not release equipment.</Notice>
+-    {holds?.length === 0 && <Notice>No holds recorded. This does not confirm equipment availability.</Notice>}
+-    {holds?.map((r) => <Card key={r._id} style={{ gap: 8 }}><Badge label={r.active ? "Active safety hold" : "Resolved"} tone={r.active ? "danger" : "success"} /><Txt>{r.reason}</Txt><Detail label="Responsible account" value={r.createdBy} /><Detail label="Created" value={new Date(r.createdAt).toLocaleString()} />{r.active && <ResolveHold id={r._id} equipmentId={r.equipmentId} />}</Card>)}
+-    {account?.capabilities.includes("hold") && <><Field label="Safety hold reason" value={reason} onChangeText={setReason} maxLength={500} /><ConfirmAction label="Place safety hold" title="Place equipment on hold?" detail="This protective action is recorded under your account and does not release equipment." disabled={!reason.trim()} danger onConfirm={async () => { await create({ equipmentId, reason }); setReason(""); }} /></>}
+-  </Screen>;
+-}
+ export function WorkHistory({ id }: { id: string }) {
+   const page = usePaginatedQuery(staffApi.workflows.workHistory, { id: id as GenericId<"maintenanceTasks"> }, { initialNumItems: 20 });
+   return <Card style={{ gap: 10 }}><Txt size={20} weight="700">Work history</Txt>{page.results.map((r) => <Card key={r._id} style={{ gap: 7 }}><Detail label="Revision" value={String(r.revision)} /><Badge label={r.state} /><Detail label="Diagnosis" value={r.diagnosis || "Not recorded"} /><Detail label="Evidence" value={r.diagnosisEvidence || 'Not recorded'} /><Detail label="Cause assessment" value={r.causeAssessment || 'Not recorded'} /><Detail label="Notes" value={r.notes || "Not recorded"} /><Detail label="Parts" value={r.parts.join(", ") || "None recorded"} /><Detail label="Recorded" value={new Date(r.at).toLocaleString()} /></Card>)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /></Card>;
+@@ -108,7 +100,7 @@ export function NotificationInbox() {
+   return <Screen title="Notification Centre" subtitle="Stay up to date with system activity." back={false}>
+     <Choices label="Show notifications" values={['All', 'Unread', 'Tasks', 'Reports', 'Equipment']} value={filter} onChange={setFilter} />
+     {page.status === 'Exhausted' && !page.results.length && <Card><Txt muted>No {filter === 'All' ? '' : filter.toLowerCase() + ' '}notifications to show.</Txt></Card>}
+-    {page.results.map((r) => <Card key={r._id} style={{ gap: 12 }}><Row style={{ alignItems: 'flex-start' }}><View style={{ backgroundColor: '#E8F3FF', borderRadius: 30, padding: 12 }}><Icon name={r.targetKind === 'task' ? 'construct-outline' : r.targetKind === 'equipment' ? 'medkit-outline' : 'document-text-outline'} size={25} /></View><View style={{ flex: 1, gap: 6 }}><Row style={{ flexWrap: 'wrap', justifyContent: 'space-between' }}><Txt weight="700" size={18} style={{ flex: 1 }}>{r.title}</Txt>{!r.readAt && <Badge label="Unread" />}</Row><Txt muted>{r.body}</Txt><Txt size={11} muted>{new Date(r.createdAt).toLocaleString()}</Txt></View></Row><Button label="Open record" variant="secondary" icon="chevron-forward" onPress={() => go(r.targetKind === 'task' ? 'live-task' : r.targetKind === 'report' ? 'report-detail' : 'live-equipment', r.targetId)} /><ConfirmAction label={r.readAt ? 'Mark unread' : 'Mark read'} title="Update notification?" detail="This changes only your inbox state." onConfirm={() => mark({ id: r._id, read: !r.readAt })} /></Card>)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /><Txt size={11} muted>In-app activity. External push and email delivery are not configured.</Txt></Screen>;
++    {page.results.map((r) => <Card key={r._id} style={{ gap: 12 }}><Row style={{ alignItems: 'flex-start' }}><View style={{ backgroundColor: '#E8F3FF', borderRadius: 30, padding: 12 }}><Icon name={r.targetKind === 'task' ? 'construct-outline' : r.targetKind === 'equipment' ? 'medkit-outline' : 'document-text-outline'} size={25} /></View><View style={{ flex: 1, gap: 6 }}><Row style={{ flexWrap: 'wrap', justifyContent: 'space-between' }}><Txt weight="700" size={18} style={{ flex: 1 }}>{r.title}</Txt>{!r.readAt && <Badge label="Unread" />}</Row><Txt muted>{r.body}</Txt><Txt size={11} muted>{new Date(r.createdAt).toLocaleString()}</Txt></View></Row><Button label="Open record" variant="secondary" icon="chevron-forward" onPress={() => go(r.targetKind === 'task' ? 'live-task' : r.targetKind === 'report' ? 'report-detail' : 'live-equipment', r.targetId)} /><ConfirmAction label={r.readAt ? 'Mark unread' : 'Mark read'} title="Update notification?" detail="This changes only your inbox state." onConfirm={() => mark({ id: r._id, read: !r.readAt })} /></Card>)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /><Button label="Notification preferences" variant="secondary" icon="settings-outline" onPress={() => go('notification-settings')} /><Txt size={11} muted>In-app activity. External push and email delivery are not configured.</Txt></Screen>;
+ }
+ export function EquipmentRegistry() {
+   const { account } = useStaffAccess(); const register = useMutation(staffApi.workflows.registerEquipment); const [department, setDepartment] = useState<GenericId<"departments"> | null>(account?.scope[0] ?? null);
+@@ -116,12 +108,12 @@ export function EquipmentRegistry() {
+   if (account?.role !== "Administrator" || !account.capabilities.includes("reconcile")) return <Screen title="Registry access restricted"><Notice>An authorized inventory administrator is required.</Notice></Screen>;
+   return <Screen title="Equipment Registry"><Notice>Register only independently verified institutional inventory. Never use this form to approve a provisional report without the required review.</Notice><ScopeSelect value={department} onChange={setDepartment} />
+     <Field label="Exact asset / QR identifier" value={assetId} onChangeText={setAsset} maxLength={200} /><Field label="Equipment name" value={name} onChangeText={setName} maxLength={120} /><Field label="Model" value={model} onChangeText={setModel} maxLength={120} /><Field label="Location" value={location} onChangeText={setLocation} maxLength={160} /><Field label="Inventory verification reference" value={reference} onChangeText={setReference} maxLength={500} />
+-    {created && <Notice>Equipment registered: {created}</Notice>}<ConfirmAction label="Register verified inventory" title="Confirm verified inventory?" detail="This creates a scoped inventory identity and an audit event. It does not release the equipment." disabled={!department || !assetId.trim() || !name.trim() || !model.trim() || !location.trim() || !reference.trim()} onConfirm={async () => { const id = await register({ assetId, name, model, location, departmentId: department!, evidenceReference: reference }); setCreated(id); }} />
++    {!!created && <Notice>Equipment registered: {created}</Notice>}<ConfirmAction label="Register verified inventory" title="Confirm verified inventory?" detail="This creates a scoped inventory identity and an audit event. It does not release the equipment." disabled={!department || !assetId.trim() || !name.trim() || !model.trim() || !location.trim() || !reference.trim()} onConfirm={async () => { const id = await register({ assetId, name, model, location, departmentId: department!, evidenceReference: reference }); setCreated(id); }} />
+   </Screen>;
+ }
+-export function EquipmentLookup({ scan = false, emergency = false }: { scan?: boolean; emergency?: boolean }) {
++export function EquipmentLookup({ scan = false, emergency = false, initialIdentifier = "" }: { scan?: boolean; emergency?: boolean; initialIdentifier?: string }) {
+   const { account } = useStaffAccess();
+-  const [permission, requestPermission] = useCameraPermissions(); const [input, setInput] = useState(""); const [identifier, setIdentifier] = useState(""); const [scanning, setScanning] = useState(scan);
++  const [permission, requestPermission] = useCameraPermissions(); const [input, setInput] = useState(initialIdentifier); const [identifier, setIdentifier] = useState(""); const [scanning, setScanning] = useState(scan);
+   const result = useQuery(staffApi.workflows.lookup, identifier ? { identifier } : "skip");
+   const [lookupError, setLookupError] = useState("");
+   const find = () => { if (!input.trim() || input.length > 200 || /[\u0000-\u001f]/.test(input)) { setIdentifier(""); setLookupError("Use 1–200 printable characters from the equipment label."); return; } setLookupError(""); setScanning(false); setIdentifier(input.trim()); };
+@@ -130,10 +122,10 @@ export function EquipmentLookup({ scan = false, emergency = false }: { scan?: bo
+     <Txt size={28} weight="800">{scanning ? 'Scan Equipment QR' : 'Enter Equipment ID'}</Txt><Txt size={17} muted>{scanning ? 'Align the equipment QR label inside the camera view.' : 'Enter the equipment identifier manually if QR scanning is unavailable.'}</Txt>
+     {scanning && (!permission?.granted ? <><Notice>Camera access is needed to scan equipment. You can enter the asset ID manually.</Notice><Button label="Allow camera" onPress={() => void requestPermission()} />{permission?.canAskAgain === false && <Button label="Open device settings" onPress={() => void Linking.openSettings()} />}</> : <CameraView style={{ height: 250, borderRadius: 20 }} barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={({ data }) => { setScanning(false); setInput(data); setIdentifier(""); if (data.trim() && data.length <= 200 && !/[\u0000-\u001f]/.test(data)) { setIdentifier(data.trim()); setLookupError(""); } else setLookupError("QR identifier must contain 1–200 printable characters. Use manual entry if needed."); }} />)}
+     <Card style={{ gap: 12 }}><Field label="Equipment ID" icon="barcode-outline" placeholder="Enter the identifier on the asset label" value={input} onChangeText={(value) => { setInput(value); setIdentifier(''); setLookupError(''); }} maxLength={200} autoCapitalize="none" autoCorrect={false} /><Txt muted size={13}>Use the exact identifier printed on the equipment label.</Txt>{!!input && <Button label="Clear identifier" variant="secondary" onPress={() => { setInput(''); setIdentifier(''); setLookupError(''); }} />}</Card><Button label="Search Equipment" icon="arrow-forward" disabled={!input.trim()} onPress={find} /><Button label={scanning ? 'Use manual entry' : 'Scan QR code'} icon={scanning ? 'keypad-outline' : 'qr-code-outline'} variant="secondary" onPress={() => { setIdentifier(''); setLookupError(''); setScanning(!scanning); }} />
+-    {lookupError && <Notice tone="warning">{lookupError}</Notice>}
+-    {identifier && result === undefined && <Notice>Checking authorized inventory…</Notice>}
++    {!!lookupError && <Notice tone="warning">{lookupError}</Notice>}
++    {!!identifier && result === undefined && <Notice>Checking authorized inventory…</Notice>}
+     {result && <Card style={{ gap: 9 }}><Txt weight="700">{result.name}</Txt><Detail label="Asset" value={result.assetId} /><Detail label="Location" value={result.location} /><Button label="Confirm equipment" onPress={() => go(emergency ? "emergency-form" : "live-equipment", result._id)} /></Card>}
+-    {identifier && result === null && <><Notice>No equipment matches in your authorized scope. A scan does not create or verify inventory.</Notice>{account?.capabilities.includes("report") && <Button label="Report unverified equipment" onPress={() => go("provisional", input)} />}</>}
++    {!!identifier && result === null && <><Notice>No equipment matches in your authorized scope. A scan does not create or verify inventory.</Notice><Button label="Review unmatched identifier" variant="secondary" onPress={() => go('unmatched', identifier)} />{account?.capabilities.includes("report") && <Button label="Report unverified equipment" onPress={() => go("provisional", input)} />}</>}
+     <Button label="Browse All Equipment" icon="search-outline" variant="secondary" onPress={() => router.push('/workspace/equipment')} />
+   </Screen>;
+ }
+diff --git a/src/features/staff/preventive-screens.tsx b/src/features/staff/preventive-screens.tsx
+index 4fce7c0..8b9bd96 100644
+--- a/src/features/staff/preventive-screens.tsx
++++ b/src/features/staff/preventive-screens.tsx
+@@ -32,5 +32,5 @@ export function PreventiveCreate({ id }: { id?: string }) {
+   const { account } = useStaffAccess(); const create = useMutation(staffApi.preventive.create); const [title, setTitle] = useState(""); const [reference, setReference] = useState(""); const [interval, setInterval] = useState(""); const [due, setDue] = useState(""); const [checklist, setChecklist] = useState(""); const [created, setCreated] = useState(""); const [operationId] = useState(randomUUID);
+   if (!id) return <OperationalList kind="equipment" />;
+   if (!account?.capabilities.includes("assign")) return <Screen title="Schedule creation restricted"><Notice>Supervisor assignment capability is required.</Notice></Screen>;
+-  return <Screen title="Schedule Preventive Maintenance"><Notice>Enter the actual approved equipment maintenance procedure and its reference. Do not invent clinical or technical safety checklists here.</Notice><Field label="Schedule title" value={title} onChangeText={setTitle} maxLength={120} /><Field label="Approved procedure reference" value={reference} onChangeText={setReference} maxLength={200} /><Field label="Interval in days" value={interval} onChangeText={setInterval} keyboardType="number-pad" /><DateTimeField label="First due date" value={due} onChange={setDue} required /><Field label="Approved maintenance checklist (one item per line)" value={checklist} onChangeText={setChecklist} multiline maxLength={4800} />{created && <Notice>Schedule created: {created}</Notice>}<ConfirmAction label="Create maintenance schedule" title="Create this approved schedule?" detail="It will be scoped to the selected equipment and audited under your account." disabled={!title.trim() || !reference.trim() || !checklist.trim() || !due || !interval || !!created} onConfirm={async () => setCreated(await create({ operationId, equipmentId: id as GenericId<"equipment">, title, approvedReference: reference, intervalDays: Number(interval), nextDueAt: Date.parse(due), checklist: checklist.split("\n").map((s) => s.trim()).filter(Boolean) }))} /><Button label="View schedules" variant="secondary" onPress={() => go("preventive-schedules")} /></Screen>;
++  return <Screen title="Schedule Preventive Maintenance"><Notice>Enter the actual approved equipment maintenance procedure and its reference. Do not invent clinical or technical safety checklists here.</Notice><Field label="Schedule title" value={title} onChangeText={setTitle} maxLength={120} /><Field label="Approved procedure reference" value={reference} onChangeText={setReference} maxLength={200} /><Field label="Interval in days" value={interval} onChangeText={setInterval} keyboardType="number-pad" /><DateTimeField label="First due date" value={due} onChange={setDue} required /><Field label="Approved maintenance checklist (one item per line)" value={checklist} onChangeText={setChecklist} multiline maxLength={4800} />{!!created && <Notice>Schedule created: {created}</Notice>}<ConfirmAction label="Create maintenance schedule" title="Create this approved schedule?" detail="It will be scoped to the selected equipment and audited under your account." disabled={!title.trim() || !reference.trim() || !checklist.trim() || !due || !interval || !!created} onConfirm={async () => setCreated(await create({ operationId, equipmentId: id as GenericId<"equipment">, title, approvedReference: reference, intervalDays: Number(interval), nextDueAt: Date.parse(due), checklist: checklist.split("\n").map((s) => s.trim()).filter(Boolean) }))} /><Button label="View schedules" variant="secondary" onPress={() => go("preventive-schedules")} /></Screen>;
+ }
+diff --git a/src/features/staff/report-photos.tsx b/src/features/staff/report-photos.tsx
+index cd8f682..abbddcb 100644
+--- a/src/features/staff/report-photos.tsx
++++ b/src/features/staff/report-photos.tsx
+@@ -31,6 +31,6 @@ export function ReportPhotos({ reportId, editable = false, onSnapshot }: { repor
+     {editable && <><Button label="Take a picture" loading={busy} disabled={(list?.length ?? 0) >= 5} onPress={() => void select(true)} /><Button label="Choose existing photo" variant="secondary" loading={busy} disabled={(list?.length ?? 0) >= 5} onPress={() => void select(false)} /></>}
+     {photo && <><Image source={{ uri: photo.uri }} style={{ height: 200, width: "100%", borderRadius: 16 }} accessibilityLabel="Selected equipment photo, not yet uploaded" /><Button label="Upload / retry photo" loading={busy} onPress={() => void send()} /><Button label="Remove selected photo" variant="secondary" disabled={busy} onPress={() => setPhoto(null)} /></>}
+     {list?.map((r, index) => <Card key={r.id} style={{ gap: 8 }}><Detail label={`Photo ${index + 1}`} value={`${Math.ceil(r.size / 1024)} KB · ${r.contentType}`} /><Button label={`View photo ${index + 1}`} variant="secondary" disabled={busy} onPress={() => { setBusy(true); void read({ id: r.id }).then((data) => setViewed({ id: r.id, uri: data.dataUri })).catch((error) => setMessage(authErrorMessage(error))).finally(() => setBusy(false)); }} />{viewed?.id === r.id && <Image source={{ uri: viewed.uri }} style={{ height: 220, width: "100%", borderRadius: 16 }} accessibilityLabel={`Equipment attachment ${index + 1}`} />}{editable && <ConfirmAction label={`Remove photo ${index + 1}`} title="Remove this equipment photo?" detail="The stored image will be deleted; the removal is audited." danger onConfirm={() => remove({ id: r.id })} />}</Card>)}
+-    {busy && <Notice>Photo request in progress…</Notice>}{message && <Notice>{message}</Notice>}
++    {busy && <Notice>Photo request in progress…</Notice>}{!!message && <Notice>{message}</Notice>}
+   </Card>;
+ }
+diff --git a/src/features/staff/report-queue.tsx b/src/features/staff/report-queue.tsx
+index 4abbd62..77d949d 100644
+--- a/src/features/staff/report-queue.tsx
++++ b/src/features/staff/report-queue.tsx
+@@ -48,14 +48,14 @@ export function ReportQueueScreen({ view = 'sync' }: { view?: string }) {
+   const states = [{ state: 'PENDING', title: 'Pending (saved locally)', route: 'queue', icon: 'document-text-outline' }, { state: 'SYNCING', title: 'Uploading', route: 'queue', icon: 'cloud-upload-outline' }, { state: 'FAILED', title: 'Failed', route: 'upload-failed', icon: 'alert-circle-outline' }, { state: 'CONFLICT', title: 'Conflicts', route: 'conflict', icon: 'sync-outline' }] as const;
+   return <Screen title={view === 'upload-failed' ? 'Upload Failed' : view === 'conflict' ? 'Sync Conflict' : view === 'queue' ? 'Pending Sync Queue' : 'Sync Status'} subtitle={view === 'sync' ? 'View the current sync status and pending items.' : view === 'queue' ? 'Report submissions awaiting a server receipt.' : view === 'conflict' ? 'Review changed revisions before submitting again.' : 'Server receipt was not confirmed for these attempts.'}>
+     <Notice tone={service.available ? 'success' : 'warning'}>{service.available ? 'Secure submission queue available for this approved account.' : 'Secure queue unavailable. Reconnect with an approved account on Android or iOS.'}</Notice>
+-    {(error || service.error) && <Notice tone="warning">{error || service.error}</Notice>}
++    {!!(error || service.error) && <Notice tone="warning">{error || service.error}</Notice>}
+     {view === 'sync' && <Card style={{ gap: 14 }}><Txt size={21} weight="700">Pending items</Txt>{states.map((item) => <LinkRow key={item.state} title={item.title} icon={item.icon} tail={<Badge label={String(service.rows.filter((r) => r.state === item.state).length)} tone={item.state === 'FAILED' ? 'danger' : 'info'} />} onPress={() => go(item.route)} />)}</Card>}
+     {service.available && !selected.length && <Card><Txt muted>{view === 'conflict' ? 'No conflicting submissions.' : view === 'upload-failed' ? 'No failed submissions.' : 'No pending submissions in this selection.'}</Txt></Card>}
+-    {selected.map((r) => view === 'conflict' ? <PublicationConflict key={r.id} entry={r} /> : <Card key={r.id} style={{ gap: 12 }}><Row><Icon name={r.state === 'SYNCED' ? 'checkmark-circle' : r.state === 'FAILED' ? 'alert-circle' : 'cloud-upload-outline'} size={34} color={r.state === 'FAILED' ? '#C92E40' : '#0866E8'} /><View style={{ flex: 1, gap: 5 }}><Txt weight="700" size={18}>Fault report</Txt><Badge label={r.state} tone={r.state === 'FAILED' ? 'danger' : r.state === 'SYNCED' ? 'success' : 'warning'} /></View></Row><Detail label="Report" value={r.reportId} /><Detail label="Attempts" value={String(r.retryCount)} /><Detail label="Last updated" value={new Date(r.updatedAt).toLocaleString()} />{r.state !== 'SYNCED' && <Notice tone="warning">Server receipt not confirmed for this submission attempt.</Notice>}{r.lastError && <Notice tone="warning">{r.lastError}</Notice>}{r.state === 'SYNCED' && <Button label="View received report" onPress={() => go('report-detail', r.serverId)} />}{r.state === 'CONFLICT' ? <Button label="Review saved draft conflict" onPress={() => go('conflict')} /> : r.state === 'FAILED' && <Button label="Retry publication" icon="refresh-outline" loading={busy} disabled={!service.available || !service.retry} onPress={() => { setBusy(true); void service.retry?.(r).catch((failure) => setError(authErrorMessage(failure))).finally(() => setBusy(false)); }} />}</Card>)}
++    {selected.map((r) => view === 'conflict' ? <PublicationConflict key={r.id} entry={r} /> : <Card key={r.id} style={{ gap: 12 }}><Row><Icon name={r.state === 'SYNCED' ? 'checkmark-circle' : r.state === 'FAILED' ? 'alert-circle' : 'cloud-upload-outline'} size={34} color={r.state === 'FAILED' ? '#C92E40' : '#0866E8'} /><View style={{ flex: 1, gap: 5 }}><Txt weight="700" size={18}>Fault report</Txt><Badge label={r.state} tone={r.state === 'FAILED' ? 'danger' : r.state === 'SYNCED' ? 'success' : 'warning'} /></View></Row><Detail label="Report" value={r.reportId} /><Detail label="Attempts" value={String(r.retryCount)} /><Detail label="Last updated" value={new Date(r.updatedAt).toLocaleString()} />{r.state !== 'SYNCED' && <Notice tone="warning">Server receipt not confirmed for this submission attempt.</Notice>}{!!r.lastError && <Notice tone="warning">{r.lastError}</Notice>}{r.state === 'SYNCED' && <Button label="View received report" onPress={() => go('report-detail', r.serverId)} />}{r.state === 'CONFLICT' ? <Button label="Review saved draft conflict" onPress={() => go('conflict')} /> : r.state === 'FAILED' && <Button label="Retry publication" icon="refresh-outline" loading={busy} disabled={!service.available || !service.retry} onPress={() => { setBusy(true); void service.retry?.(r).catch((failure) => setError(authErrorMessage(failure))).finally(() => setBusy(false)); }} />}</Card>)}
+     <Txt size={12} muted>This queue retains submission attempts for already-saved server drafts. New offline drafts, offline photos and safety decisions are not stored here.</Txt>
+   </Screen>;
+ }
+ function PublicationConflict({ entry }: { entry: PendingPublication }) {
+   const report = useQuery(staffApi.workflows.reportDetail, { id: entry.reportId as GenericId<'faultReports'> });
+-  return <Card style={{ gap: 16 }}><Txt size={20} weight="700">{entry.reportId}</Txt><Row style={{ alignItems: 'flex-start' }}><View style={{ flex: 1, gap: 8 }}><Icon name="phone-portrait-outline" /><Txt weight="700">Local attempt</Txt><Txt muted>Draft revision {entry.expectedRevision}</Txt><Txt muted>Photo revision {entry.expectedAttachmentRevision ?? 0}</Txt><Txt size={12} muted>{new Date(entry.updatedAt).toLocaleString()}</Txt></View><View style={{ flex: 1, gap: 8 }}><Icon name="cloud-outline" /><Txt weight="700">Current server</Txt><Txt muted>{report ? `Draft revision ${report.revision ?? 1}` : 'Loading…'}</Txt><Txt muted>{report ? `Photo revision ${report.attachmentRevision ?? 0}` : 'Loading…'}</Txt><Txt muted>{report?.submissionState === 'draft' ? 'Saved draft' : report ? 'Submitted' : ''}</Txt></View></Row><Notice tone="warning">The saved draft or its photos changed. Review the latest server content before submitting again. This queue does not retain a separate copy of the draft fields.</Notice>{entry.lastError && <Txt size={12} muted>{entry.lastError}</Txt>}<Button label="Review latest saved draft" disabled={!report} onPress={() => go('resume-report', entry.reportId)} /></Card>;
++  return <Card style={{ gap: 16 }}><Txt size={20} weight="700">{entry.reportId}</Txt><Row style={{ alignItems: 'flex-start' }}><View style={{ flex: 1, gap: 8 }}><Icon name="phone-portrait-outline" /><Txt weight="700">Local attempt</Txt><Txt muted>Draft revision {entry.expectedRevision}</Txt><Txt muted>Photo revision {entry.expectedAttachmentRevision ?? 0}</Txt><Txt size={12} muted>{new Date(entry.updatedAt).toLocaleString()}</Txt></View><View style={{ flex: 1, gap: 8 }}><Icon name="cloud-outline" /><Txt weight="700">Current server</Txt><Txt muted>{report ? `Draft revision ${report.revision ?? 1}` : 'Loading…'}</Txt><Txt muted>{report ? `Photo revision ${report.attachmentRevision ?? 0}` : 'Loading…'}</Txt><Txt muted>{report?.submissionState === 'draft' ? 'Saved draft' : report ? 'Submitted' : ''}</Txt></View></Row><Notice tone="warning">The saved draft or its photos changed. Review the latest server content before submitting again. This queue does not retain a separate copy of the draft fields.</Notice>{!!entry.lastError && <Txt size={12} muted>{entry.lastError}</Txt>}<Button label="Review latest saved draft" disabled={!report} onPress={() => go('resume-report', entry.reportId)} /></Card>;
+ }
+diff --git a/src/features/staff/reporting-journey.tsx b/src/features/staff/reporting-journey.tsx
+index 6c31630..61aa30f 100644
+--- a/src/features/staff/reporting-journey.tsx
++++ b/src/features/staff/reporting-journey.tsx
+@@ -14,6 +14,7 @@ import { EquipmentLookup } from "./operational-screens";
+ import { ConfirmAction } from "./ui";
+ import { useStaffAccess } from "./provider";
+ import { ReportPhotos } from "./report-photos";
++import { ReportReceipt } from "./report-results";
+ import { useReportQueue } from "./report-queue";
+ 
+ export function ReportingJourney({ id, emergency = false }: { id?: string; emergency?: boolean }) {
+@@ -41,13 +42,13 @@ function Journey({ equipmentId, emergency, initial, initialStage = 1 }: { equipm
+       setDraft(result); setSavedFingerprint(fingerprint); setStage(next); setMessage("Draft saved to your account. It has not been submitted for maintenance.");
+     } catch (error) { setMessage(authErrorMessage(error)); } finally { setBusy(false); }
+   };
+-  if (submitted && draft) return <Screen title="Report Received"><Badge label="Server received" tone="success" /><Detail label="Report reference" value={draft.id} /><Notice>{emergency ? "Urgent report recorded. External escalation and push/email delivery are not confirmed. Follow your institution's approved urgent-response procedure." : "Your report was recorded. This does not confirm maintenance acceptance or equipment availability."}</Notice><Button label="View submitted report" onPress={() => go("report-detail", draft.id)} /><Button label="View reports" variant="secondary" onPress={() => go("live-reports")} /></Screen>;
++  if (submitted && draft) return <ReportReceipt id={draft.id} emergency={emergency} />;
+   return <Screen>
+     <ReportSteps current={stage} onChange={(next) => { if (next === 1) setStage(1); else if (draft && savedFingerprint === fingerprint) setStage(next); else setMessage('Save your latest details before continuing.'); }} />
+     <View style={{ gap: 5 }}><Txt size={27} weight="800">{emergency ? 'Emergency Fault Report' : stage === 1 ? 'Report a Fault' : stage === 2 ? 'Equipment Photos' : 'Review Fault Report'}</Txt><Txt size={16} muted>{stage === 1 ? 'Provide accurate details about the issue.' : stage === 2 ? 'Add clear photos of the equipment and fault.' : 'Check the details below before submitting.'}</Txt></View>
+     {equipment && <Card style={{ gap: 7 }}><Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}><Txt size={19} weight="700">{equipment.assetId}</Txt><Badge label={equipment.identityVerified ? 'Identified' : 'Identity unverified'} tone={equipment.identityVerified ? 'success' : 'warning'} /></Row><Txt size={16}>{equipment.name}</Txt><Txt muted>{equipment.location}</Txt></Card>}
+     {emergency && <Notice tone="danger">Urgent reporting does not replace your approved emergency response process. External alert delivery is not configured.</Notice>}
+-    {message && <Notice>{message}</Notice>}
++    {!!message && <Notice>{message}</Notice>}
+     {stage === 1 && <>
+       <Select label="Fault category" values={["Electrical/Power", "Mechanical/Physical", "Performance/Function", "Controls/Display", "Accessories/Connections", "Alarm/Safety Concern", "Other/Unknown"]} value={category} onChange={setCategory} />
+       <Field label="Specific symptoms" value={symptoms} onChangeText={setSymptoms} maxLength={300} /><Field label="Full description" value={description} onChangeText={setDescription} maxLength={2000} multiline />
+diff --git a/src/features/staff/safety-screens.tsx b/src/features/staff/safety-screens.tsx
+index 33059db..f890663 100644
+--- a/src/features/staff/safety-screens.tsx
++++ b/src/features/staff/safety-screens.tsx
+@@ -5,6 +5,7 @@ import { randomUUID } from "expo-crypto";
+ import type { GenericId } from "convex/values";
+ import type { FunctionReturnType } from "convex/server";
+ import { Badge, Button, Card, Choices, Detail, Field, Icon, LinkRow, Notice, Row, Screen, Txt } from "@/components/smart/ui";
++import { StatusPanel } from "@/components/smart/status-ui";
+ import { DateTimeField } from "@/components/smart/date-time-field";
+ import { staffApi } from "@/services/staff-api";
+ import { go } from "@/navigation/go";
+@@ -33,15 +34,15 @@ function VerificationDecisions({ context, kind, history }: { context: FunctionRe
+ function VerificationForm({ context, kind }: { context: FunctionReturnType<typeof staffApi.safety.verificationContext>; kind: "technical" | "clinical" }) {
+   const { account } = useStaffAccess(); const verify = useMutation(staffApi.safety.verify); const [checks, setChecks] = useState<Record<string, "Not checked" | "Pass" | "Fail">>({}); const [outcome, setOutcome] = useState<"pass" | "fail" | "unable">("pass"); const [notes, setNotes] = useState(""); const [reference, setReference] = useState(""); const [due, setDue] = useState(""); const [operationId, setOperationId] = useState(randomUUID); const [received, setReceived] = useState("");
+   const policy = context.policy; const self = context.task.assigneeId === account?.id;
+-  return <Screen title={kind === "technical" ? "Technical Verification" : "Clinical Verification"}>
++  return <Screen title={kind === "technical" ? "Technical Safety Checklist" : "Clinical Safety Checklist"} subtitle="Record an independent decision against the approved institutional policy.">
+     <Card style={{ gap: 9 }}><Detail label="Linked repair" value={context.task._id} /><Detail label="Repair status" value={context.task.state} /><Detail label="Repair diagnosis" value={context.task.diagnosis || "Not recorded"} /><Detail label="Maintenance cycle" value={String(context.task.cycle)} /></Card>
+     {!policy ? <Notice tone="warning">Institutional safety policy is not approved/configured. Verification is disabled. No illustrative checklist is used for a live safety decision.</Notice> : <>
+-      <Detail label="Approved policy reference" value={policy.approvalReference} />
++      <Card style={{ gap: 10 }}><Detail label="Approved policy reference" value={policy.approvalReference} /><Detail label="Checks marked pass" value={`${policy.checks.filter((label) => checks[label] === "Pass").length} / ${policy.checks.length}`} /><Txt muted size={12}>Every required check must pass before a pass decision can be recorded.</Txt></Card>
+       {self && <Notice tone="warning">The repairing technician cannot verify their own work. An independent authorized verifier is required.</Notice>}
+       {policy.checks.map((label) => <Card key={label}><Choices label={label} values={["Not checked", "Pass", "Fail"]} value={checks[label] ?? "Not checked"} onChange={(value) => setChecks((old) => ({ ...old, [label]: value }))} /></Card>)}
+       <Choices label="Verification outcome" values={["pass", "fail", "unable"]} value={outcome} onChange={setOutcome} /><Field label="Findings / failure or inability reason" value={notes} onChangeText={setNotes} multiline maxLength={2000} /><Field label="Evidence reference" value={reference} onChangeText={setReference} maxLength={500} />
+       {outcome !== "pass" && <><Notice>A failed/unable decision creates linked rework and blocks return to service.</Notice><DateTimeField label="Required rework due date" value={due} onChange={setDue} required /></>}
+-      {received && <><Notice>Verification recorded: {received}</Notice><Button label="View recorded verification results" onPress={() => go(`${kind}-result`, context.task._id)} /></>}
++      {!!received && <><Notice>Verification recorded: {received}</Notice><Button label="View recorded verification results" onPress={() => go(`${kind}-result`, context.task._id)} /></>}
+       <ConfirmAction label="Record verification" title="Record this safety decision?" detail="This creates an immutable decision tied to the current policy, repair revision and your account. A pass does not release equipment." disabled={self || context.task.state !== "Completed" || !reference.trim() || !!received || (outcome === "pass" && policy.checks.some((label) => checks[label] !== "Pass")) || (outcome !== "pass" && (!notes.trim() || !due))}
+         onConfirm={async () => { const id = await verify({ taskId: context.task._id, expectedRevision: context.task.revision, kind, outcome, checks: policy.checks.map((label) => ({ label, passed: checks[label] === "Pass" })), notes, evidenceReference: reference, operationId, reworkDueAt: outcome === "pass" ? undefined : Date.parse(due) }); setReceived(id); setOperationId(randomUUID()); }} />
+     </>}
+@@ -67,14 +68,26 @@ function VerifierChoices({ id, kind, revision }: { id: GenericId<"maintenanceTas
+   const page = usePaginatedQuery(staffApi.safety.verifierPage, { taskId: id, kind }, { initialNumItems: 20 }); const request = useMutation(staffApi.safety.requestVerification); const [selected, setSelected] = useState<GenericId<"staffAccounts"> | null>(null); const [received, setReceived] = useState(false);
+   return <><Notice>Select an independent authorized verifier. This creates an in-app request; external delivery is not configured.</Notice>{page.results.map((candidate) => <Button key={candidate.id} variant={selected === candidate.id ? "primary" : "secondary"} label={`${candidate.name} · ${candidate.staffId}`} onPress={() => { setSelected(candidate.id); setReceived(false); }} />)}{page.status !== "Exhausted" && <Button label="Load more verifiers" loading={page.isLoading} disabled={page.status !== "CanLoadMore"} onPress={() => page.loadMore(20)} />}{page.status === "Exhausted" && !page.results.length && <Notice>No eligible independent verifiers in this department.</Notice>}{received && <Notice>In-app verification request recorded.</Notice>}<ConfirmAction label="Request verification" title="Request independent verification?" detail="The server rechecks the repair revision, policy and recipient authority. Clinical review requires a distinct technical pass first." disabled={!selected || received} onConfirm={async () => { await request({ taskId: id, expectedRevision: revision, kind, recipientId: selected! }); setReceived(true); }} /></>;
+ }
+-export function ReleaseScreen({ id }: { id: string }) {
+-  return <Screen title="Equipment Return to Service"><ReleaseControls id={id} /></Screen>;
++export function ReleaseScreen({ id, overview = false }: { id: string; overview?: boolean }) {
++  const equipment = useQuery(staffApi.workflows.equipmentDetail, { id: id as GenericId<"equipment"> });
++  return <Screen title={overview ? "Equipment Availability" : "Equipment Release Checklist"} subtitle={overview ? "Review current restrictions before using this equipment." : "Review current prerequisites for an authorized return-to-service decision."}>
++    {equipment && <Card style={{ gap: 7 }}><Txt size={23} weight="800">{equipment.assetId}</Txt><Txt size={17}>{equipment.name}</Txt><Txt muted>{equipment.location}</Txt><Badge label={equipment.identityVerified ? "Inventory identity verified" : "Unverified inventory identity"} tone={equipment.identityVerified ? "info" : "warning"} /></Card>}
++    <ReleaseControls id={id} />
++    <LinkRow title="Active safety holds" detail="Review restrictions and authorized resolutions" icon="lock-closed-outline" onPress={() => go("holds", id)} />
++    <LinkRow title="Equipment status timeline" icon="time-outline" onPress={() => go("status-timeline", id)} />
++    <Button label={overview ? "Review release checklist" : "View equipment record"} variant="secondary" onPress={() => go(overview ? "release" : "equipment-detail", id)} />
++  </Screen>;
+ }
+ export function ReleaseControls({ id }: { id: string }) {
+   const equipmentId = id as GenericId<"equipment">; const result = useQuery(staffApi.safety.releaseStatus, { equipmentId }); const release = useMutation(staffApi.safety.release); const [reason, setReason] = useState("");
+-  return result ? <Card style={{ gap: 10 }}><Badge label={result.available ? "Available — current release confirmed" : "Not released for service"} tone={result.available ? "success" : "warning"} /><Detail label="Policy" value={result.policyReference ?? "Not approved/configured"} />{result.blockers.map((blocker) => <Notice key={blocker} tone="warning">{blocker}</Notice>)}
+-    {result.canRelease && !result.available && <><Field label="Return-to-service justification" value={reason} onChangeText={setReason} maxLength={500} /><ConfirmAction label="Authorize return to service" title="Release equipment for service?" detail="All current repairs, verifications, identity and holds are checked atomically by the server." disabled={!result.eligible || !reason.trim() || result.expectedTaskRevision === null} onConfirm={() => release({ equipmentId, expectedTaskRevision: result.expectedTaskRevision!, reason })} /></>}
+-  </Card> : <Notice>Checking current release prerequisites…</Notice>;
++  return result ? <View style={{ gap: 14 }}>
++    <StatusPanel title={result.available ? "Released for service" : "Not released for service"} detail={result.available ? "The current release decision satisfies the recorded prerequisites. Later faults or safety holds can change this status." : "Do not infer availability from a completed repair or an individual verification pass."} icon={result.available ? "shield-checkmark" : "alert-circle"} tone={result.available ? "success" : "warning"} />
++    <Card style={{ gap: 14 }}><Txt size={20} weight="800">Return-to-service prerequisites</Txt><Detail label="Approved policy" value={result.policyReference ?? "Not approved/configured"} />
++      {result.blockers.map((blocker, index) => <Row key={blocker} style={{ alignItems: "flex-start" }}><Icon name="close-circle-outline" color="#C92E40" /><View style={{ flex: 1, gap: 3 }}><Txt size={12} muted>Restriction {index + 1}</Txt><Txt>{blocker}</Txt></View></Row>)}
++      {result.available && <Notice tone="success">Current release confirmed by the staff service.</Notice>}
++      {result.canRelease && !result.available && <><Field label="Return-to-service justification" value={reason} onChangeText={setReason} maxLength={500} multiline /><ConfirmAction label="Authorize Return to Service" title="Release equipment for service?" detail="All current repairs, verifications, identity and holds are checked atomically by the server." disabled={!result.eligible || !reason.trim() || result.expectedTaskRevision === null} onConfirm={() => release({ equipmentId, expectedTaskRevision: result.expectedTaskRevision!, reason })} /></>}
++    </Card>
++  </View> : <Notice>Checking current release prerequisites?</Notice>;
+ }
+ export function ResolveHold({ id, equipmentId }: { id: GenericId<"safetyHolds">; equipmentId: GenericId<"equipment"> }) {
+   const status = useQuery(staffApi.safety.releaseStatus, { equipmentId }); const resolve = useMutation(staffApi.safety.resolveHold); const [reason, setReason] = useState("");
+diff --git a/src/features/staff/status.tsx b/src/features/staff/status.tsx
+index ab7d179..5c9ea4c 100644
+--- a/src/features/staff/status.tsx
++++ b/src/features/staff/status.tsx
+@@ -35,7 +35,7 @@ export function StaffAccountStatus() {
+   const application = access.application;
+   return <View style={{ gap: 14 }}>
+     <Txt size={26} weight="800">{titles[access.status]}</Txt>
+-    {identity.email && <Detail label="Clerk email" value={identity.email} />}
++    {!!identity.email && <Detail label="Clerk email" value={identity.email} />}
+     <Badge label={access.status.replaceAll("_", " ")} tone={access.status === "approved" ? "success" : "warning"} />
+     {access.status === "approved" && access.account ? <>
+       <Detail label="Verified staff" value={access.account.name} />
+@@ -57,7 +57,7 @@ export function StaffAccountStatus() {
+     {["unconfigured", "authorization_error", "backend_unavailable", "timeout"].includes(access.status) && <Notice tone="warning">The staff access service could not confirm your authorization. Staff records remain locked. Try again or contact your administrator.</Notice>}
+     {access.status === "session_expired" && <Notice tone="warning">Your identity could not be authenticated by the staff service. Sign in again. An administrator may also need to check the identity-service connection.</Notice>}
+     {access.configured && access.connected && ["no_application", "rejected"].includes(access.status) && <ApplicationEntry />}
+-    {message && <Notice tone="warning">{message}</Notice>}
++    {!!message && <Notice tone="warning">{message}</Notice>}
+     <Button label="Refresh account status" loading={busy} onPress={() => void refresh()} />
+     <Button label="Sign out" variant="secondary" disabled={busy} onPress={() => void signOut()} />
+   </View>;
+@@ -98,7 +98,7 @@ function ApplicationForm({ hint }: { hint: Record<string, unknown> }) {
+     <Select label="Requested role" values={roles} value={role} onChange={setRole} />
+     <Notice>Your details will be checked against institutional records. Requested roles do not grant permissions.</Notice>
+     {departments?.length === 0 && <Notice tone="warning">Approved departments are not available yet. Contact your administrator.</Notice>}
+-    {message && <Notice tone="warning">{message}</Notice>}
++    {!!message && <Notice tone="warning">{message}</Notice>}
+     <Button label="Submit staff application" loading={busy} disabled={!departments?.length} onPress={() => void save()} />
+   </Card>;
+ }
+diff --git a/src/features/staff/ui.tsx b/src/features/staff/ui.tsx
+index 21b1f7c..5a484da 100644
+--- a/src/features/staff/ui.tsx
++++ b/src/features/staff/ui.tsx
+@@ -32,7 +32,7 @@ export function ConfirmAction({ label, title, detail, onConfirm, disabled = fals
+       <View accessibilityViewIsModal style={{ flex: 1, justifyContent: "center", padding: 24, backgroundColor: "#07172E99" }}>
+         <Card style={{ gap: 16 }}>
+           <Txt size={22} weight="800">{title}</Txt><Txt>{detail}</Txt>
+-          {error && <Notice tone="warning">{error}</Notice>}
++          {!!error && <Notice tone="warning">{error}</Notice>}
+           <Row><View style={{ flex: 1 }}><Button label="Cancel" variant="secondary" disabled={busy} onPress={() => setOpen(false)} /></View>
+             <View style={{ flex: 1 }}><Button label="Confirm" variant={danger ? "danger" : "primary"} loading={busy} onPress={() => void confirm()} /></View></Row>
+         </Card>
+diff --git a/src/features/staff/workspace.tsx b/src/features/staff/workspace.tsx
+index b2a6cb9..add1bce 100644
+--- a/src/features/staff/workspace.tsx
++++ b/src/features/staff/workspace.tsx
+@@ -1,21 +1,26 @@
+ import { useState, type ComponentType } from "react";
+-import { Platform, Share, View, Pressable } from "react-native";
+-import { Redirect, router } from "expo-router";
++import { View, Pressable } from "react-native";
++import { Redirect } from "expo-router";
+ import { useMutation, useQuery } from "convex/react";
+ import type { FunctionReturnType } from "convex/server";
+ import { Badge, Button, Card, Choices, Detail, Field, Icon, LinkRow, Notice, Row, Screen, Section, Select, Txt, usePalette } from "@/components/smart/ui";
+ import { DateTimeField } from "@/components/smart/date-time-field";
+ import { useApp } from "@/state/app-state";
+-import { useIdentity } from "@/features/access/identity";
++import { useCurrentTime } from "@/hooks/use-current-time";
++import { StatusPanel } from "@/components/smart/status-ui";
++import { AccountProfile } from "@/features/workspace/profile";
++import { ManagementAnalytics, ReportsExport } from "./management-screens";
++import { IdentityReview } from "./identity-review";
++import { ReportReceipt, UnmatchedEquipment } from "./report-results";
++import { EquipmentHolds, EquipmentStatusTimeline } from "./equipment-status";
+ import { useStaffAccess } from "./provider";
+ import { tabItems } from "@/navigation/tabs";
+ import { go } from "@/navigation/go";
+ import { staffApi } from "@/services/staff-api";
+-import { authErrorMessage } from "@/features/access/auth-policy";
+ import { StaffAdministration, StaffApplicationReview, StaffRoleAssignment, StaffAccounts, StaffAudit } from "./administration";
+ import { ConfirmAction } from "./ui";
+ import { ReportingJourney, ResumeReport } from "./reporting-journey";
+-import { EquipmentHistory, EquipmentLookup, EquipmentRecord, EquipmentRegistry, HoldControls, NotificationInbox, OperationalList, ProvisionalForm, ReportDetail, ReportFilters, WorkHistory } from "./operational-screens";
++import { EquipmentHistory, EquipmentLookup, EquipmentRecord, EquipmentRegistry, NotificationInbox, OperationalList, ProvisionalForm, ReportDetail, ReportFilters, WorkHistory } from "./operational-screens";
+ import type { GenericId } from "convex/values";
+ import { ReleaseScreen, VerificationActions, VerificationScreen } from "./safety-screens";
+ import { PreventiveCreate, PreventiveSchedules } from "./preventive-screens";
+@@ -83,8 +88,9 @@ function TaskForm({ task, view }: { task: FunctionReturnType<typeof staffApi.ope
+   const canRepair = account?.capabilities.includes("repair") && task.assigneeId === account.id && !terminal;
+   const saveWork = (complete: boolean) => save({ id: task._id, expectedRevision: task.revision, diagnosis, diagnosisEvidence, causeAssessment: cause, notes, parts: parts.split(',').map((p) => p.trim()).filter(Boolean), complete, preventiveResults });
+   const summary = <Card style={{ gap: 10 }}><Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}><View style={{ flex: 1, minWidth: 180 }}><Txt muted size={13}>Work Order</Txt><Txt size={23} weight="800">{task._id}</Txt></View><Badge label={task.state} tone={task.state === 'Completed' ? 'success' : 'warning'} /></Row><Txt size={18} weight="600">{equipment?.name ?? 'Loading equipment…'}</Txt><Txt muted>{equipment?.assetId}</Txt><Txt muted>{equipment?.location}</Txt>{task.parentTaskId && <Badge label="Follow-up rework" tone="danger" />}</Card>;
+-  if (['task-detail', 'rework', 'live-task'].includes(view)) return <Screen>
++  if (['task-detail', 'rework', 'live-task'].includes(view)) return <Screen title={view === 'rework' ? 'Follow-up Rework' : 'Maintenance Task Details'} subtitle={view === 'rework' ? 'Review the work linked to a previous maintenance cycle.' : 'Review the fault, assigned work and recorded activity.'}>
+     {summary}
++    {!!task.parentTaskId && <Card style={{ gap: 10 }}><Detail label="Original maintenance task" value={task.parentTaskId} /><Detail label="Linked verification decision" value={task.failureAttemptId ?? "Not recorded"} /></Card>}
+     <Card style={{ gap: 12 }}><Detail label="Due date" value={new Date(task.dueAt).toLocaleString()} /><Detail label="Assigned account" value={task.assigneeId ?? 'Unassigned'} /><Detail label="Repair cycle" value={String(task.cycle)} />{task.reportId && <Detail label="Fault report" value={task.reportId} />}</Card>
+     <TaskTabs value={tab} onChange={setTab} />
+     {tab === 'Activity' ? <WorkHistory id={task._id} /> : <Card style={{ gap: 14 }}><TaskText label="Diagnosis" value={task.diagnosis} /><TaskText label="Diagnostic evidence" value={task.diagnosisEvidence ?? ''} /><TaskText label="Cause assessment" value={task.causeAssessment ?? ''} /><TaskText label="Repair performed" value={task.notes} /><TaskText label="Parts used" value={task.parts.join(', ')} /></Card>}
+@@ -96,7 +102,7 @@ function TaskForm({ task, view }: { task: FunctionReturnType<typeof staffApi.ope
+   if (['assignment', 'due-date', 'cancellation'].includes(view)) return <Screen title={view === 'assignment' ? 'Assign Technician' : view === 'due-date' ? 'Change Due Date' : 'Cancel Work Order'}>{summary}{account?.capabilities.includes('assign') && !terminal ? <TaskAssignment task={task} focus={view} /> : <Notice>This task cannot be changed with your current access or its current state.</Notice>}</Screen>;
+   if (view === 'maintenance-history') return <Screen title="Repair Timeline">{summary}<WorkHistory id={task._id} /><Button label="View task" onPress={() => go('task-detail', task._id)} /></Screen>;
+   if (view === 'completion') return <Screen>
+-    <Card style={{ gap: 10 }}><Row><Icon name={task.state === 'Completed' ? 'checkmark-circle' : 'time-outline'} size={44} color={task.state === 'Completed' ? '#13835E' : '#A86508'} /><View style={{ flex: 1 }}><Txt size={23} weight="800">{task.state === 'Completed' ? 'Maintenance Repair Complete' : 'Complete Maintenance Repair'}</Txt><Txt muted>{task.state === 'Completed' ? 'The repair has been completed.' : 'Review the recorded work before completing this task.'}</Txt></View></Row></Card>
++    <StatusPanel title={task.state === "Completed" ? "Repair complete" : "Complete maintenance repair"} detail={task.state === "Completed" ? "Maintenance is recorded. Equipment remains subject to independent verification and a current return-to-service decision." : "Review the recorded diagnosis, repair notes and parts before completing this task."} icon={task.state === "Completed" ? "checkmark-circle" : "time-outline"} tone={task.state === "Completed" ? "success" : "warning"} />
+     {summary}<Card style={{ gap: 10 }}><TaskText label="Diagnosis" value={task.diagnosis} /><TaskText label="Repair notes" value={task.notes} /><TaskText label="Parts used" value={task.parts.join(', ')} /></Card>
+     <Notice tone="warning">Repair completion does not release this equipment. Review the current equipment record for release status and required independent checks.</Notice>
+     {canRepair && <ConfirmAction label="Complete maintenance" title="Complete this repair?" detail="Completion is retained in history and does not release the equipment." disabled={!diagnosis.trim() || !notes.trim()} onConfirm={() => saveWork(true)} />}
+@@ -118,16 +124,33 @@ function TaskText({ label, value }: { label: string; value: string }) { const p
+ function TaskTabs({ value, onChange }: { value: 'Details' | 'Activity'; onChange: (value: 'Details' | 'Activity') => void }) { const p = usePalette(); return <Row style={{ backgroundColor: p.input, padding: 5, borderRadius: 16 }}>{(['Details', 'Activity'] as const).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: value === item }} onPress={() => onChange(item)} style={{ flex: 1, minHeight: 48, justifyContent: 'center', alignItems: 'center', borderRadius: 12, backgroundColor: value === item ? '#0866E8' : undefined }}><Txt size={16} weight="600" color={value === item ? '#FFFFFF' : p.text}>{item}</Txt></Pressable>)}</Row>; }
+ function TaskProgress({ state, diagnosis, notes }: { state: string; diagnosis: string; notes: string }) { const steps = [{ label: 'Assigned', done: state !== 'Unassigned' }, { label: 'In progress', done: ['In progress', 'Completed'].includes(state) }, { label: 'Diagnosis', done: !!diagnosis }, { label: 'Repair notes', done: !!notes }, { label: 'Complete', done: state === 'Completed' }]; return <Card style={{ gap: 16 }}><Txt size={22} weight="800">Work Progress</Txt>{steps.map((step, index) => <Row key={step.label} style={{ alignItems: 'flex-start' }}><View style={{ alignItems: 'center', width: 32 }}><Icon name={step.done ? 'checkmark-circle' : 'ellipse-outline'} size={30} color={step.done ? '#0866E8' : '#AABAD0'} />{index < steps.length - 1 && <View style={{ width: 2, height: 22, backgroundColor: step.done ? '#0866E8' : '#DCE8F4' }} />}</View><View style={{ gap: 3 }}><Txt size={17} weight="700">{step.label}</Txt><Txt size={12} muted>{step.done ? 'Recorded' : 'Pending'}</Txt></View></Row>)}</Card>; }
+ function TaskAssignment({ task, focus }: { task: FunctionReturnType<typeof staffApi.operations.tasks>[number]; focus: string }) {
+-  const technicians = useQuery(staffApi.operations.technicians, { departmentId: task.departmentId });
+-  const assign = useMutation(staffApi.operations.assign); const changeDue = useMutation(staffApi.operations.changeDue); const cancel = useMutation(staffApi.operations.cancelTask);
+-  const [selected, setSelected] = useState(""); const [due, setDue] = useState(new Date(task.dueAt).toISOString()); const [reason, setReason] = useState("");
+-  const technician = technicians?.find((t) => `${t.name} · ${t.staffId}` === selected);
+-  return <Section title={focus === 'assignment' ? 'Select Technician' : focus === 'due-date' ? 'Schedule' : 'Cancellation reason'}>
+-    {focus === 'assignment' && <Select label="Authorized technician" values={technicians?.map((t) => `${t.name} · ${t.staffId}`) ?? []} value={selected} onChange={setSelected} />}
+-    {focus !== 'cancellation' && <DateTimeField label="Due date" value={due} onChange={setDue} />}<Field label="Justification" value={reason} onChangeText={setReason} maxLength={500} multiline />
+-    {focus === 'assignment' && <ConfirmAction label="Assign technician" title="Confirm assignment?" detail="The assignee and due date will be validated against department access." disabled={!technician || !reason.trim()} onConfirm={() => assign({ id: task._id, expectedRevision: task.revision, assigneeId: technician!.id, dueAt: Date.parse(due), reason })} />}
+-    {focus === 'due-date' && <ConfirmAction label="Update due date" title="Change due date?" detail="The previous due date is retained in the audit history." disabled={!reason.trim()} onConfirm={() => changeDue({ id: task._id, expectedRevision: task.revision, dueAt: Date.parse(due), reason })} />}
+-    {focus === 'cancellation' && <ConfirmAction label="Cancel task" title="Cancel this maintenance task?" detail="This affects active maintenance work and is audited." danger disabled={!reason.trim()} onConfirm={() => cancel({ id: task._id, expectedRevision: task.revision, reason })} />}
++  const p = usePalette();
++  const now = useCurrentTime();
++  const technicians = useQuery(staffApi.operations.technicians, focus === "assignment" ? { departmentId: task.departmentId } : "skip");
++  const assign = useMutation(staffApi.operations.assign);
++  const changeDue = useMutation(staffApi.operations.changeDue);
++  const cancel = useMutation(staffApi.operations.cancelTask);
++  const [selected, setSelected] = useState(task.assigneeId ?? "");
++  const [due, setDue] = useState(new Date(task.dueAt).toISOString());
++  const [reason, setReason] = useState("");
++  const technician = technicians?.find((candidate) => candidate.id === selected);
++  const validDue = Number.isFinite(Date.parse(due)) && Date.parse(due) > now;
++  const backToTask = () => go("task-detail", task._id);
++  return <Section title={focus === "assignment" ? "Select Technician" : focus === "due-date" ? "Maintenance Schedule" : "Cancellation Reason"}>
++    {focus === "assignment" && <>
++      <Txt muted>Choose an approved technician authorized to repair equipment in this department.</Txt>
++      {technicians === undefined && <Notice>Loading eligible technicians?</Notice>}
++      {technicians?.length === 0 && <Notice>No eligible technicians are available in this department.</Notice>}
++      {technicians?.map((candidate) => <Pressable key={candidate.id} accessibilityRole="radio" accessibilityLabel={candidate.name + ". Staff ID " + candidate.staffId} accessibilityState={{ checked: selected === candidate.id }} onPress={() => setSelected(candidate.id)}><Card style={{ borderColor: selected === candidate.id ? "#0866E8" : p.border }}><Row style={{ gap: 12 }}><Icon name={selected === candidate.id ? "radio-button-on" : "radio-button-off"} /><View style={{ flex: 1, gap: 4 }}><Txt size={17} weight="700">{candidate.name}</Txt><Txt muted size={13}>Staff ID: {candidate.staffId}</Txt></View><Icon name="person-circle-outline" size={34} /></Row></Card></Pressable>)}
++    </>}
++    {focus === "due-date" && <Card style={{ gap: 10 }}><Detail label="Current due date" value={new Date(task.dueAt).toLocaleString()} /><Txt muted>The previous due date and your reason will remain in the audit history.</Txt></Card>}
++    {focus === "cancellation" && <StatusPanel title="Cancel maintenance work" detail="Cancellation ends this work order. It does not clear safety holds or authorize equipment use." icon="alert-circle-outline" tone="warning" />}
++    {focus !== "cancellation" && <DateTimeField label="New due date" value={due} onChange={setDue} required />}
++    {focus !== "cancellation" && !validDue && <Notice tone="warning">Choose a future due date before saving.</Notice>}
++    <Field label="Justification" value={reason} onChangeText={setReason} maxLength={500} multiline style={{ minHeight: 95 }} />
++    {focus === "assignment" && <ConfirmAction label="Assign Technician" title="Confirm technician assignment?" detail={"Assign this maintenance work to " + (technician?.name ?? "the selected technician") + ". Department access and the due date are rechecked by the server."} disabled={!technician || !reason.trim() || !validDue} onConfirm={async () => { await assign({ id: task._id, expectedRevision: task.revision, assigneeId: technician!.id, dueAt: Date.parse(due), reason }); backToTask(); }} />}
++    {focus === "due-date" && <ConfirmAction label="Update Due Date" title="Change the maintenance due date?" detail="The previous date and administrative justification remain in the audit history." disabled={!reason.trim() || !validDue} onConfirm={async () => { await changeDue({ id: task._id, expectedRevision: task.revision, dueAt: Date.parse(due), reason }); backToTask(); }} />}
++    {focus === "cancellation" && <ConfirmAction label="Cancel Maintenance Task" title="Cancel this maintenance task?" detail="This ends the work order and records your reason. Equipment availability is evaluated separately." danger disabled={!reason.trim()} onConfirm={async () => { await cancel({ id: task._id, expectedRevision: task.revision, reason }); backToTask(); }} />}
+   </Section>;
+ }
+ function TaskCreation({ id }: { id: string }) {
+@@ -135,35 +158,14 @@ function TaskCreation({ id }: { id: string }) {
+   const create = useMutation(staffApi.operations.createTask); const [due, setDue] = useState(""); const [message, setMessage] = useState("");
+   return <Screen title="Create Maintenance Task"><Notice>{report ? report.symptoms : "Loading authorized report…"}</Notice>
+     <DateTimeField label="Required due date" value={due} onChange={setDue} required />
+-    {message && <Notice>{message}</Notice>}
++    {!!message && <Notice>{message}</Notice>}
+     <ConfirmAction label="Create task" title="Create a maintenance task?" detail="A verified equipment identity and an explicit future due date are required." disabled={!report || !due}
+       onConfirm={async () => { const task = await create({ reportId: report!._id, dueAt: Date.parse(due) }); setMessage(`Maintenance task created: ${task}`); }} />
+   </Screen>;
+ }
+-function LiveProfile() {
+-  const { account } = useStaffAccess(); const identity = useIdentity();
+-  return <Screen title="Profile and Security" back={false}>
+-    <Card style={{ gap: 14 }}><Row><View style={{ backgroundColor: '#E8F3FF', borderRadius: 45, padding: 16 }}><Icon name="person" size={44} /></View><View style={{ flex: 1, gap: 5 }}><Txt size={24} weight="800">{account?.name}</Txt><Txt muted size={16}>{account?.role}</Txt><Badge label="Approved staff access" tone="success" /></View></Row><Detail label="Verified Staff ID" value={account?.staffId ?? ''} /><Detail label="Email" value={account?.email ?? ''} /><Detail label="Authorized departments" value={String(account?.scope.length ?? 0)} /></Card>
+-    <Section title="Account Security"><Card style={{ gap: 12 }}><Row><Icon name="shield-checkmark-outline" size={30} /><View style={{ flex: 1, gap: 4 }}><Txt size={17} weight="700">Verified identity</Txt><Txt muted size={13}>{identity.email ?? account?.email}</Txt></View></Row><Txt muted size={13}>Your institutional Staff ID and approved role are managed by authorized staff administrators.</Txt></Card></Section>
+-    <LinkRow title="Appearance and accessibility" icon="settings-outline" onPress={() => go("settings")} />
+-    <LinkRow title="Notification preferences" icon="notifications-outline" onPress={() => go('notification-settings')} />
+-    {account?.capabilities.includes('report') && <LinkRow title="Synchronization status" icon="sync-outline" onPress={() => go('sync')} />}
+-    <ConfirmAction label="Sign out" title="Sign out of SmartMaint?" detail="Protected views and account data will be cleared from this session." onConfirm={async () => { await identity.signOut(); router.replace("/access/sign-in"); }} />
+-  </Screen>;
+-}
+-function Analytics() {
+-  const result = useQuery(staffApi.operations.analytics);
+-  return <Screen title="Department Summary">{result ? <Card style={{ gap: 10 }}><Detail label="Authorized departments" value={String(result.scopeCount)} /><Detail label="Reports" value={String(result.reports)} /><Detail label="High or urgent priority" value={String(result.highPriority)} /><Txt size={11} muted>Limited to {result.truncatedAtPerDepartment} recent reports per department.</Txt></Card> : <Notice>Loading authorized summary…</Notice>}</Screen>;
+-}
+-function Export() {
+-  const result = useQuery(staffApi.operations.exportReports);
+-  const [message, setMessage] = useState("");
+-  const share = async () => { try { if (!result) return;
+-    if (Platform.OS === "web") { const url = URL.createObjectURL(new Blob([result.csv], { type: "text/csv;charset=utf-8" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "smartmaint-authorized-reports.csv"; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+-    else await Share.share({ message: result.csv, title: "Authorized SmartMaint reports" });
+-  } catch (e) { setMessage(authErrorMessage(e)); } };
+-  return <Screen title="Authorized Reports Export"><Notice>Only reports in your authorized departments are included. Up to {result?.truncatedAtPerDepartment ?? 100} reports per department.</Notice>{message && <Notice tone="warning">{message}</Notice>}<Button label="Share CSV" disabled={!result} onPress={() => void share()} /></Screen>;
+-}
++function LiveProfile() { return <AccountProfile />; }
++function Analytics() { return <ManagementAnalytics />; }
++function Export() { return <ReportsExport />; }
+ 
+ export function LiveFlow({ screen, id }: { screen: string; id?: string }) {
+   return <StaffDataBoundary key={`${screen}:${id ?? ""}`}><LiveFlowContent screen={screen} id={id} /></StaffDataBoundary>;
+@@ -171,7 +173,7 @@ export function LiveFlow({ screen, id }: { screen: string; id?: string }) {
+ function LiveFlowContent({ screen, id }: { screen: string; id?: string }) {
+   const { account } = useStaffAccess();
+   if (!account) return <Restricted />;
+-  if (screen === "reconcile") return account.capabilities.includes("reconcile") ? <OperationalList kind="provisional" /> : <Restricted />;
++  if (screen === "reconcile") return account.capabilities.includes("reconcile") ? <IdentityReview /> : <Restricted />;
+   if (["sync", "queue", "upload-failed", "conflict"].includes(screen) && account.capabilities.includes("report")) return <ReportQueueScreen view={screen} />;
+   if (["technical-queue", "clinical-queue"].includes(screen)) {
+     const kind = screen === "technical-queue" ? "technical" : "clinical";
+@@ -179,11 +181,12 @@ function LiveFlowContent({ screen, id }: { screen: string; id?: string }) {
+   }
+   if (["technical-checklist", "technical-result", "technical-history"].includes(screen)) return !account.capabilities.includes("technical") ? <Restricted /> : id ? <VerificationScreen id={id} kind="technical" view={screen.endsWith('result') ? 'result' : screen.endsWith('history') ? 'history' : 'checklist'} /> : <OperationalList kind="tasks" verification="technical" />;
+   if (["clinical-checklist", "clinical-result", "clinical-history"].includes(screen)) return !account.capabilities.includes("clinical") ? <Restricted /> : id ? <VerificationScreen id={id} kind="clinical" view={screen.endsWith('result') ? 'result' : screen.endsWith('history') ? 'history' : 'checklist'} /> : <OperationalList kind="tasks" verification="clinical" />;
+-  if (["equipment-history", "status-timeline"].includes(screen)) return id ? <EquipmentHistory id={id} /> : <LiveEquipment />;
++  if (screen === "equipment-history") return id ? <EquipmentHistory id={id} /> : <LiveEquipment />;
++  if (screen === "status-timeline") return id ? <EquipmentStatusTimeline id={id} /> : <LiveEquipment />;
+   if (screen === "equipment-detail") return id ? <EquipmentDetail id={id} /> : <LiveEquipment />;
+   if (["task-detail", "assignment", "due-date", "cancellation", "progress", "diagnosis", "parts", "completion", "rework", "maintenance-history"].includes(screen)) return id ? <TaskLoader id={id} view={screen} /> : <LiveTasks />;
+   if (screen === 'triage') return account.capabilities.includes('triage') ? id ? <ReportDetail id={id} triageOnly /> : <LiveReports /> : <Restricted />;
+-  if (["submitted", "emergency-result"].includes(screen)) return id ? <ReportDetail id={id} /> : <LiveReports />;
++  if (["submitted", "emergency-result"].includes(screen)) return id ? <ReportReceipt id={id} emergency={screen === "emergency-result"} /> : <LiveReports />;
+   if (screen === 'filters') return account.capabilities.some((c) => ['report', 'triage', 'assign'].includes(c)) ? <ReportFilters /> : <Restricted />;
+   if (screen === "fault-details" && account.capabilities.includes("report")) return <ReportForm id={id} />;
+   if (["camera", "attachments", "review", "emergency-review"].includes(screen) && account.capabilities.includes("report")) return id ? <ResumeReport id={id} stage={["review", "emergency-review"].includes(screen) ? 3 : 2} /> : <LiveReports />;
+@@ -195,17 +198,18 @@ function LiveFlowContent({ screen, id }: { screen: string; id?: string }) {
+   if (screen === "preventive-create") return <PreventiveCreate id={id} />;
+   if (screen === "technical-verification" && id) return <VerificationScreen id={id} kind="technical" />;
+   if (screen === "clinical-verification" && id) return <VerificationScreen id={id} kind="clinical" />;
+-  if (["release", "availability"].includes(screen) && id) return <ReleaseScreen id={id} />;
++  if (["release", "availability"].includes(screen) && id) return <ReleaseScreen id={id} overview={screen === "availability"} />;
+   if (screen === "resume-report" && id && account.capabilities.includes("report")) return <ResumeReport id={id} />;
+   if (screen === 'emergency' && account.capabilities.includes('report')) return <EmergencyIntroduction />;
+   if (screen === 'emergency-verify' && account.capabilities.includes('report')) return <EquipmentLookup emergency />;
+   if (screen === 'emergency-form' && account.capabilities.includes('report')) return <ReportingJourney id={id} emergency />;
+-  if (["scan", "manual", "unmatched"].includes(screen)) return <EquipmentLookup scan={screen === "scan"} />;
++  if (screen === "unmatched") return <UnmatchedEquipment identifier={id} />;
++  if (["scan", "manual"].includes(screen)) return <EquipmentLookup scan={screen === "scan"} initialIdentifier={id} />;
+   if (screen === "equipment-registry") return <EquipmentRegistry />;
+   if (screen === "provisional") return <ProvisionalForm identifier={id ?? ""} />;
+   if (screen === "live-provisional-reports") return <OperationalList kind="provisional" />;
+   if (screen === "report-detail" && id) return <ReportDetail id={id} />;
+-  if (["holds", "hold-detail"].includes(screen) && id) return <HoldControls id={id} />;
++  if (["holds", "hold-detail"].includes(screen)) return id ? <EquipmentHolds id={id} details={screen === "hold-detail"} /> : <LiveEquipment />;
+   if (screen === "staff-review" && id) return <StaffApplicationReview id={id} />;
+   if (screen === "staff-accounts") return <StaffAccounts />;
+   if (screen === "staff-role" && id) return <StaffRoleAssignment id={id} />;
+diff --git a/src/features/workflows/admin.tsx b/src/features/workflows/admin.tsx
+index d9191e4..688143a 100644
+--- a/src/features/workflows/admin.tsx
++++ b/src/features/workflows/admin.tsx
+@@ -93,7 +93,7 @@ export function AdminWorkflow({ screen, id }: { screen: string; id?: string }) {
+       title={titles[screen]}
+       subtitle="Restricted, synthetic development operations."
+     >
+-      {message && <Notice tone="warning">{message}</Notice>}
++      {!!message && <Notice tone="warning">{message}</Notice>}
+       {screen === "role" && (
+         <>
+           <Card style={{ gap: 10 }}>
+@@ -387,7 +387,7 @@ export function AdminWorkflow({ screen, id }: { screen: string; id?: string }) {
+               }
+             }}
+           />
+-          {csv && (
++          {!!csv && (
+             <Field
+               label="Generated synthetic CSV"
+               value={csv}
+diff --git a/src/features/workflows/maintenance.tsx b/src/features/workflows/maintenance.tsx
+index 9f51bb8..37052c3 100644
+--- a/src/features/workflows/maintenance.tsx
++++ b/src/features/workflows/maintenance.tsx
+@@ -79,7 +79,7 @@ export function MaintenanceWorkflow({
+           tone={task.state === "Completed" ? "success" : "warning"}
+         />
+       </Card>
+-      {message && <Notice tone="warning">{message}</Notice>}
++      {!!message && <Notice tone="warning">{message}</Notice>}
+       {screen === "task-detail" && (
+         <>
+           <Card style={{ gap: 10 }}>
+diff --git a/src/features/workflows/reporting.tsx b/src/features/workflows/reporting.tsx
+index d4d241a..8b90114 100644
+--- a/src/features/workflows/reporting.tsx
++++ b/src/features/workflows/reporting.tsx
+@@ -64,7 +64,7 @@ export function Identification({ screen }: { screen: string }) {
+             autoCapitalize="none"
+             placeholder="DEMO-VENT-014"
+           />
+-          {message && <Notice tone="danger">{message}</Notice>}
++          {!!message && <Notice tone="danger">{message}</Notice>}
+           <Button
+             label="Search Equipment"
+             icon="arrow-forward"
+@@ -262,7 +262,7 @@ export function CaptureScreen({ scan = false }: { scan?: boolean }) {
+       }
+     >
+       {!scan && <Steps step={2} />}
+-      {message && <Notice tone="warning">{message}</Notice>}
++      {!!message && <Notice tone="warning">{message}</Notice>}
+       {permission?.granted ? (
+         <View
+           style={{
+@@ -418,7 +418,7 @@ export function CaptureScreen({ scan = false }: { scan?: boolean }) {
+               </View>
+             ))}
+           </Row>
+-          {selected && (
++          {!!selected && (
+             <>
+               <Image
+                 source={{ uri: selected }}
+@@ -517,7 +517,7 @@ export function FaultDetails({ emergency = false }: { emergency?: boolean }) {
+           }
+         />
+       )}
+-      {message && <Notice>{message}</Notice>}
++      {!!message && <Notice>{message}</Notice>}
+       <Select
+         label="Fault category *"
+         values={categories}
+@@ -635,7 +635,7 @@ export function ReviewReport({ emergency = false }: { emergency?: boolean }) {
+           UNVERIFIED EMERGENCY REPORT · No verified identity
+         </Notice>
+       )}
+-      {error && <Notice tone="danger">{error}</Notice>}
++      {!!error && <Notice tone="danger">{error}</Notice>}
+       <Section title="Equipment">
+         <Card style={{ gap: 9 }}>
+           <Detail label="Asset ID" value={d.equipmentId} />
+diff --git a/src/features/workflows/reports.tsx b/src/features/workflows/reports.tsx
+index 1587789..2adfe5e 100644
+--- a/src/features/workflows/reports.tsx
++++ b/src/features/workflows/reports.tsx
+@@ -114,13 +114,13 @@ export function ReportWorkflow({
+       }
+       subtitle="Track the progress and current status of this report."
+     >
+-      {message && <Notice tone="warning">{message}</Notice>}
++      {!!message && <Notice tone="warning">{message}</Notice>}
+       <Card style={{ gap: 10 }}>
+         <Txt size={18} weight="700">
+           {report.id}
+         </Txt>
+         <Detail label="Equipment" value={report.equipmentId} />
+-        {report.linkedEquipmentId && (
++        {!!report.linkedEquipmentId && (
+           <Detail
+             label="Reconciled equipment"
+             value={report.linkedEquipmentId}
+diff --git a/src/features/workflows/route.tsx b/src/features/workflows/route.tsx
+index 9fc4ecd..a1854e6 100644
+--- a/src/features/workflows/route.tsx
++++ b/src/features/workflows/route.tsx
+@@ -22,6 +22,7 @@ import {
+ } from "./support";
+ import { EmergencyWorkflow } from "./emergency";
+ import { LiveFlow } from "@/features/staff/workspace";
++import { settingsScreens } from "./settings";
+ const publicScreens = [
+   "help",
+   "emergency",
+@@ -43,7 +44,7 @@ export function FlowRoute() {
+ }
+ function FlowScreen({ screen, id }: { screen: string; id?: string }) {
+   const { account, previewEnabled, mode } = useApp();
+-  if (mode === "live" && !["help", "settings", "notification-settings"].includes(screen)) return <LiveFlow screen={screen} id={id} />;
++  if (mode === "live" && !settingsScreens.includes(screen) && screen !== "more") return <LiveFlow screen={screen} id={id} />;
+   if (!publicScreens.includes(screen) && !account)
+     return <Redirect href="/access/sign-in" />;
+   if (
+@@ -120,7 +121,7 @@ function FlowScreen({ screen, id }: { screen: string; id?: string }) {
+     return <VerificationWorkflow screen={screen} id={id} />;
+   if (["sync", "queue", "upload-failed", "conflict"].includes(screen))
+     return <SyncWorkflow screen={screen} />;
+-  if (["settings", "notification-settings", "help"].includes(screen))
++  if (settingsScreens.includes(screen))
+     return <SettingsWorkflow screen={screen} />;
+   if (["report-detail", "triage", "filters"].includes(screen))
+     return <ReportWorkflow screen={screen} id={id} />;
+diff --git a/src/features/workflows/settings.tsx b/src/features/workflows/settings.tsx
+index fa98976..06aee88 100644
+--- a/src/features/workflows/settings.tsx
++++ b/src/features/workflows/settings.tsx
+@@ -1,140 +1,79 @@
+ import { useState } from "react";
+-import { Switch } from "react-native";
++import { View } from "react-native";
+ import { router } from "expo-router";
+-import { Button, Card, Choices, Detail, LinkRow, Notice, Row, Screen, Txt } from "@/components/smart/ui";
+-
++import { Badge, Button, Card, Detail, Notice, Screen, Txt } from "@/components/smart/ui";
++import { SettingLink, SettingToggle } from "@/components/smart/settings-ui";
+ import { useApp } from "@/state/app-state";
++import { useIdentity } from "@/features/access/identity";
++import { authErrorMessage } from "@/features/access/auth-policy";
+ import { go } from "@/navigation/go";
++import { tokens } from "@/design/tokens";
++
++export const settingsScreens = ["settings", "notification-settings", "appearance", "text-contrast", "privacy", "account-security", "help"];
++const notificationOptions = [
++  { title: "Push Notifications", detail: "Device alerts will be available when push delivery is configured.", icon: "notifications-outline", delivery: true },
++  { title: "Email Notifications", detail: "Email alerts will be available when email delivery is configured.", icon: "mail-outline", delivery: true },
++  { title: "Report Updates", detail: "New reports, status changes and assignments.", icon: "document-text-outline" },
++  { title: "Maintenance Updates", detail: "Scheduled maintenance and recorded repair activity.", icon: "construct-outline" },
++  { title: "Verification Updates", detail: "Independent verification requests and recorded decisions.", icon: "shield-checkmark-outline" },
++  { title: "Sync Notices", detail: "Submission status and issues that need your attention.", icon: "sync-outline" },
++] as const;
+ 
+ export function SettingsWorkflow({ screen }: { screen: string }) {
+   const app = useApp();
++  const identity = useIdentity();
+   const p = app.preferences;
+   const [message, setMessage] = useState("");
+-  const toggle = (
+-    label: string,
+-    value: boolean,
+-    onValueChange: (value: boolean) => void,
+-  ) => (
+-    <Row key={label} style={{ justifyContent: "space-between", minHeight: 48 }}>
+-      <Txt style={{ flex: 1 }}>{label}</Txt>
+-      <Switch
+-        accessibilityLabel={label}
+-        value={value}
+-        onValueChange={onValueChange}
+-        trackColor={{ true: "#0866E8" }}
+-      />
+-    </Row>
+-  );
+-  if (screen === "help")
+-    return (
+-      <Screen title="About SmartMaint">
+-        <Txt size={21} weight="800">
+-          Medical Equipment. Reliable Care. Always Available.
+-        </Txt>
+-        <Notice>
+-          {app.mode === "preview" ? "This is a synthetic in-memory development preview. Demonstration changes are not server records." : "Staff access is resolved through the authorized account service. Production safety workflows require separately approved policies."}
+-        </Notice>
+-        <Card style={{ gap: 10 }}>
+-          <Detail label="Version" value="1.0.0 development" />
+-          <Detail label="Support contact" value="Not configured" />
+-          <Detail label="Mode" value={app.mode === "live" ? "Approved staff account" : app.mode === "locked" ? "Staff access locked" : "Synthetic preview"} />
+-        </Card>
+-        {app.mode === "preview" && <Button
+-          label="Emergency reporting"
+-          variant="danger"
+-          onPress={() => go("emergency")}
+-        />}
+-        <Button
+-          label="Return to welcome"
+-          variant="secondary"
+-          onPress={() => router.push("/")}
+-        />
+-      </Screen>
+-    );
+-  return (
+-    <Screen
+-      title={
+-        screen === "settings"
+-          ? "Settings & Accessibility"
+-          : "Notification Preferences"
+-      }
+-      subtitle="Manage your preferences and account settings."
+-    >
+-      {message && <Notice>{message}</Notice>}
+-      {screen === "settings" ? (
+-        <>
+-          <Card>
+-            <Choices
+-              label="Appearance & Theme"
+-              values={["system", "light", "dark"]}
+-              value={p.theme}
+-              onChange={(theme) => app.setPreferences((s) => ({ ...s, theme }))}
+-            />
+-          </Card>
+-          <Card style={{ gap: 8 }}>
+-            {toggle("High contrast", p.contrast, (contrast) =>
+-              app.setPreferences((s) => ({ ...s, contrast })),
+-            )}
+-            {toggle("Bold text", p.bold, (bold) =>
+-              app.setPreferences((s) => ({ ...s, bold })),
+-            )}
+-            {toggle("Larger text", p.largeText, (largeText) =>
+-              app.setPreferences((s) => ({ ...s, largeText })),
+-            )}
+-            {toggle("Reduced motion", p.reducedMotion, (reducedMotion) =>
+-              app.setPreferences((s) => ({ ...s, reducedMotion })),
+-            )}
+-          </Card>
+-          <LinkRow
+-            title="Notifications"
+-            detail="Manage alert preferences"
+-            icon="notifications-outline"
+-            onPress={() => go("notification-settings")}
+-          />
+-          <LinkRow
+-            title="Account & Security"
+-            icon="lock-closed-outline"
+-            onPress={() => router.push("/access/biometric")}
+-          />
+-          <LinkRow
+-            title="Privacy & Data"
+-            icon="shield-outline"
+-            onPress={() =>
+-              setMessage(
+-                app.mode === "preview" ? "Synthetic preview records are held in memory. No durable encrypted offline storage is implemented. App restart resets changes." : "Protected staff records are not stored in a durable local cache. Authorization is rechecked by the staff service. Disconnecting blocks protected views.",
+-              )
+-            }
+-          />
+-          <LinkRow
+-            title="About SmartMaint"
+-            icon="information-circle-outline"
+-            onPress={() => go("help")}
+-          />
+-        </>
+-      ) : (
+-        <>
+-          <Notice>
+-            {app.mode === "preview" ? "These are demonstration preferences." : "These preferences apply to this session."} Push and email delivery require configured services.
+-          </Notice>
+-          {[
+-            "Push Notifications",
+-            "Email Notifications",
+-            "Report Updates",
+-            "Maintenance Updates",
+-            "Verification Updates",
+-            "Sync Notices",
+-          ].map((label) => (
+-            <Card key={label}>
+-              {toggle(label, p.notifications[label] ?? true, (value) =>
+-                app.setPreferences((s) => ({
+-                  ...s,
+-                  notifications: { ...s.notifications, [label]: value },
+-                })),
+-              )}
+-            </Card>
+-          ))}
+-        </>
+-      )}
+-    </Screen>
+-  );
++  const [busy, setBusy] = useState(false);
++  const title = screen === "settings" ? "Settings & Accessibility" : screen === "notification-settings" ? "Notification Preferences" : screen === "appearance" ? "Appearance & Theme" : screen === "text-contrast" ? "Text & Contrast" : screen === "privacy" ? "Privacy & Data" : screen === "account-security" ? "Account Security" : "About SmartMaint";
++  return <Screen title={title} subtitle={screen === "notification-settings" ? "Choose what you want to be notified about and how to receive notifications." : screen === "settings" ? "Manage your preferences and account settings." : undefined}>
++    {!!message && <Notice>{message}</Notice>}
++    {screen === "settings" && <>
++      <SettingLink title="Appearance & Theme" detail="Choose your preferred display theme" icon="sunny-outline" onPress={() => go("appearance")} />
++      <SettingLink title="Text & Contrast" detail="Text size, contrast and readability" icon="text-outline" onPress={() => go("text-contrast")} />
++      <SettingLink title="Notifications" detail="Manage alert preferences" icon="notifications-outline" onPress={() => go("notification-settings")} />
++      <SettingLink title="Account & Security" detail="Sign in, security and staff access" icon="lock-closed-outline" onPress={() => go("account-security")} />
++      <SettingLink title="Privacy & Data" detail="How your information is handled" icon="shield-outline" onPress={() => go("privacy")} />
++      <SettingLink title="About SmartMaint" detail="Version, support and application information" icon="information-circle-outline" onPress={() => go("help")} />
++    </>}
++    {screen === "notification-settings" && <>
++      <Notice>Preferences apply for this session. Push and email delivery are not configured. In-app records remain available in Notification Centre.</Notice>
++      {notificationOptions.map((option) => {
++        const delivery = "delivery" in option;
++        return <SettingToggle key={option.title} title={option.title} detail={option.detail} icon={option.icon} disabled={delivery} value={delivery ? false : p.notifications[option.title] ?? true} onChange={(value) => app.setPreferences((s) => ({ ...s, notifications: { ...s.notifications, [option.title]: value } }))} />;
++      })}
++      <Txt size={12} muted>These choices prepare your notification preferences. They do not suppress operational records or enable external delivery.</Txt>
++    </>}
++    {screen === "appearance" && <>
++      <Txt muted>Choose a theme. System follows your device appearance.</Txt>
++      {(["system", "light", "dark"] as const).map((theme) => <SettingLink key={theme} title={`${theme[0].toUpperCase()}${theme.slice(1)}${p.theme === theme ? " · Selected" : ""}`} detail={theme === "system" ? "Match your device settings" : `Use the ${theme} appearance`} icon={theme === "system" ? "phone-portrait-outline" : theme === "light" ? "sunny-outline" : "moon-outline"} onPress={() => app.setPreferences((s) => ({ ...s, theme }))} />)}
++      <Card style={{ gap: 10 }}><Badge label="Live preview" /><Txt size={21} weight="700">Reliable equipment. Better care.</Txt><Txt muted>Your chosen theme applies throughout SmartMaint.</Txt><View style={{ height: 8, borderRadius: 4, backgroundColor: tokens.blue }} /></Card>
++    </>}
++    {screen === "text-contrast" && <>
++      <SettingToggle title="Larger text" detail="Increase text size throughout the application." icon="text-outline" value={p.largeText} onChange={(largeText) => app.setPreferences((s) => ({ ...s, largeText }))} />
++      <SettingToggle title="Bold text" detail="Use a heavier font for easier reading." icon="create-outline" value={p.bold} onChange={(bold) => app.setPreferences((s) => ({ ...s, bold }))} />
++      <SettingToggle title="High contrast" detail="Strengthen text and border contrast." icon="contrast-outline" value={p.contrast} onChange={(contrast) => app.setPreferences((s) => ({ ...s, contrast }))} />
++      <SettingToggle title="Reduced motion" detail="Reduce transitions between screens." icon="pause-circle-outline" value={p.reducedMotion} onChange={(reducedMotion) => app.setPreferences((s) => ({ ...s, reducedMotion }))} />
++      <Card style={{ gap: 8 }}><Txt size={18} weight="700">Reading preview</Txt><Txt>Equipment reports, task details and safety information use these display preferences.</Txt><Txt muted>Secondary text preview</Txt></Card>
++    </>}
++    {screen === "privacy" && <>
++      <Card style={{ gap: 12 }}><Txt size={19} weight="700">Your staff information</Txt><Txt>Authorized staff administrators manage your verified Staff ID, role and department access. Contact them to correct institutional information.</Txt></Card>
++      <Card style={{ gap: 12 }}><Txt size={19} weight="700">Reports and evidence</Txt><Txt>{app.mode === "preview" ? "Preview records are synthetic and held in memory. Restarting the app resets demonstration changes." : "Reports and attachments are available only through authorized staff services. Signing out closes protected views. Saved publication attempts may remain in the account-separated queue; signing out does not submit them."}</Txt></Card>
++      <Card style={{ gap: 12 }}><Txt size={19} weight="700">Display preferences</Txt><Txt>Theme, accessibility and notification preferences apply to this session. They reset when the application session is recreated.</Txt></Card>
++      <SettingLink title="Account Security" detail="Review your current identity and staff access" icon="lock-closed-outline" onPress={() => go("account-security")} />
++    </>}
++    {screen === "account-security" && <>
++      <Card style={{ gap: 12 }}><Badge label={app.mode === "live" ? "Approved staff session" : "Development preview"} tone={app.mode === "live" ? "success" : "warning"} /><Txt size={20} weight="700">{app.account?.name ?? "Staff identity"}</Txt><Detail label="Sign-in email" value={identity.email ?? "No live identity in preview"} /><Detail label="Role" value={app.account?.role ?? "Not signed in"} /><Txt muted>Role and department changes require an authorized staff administrator.</Txt></Card>
++      <SettingLink title="Device authentication" detail="Check biometric support on this device" icon="finger-print-outline" onPress={() => router.push("/access/biometric")} />
++      {app.mode === "live" && <Button label="Refresh identity" loading={busy} onPress={() => { setBusy(true); setMessage(""); void identity.refresh().then(() => setMessage("Identity refreshed. Staff access is checked separately by the account service.")).catch((error) => setMessage(authErrorMessage(error))).finally(() => setBusy(false)); }} />}
++      <Notice>Device authentication does not replace staff sign-in or grant additional permissions.</Notice>
++    </>}
++    {screen === "help" && <>
++      <Card style={{ gap: 12 }}><Txt size={24} weight="800">Smart<Txt size={24} weight="800" color={tokens.blue}>Maint</Txt></Txt><Txt size={18} weight="600">Medical Equipment. Reliable Care.</Txt><Detail label="Version" value="1.0.0 development" /><Detail label="Current mode" value={app.mode === "live" ? "Approved staff account" : app.mode === "locked" ? "Staff access locked" : "Synthetic preview"} /></Card>
++      <Card style={{ gap: 10 }}><Txt size={19} weight="700">Need help?</Txt><Txt>Contact your hospital equipment team for a device fault, or your staff administrator for account and department access.</Txt><Txt muted>Institutional support contact details have not been configured.</Txt></Card>
++      <Card style={{ gap: 10 }}><Txt size={19} weight="700">Report an equipment issue</Txt><Txt>Identify the device, describe the fault, add relevant photographs and review the report before submitting.</Txt><Txt muted>Follow your institution’s escalation procedure for urgent safety concerns.</Txt></Card>
++      {!!app.account?.capabilities.includes("report") && <Button label="Report equipment issue" icon="scan-outline" onPress={() => go("manual")} />}
++      <SettingLink title="Privacy & Data" detail="How staff information and reports are handled" icon="shield-outline" onPress={() => go("privacy")} />
++    </>}
++  </Screen>;
+ }
+diff --git a/src/features/workflows/sync.tsx b/src/features/workflows/sync.tsx
+index 097f195..a88256f 100644
+--- a/src/features/workflows/sync.tsx
++++ b/src/features/workflows/sync.tsx
+@@ -135,7 +135,7 @@ export function SyncWorkflow({ screen }: { screen: string }) {
+       title={title}
+       subtitle="Synthetic in-memory synchronization demonstration."
+     >
+-      {message && <Notice tone="warning">{message}</Notice>}
++      {!!message && <Notice tone="warning">{message}</Notice>}
+       <Notice tone={app.online ? "success" : "warning"}>
+         {app.online ? "Connection available for demonstration" : "Offline"} · No
+         real server connection is configured.
+@@ -191,7 +191,7 @@ export function SyncWorkflow({ screen }: { screen: string }) {
+                 <Detail label="Operation ID" value={q.id} />
+                 <Detail label="Status" value={q.state} />
+                 <Detail label="Attempts" value={q.attempts} />
+-                {q.nextRetryAt && (
++                {!!q.nextRetryAt && (
+                   <Detail label="Next retry" value={q.nextRetryAt} />
+                 )}
+                 <Txt size={11} muted>
+diff --git a/src/features/workflows/verification.tsx b/src/features/workflows/verification.tsx
+index e76c7b3..1b95d9e 100644
+--- a/src/features/workflows/verification.tsx
++++ b/src/features/workflows/verification.tsx
+@@ -103,7 +103,7 @@ export function VerificationWorkflow({
+         <Detail label="Repair status" value={task.state} />
+         <Badge label="Not available" tone="danger" />
+       </Card>
+-      {message && <Notice tone="danger">{message}</Notice>}
++      {!!message && <Notice tone="danger">{message}</Notice>}
+       {screen.endsWith("checklist") && (
+         <>
+           <Notice>
+diff --git a/src/features/workspace/support.tsx b/src/features/workspace/support.tsx
+index 15317b9..13fce71 100644
+--- a/src/features/workspace/support.tsx
++++ b/src/features/workspace/support.tsx
+@@ -1,92 +1,10 @@
+ import { useState } from "react";
+-import { router } from "expo-router";
+ import { Badge, Button, Card, Choices, Detail, LinkRow, Notice, Row, Screen, Txt } from "@/components/smart/ui";
+ import { allowed } from "@/domain/policy";
+ import { reviewApplication } from "@/services/development";
+ import { useApp } from "@/state/app-state";
+ import { go } from "@/navigation/go";
+-export function ProfileScreen() {
+-  const app = useApp();
+-  const [confirm, setConfirm] = useState(false);
+-  if (!app.account) return null;
+-  const pending = app.state.queue.filter(
+-    (q) =>
+-      q.ownerId === app.account?.id && q.state !== "Simulated acknowledgment",
+-  ).length;
+-  return (
+-    <Screen
+-      title="Profile and Security"
+-      subtitle="Manage your account, security and preferences."
+-      back={false}
+-    >
+-      <Card style={{ gap: 10 }}>
+-        <Txt size={21} weight="700">
+-          {app.account.name}
+-        </Txt>
+-        <Detail label="Staff ID" value={`DEMO-${app.account.id}`} />
+-        <Detail label="Role" value={app.account.role} />
+-        <Detail label="Department" value="Synthetic development scope" />
+-      </Card>
+-      <LinkRow
+-        title="Account Security"
+-        detail="Device authentication and session access"
+-        icon="lock-closed-outline"
+-        onPress={() => router.push("/access/biometric")}
+-      />
+-      <LinkRow
+-        title="Notification Preferences"
+-        icon="notifications-outline"
+-        onPress={() => go("notification-settings")}
+-      />
+-      <LinkRow
+-        title="App Settings"
+-        detail="Appearance and accessibility"
+-        icon="settings-outline"
+-        onPress={() => go("settings")}
+-      />
+-      <LinkRow
+-        title="Help & Support"
+-        icon="help-circle-outline"
+-        onPress={() => go("help")}
+-      />
+-      <LinkRow
+-        title="Development account scenarios"
+-        detail="Switch roles by ending this session"
+-        icon="people-outline"
+-        onPress={() => setConfirm(true)}
+-      />
+-      {confirm ? (
+-        <>
+-          <Notice tone="warning">
+-            {pending} pending operation(s) remain in this synthetic account.
+-            Sign-out hides its records. Restarting the app loses demonstration
+-            changes.
+-          </Notice>
+-          <Button
+-            label="Confirm Sign Out"
+-            variant="danger"
+-            onPress={() => {
+-              app.signOut();
+-              router.replace("/access/sign-in");
+-            }}
+-          />
+-          <Button
+-            label="Keep working"
+-            variant="secondary"
+-            onPress={() => setConfirm(false)}
+-          />
+-        </>
+-      ) : (
+-        <Button
+-          label="Sign Out"
+-          variant="secondary"
+-          icon="log-out-outline"
+-          onPress={() => setConfirm(true)}
+-        />
+-      )}
+-    </Screen>
+-  );
+-}
++export { AccountProfile as ProfileScreen } from "./profile";
+ export function NotificationsScreen() {
+   const { state, setState } = useApp();
+   const [filter, setFilter] = useState("All");
+@@ -157,7 +75,7 @@ export function AccountsScreen() {
+       subtitle="Review synthetic staff applications."
+       back={false}
+     >
+-      {message && <Notice>{message}</Notice>}
++      {!!message && <Notice>{message}</Notice>}
+       <Badge
+         label={`${state.applications.filter((a) => a.state === "Pending").length} pending approvals`}
+       />
+diff --git a/tests/backend/corrective.test.ts b/tests/backend/corrective.test.ts
+index cebbbf3..f078e64 100644
+--- a/tests/backend/corrective.test.ts
++++ b/tests/backend/corrective.test.ts
+@@ -345,3 +345,58 @@ test("preventive schedules enforce scoped supervisor authority and occurrence ge
+   const history = await f.user("tech").query(api.workflows.workHistory, { id: a, paginationOpts: { cursor: null, numItems: 20 } }); expect(history.page[0].preventiveResults?.[0].passed).toBe(true);
+   await expect(f.user("supervisor").mutation(api.preventive.reschedule, { id, expectedRevision: 1, nextDueAt: dueAt, active: false, reason: "Test" })).rejects.toThrow(/changed/);
+ });
++
++test('management overview counts only scoped operational records and excludes private drafts', async () => {
++  const f = await setup();
++  await f.t.run(async (ctx) => {
++    await ctx.db.insert('equipment', { assetId: 'TEST-INCOMPLETE', name: 'Test', model: '', location: '', departmentId: f.a, identityVerified: false });
++    await ctx.db.insert('equipment', { assetId: 'OTHER-SCOPE', name: 'Other', model: 'Other', location: 'Other', departmentId: f.b, identityVerified: true });
++    const base = { equipmentId: f.equipment, departmentId: f.a, reporterId: f.reporter, operationId: 'overview', category: 'Other', symptoms: 'Test only', description: '', priority: 'Routine' as const, condition: 'Unknown', inUse: false, noticedAt: 1, createdAt: 1 };
++    await ctx.db.insert('faultReports', { ...base, submissionState: 'submitted', triagedPriority: 'Urgent' });
++    await ctx.db.insert('faultReports', { ...base, operationId: 'private', submissionState: 'draft' });
++    await ctx.db.insert('safetyHolds', { equipmentId: f.equipment, departmentId: f.a, active: true, reason: 'Test hold', createdBy: f.admin, createdAt: 1 });
++  });
++  const result = await f.user('admin').query(api.operations.managementSummary);
++  expect(result).toMatchObject({ equipment: 2, reports: 1, completeRecords: 1, incompleteRecords: 1, activeHolds: 1, verifiedIdentities: 1, limited: false });
++  expect(result.priorities).toContainEqual({ label: 'Urgent', count: 1 });
++  expect(result.priorities).toContainEqual({ label: 'Routine', count: 0 });
++  await expect(f.user('reporter').query(api.operations.managementSummary)).rejects.toThrow();
++  await expect(f.t.query(api.operations.managementSummary)).rejects.toThrow(/Sign in/);
++});
++
++test('report exports enforce scope, effective priority and chronological dates before generating CSV', async () => {
++  const f = await setup();
++  await f.t.run(async (ctx) => {
++    const base = { equipmentId: f.equipment, departmentId: f.a, reporterId: f.reporter, category: '=TEST()', symptoms: 'Test only', description: '', priority: 'Routine' as const, condition: 'Unknown', inUse: false, noticedAt: 1, submissionState: 'submitted' as const };
++    await ctx.db.insert('faultReports', { ...base, operationId: 'one', createdAt: 100, triagedPriority: 'Urgent' });
++    await ctx.db.insert('faultReports', { ...base, operationId: 'two', createdAt: 200 });
++    await ctx.db.insert('faultReports', { ...base, operationId: 'three', createdAt: 100, submissionState: 'draft', triagedPriority: 'Urgent' });
++  });
++  const args = { departmentId: f.a, from: 100, to: 100, priority: 'Urgent' as const };
++  const result = await f.user('admin').query(api.operations.exportReports, args);
++  expect(result.count).toBe(1);
++  expect(result.csv).toContain("'=TEST()");
++  expect((await f.user('admin').query(api.operations.exportReports, { ...args, from: 101, to: 200 })).count).toBe(0);
++  await expect(f.user('admin').query(api.operations.exportReports, { ...args, from: 200, to: 100 })).rejects.toThrow(/date range/);
++  await expect(f.user('admin').query(api.operations.exportReports, { ...args, departmentId: f.b })).rejects.toThrow(/scope/);
++  await expect(f.t.query(api.operations.exportReports, args)).rejects.toThrow(/Sign in/);
++});
++
++test('equipment status orders real events while keeping drafts and other reporters private', async () => {
++  const f = await setup();
++  await f.t.run(async (ctx) => {
++    const base = { equipmentId: f.equipment, departmentId: f.a, category: 'Other', description: '', priority: 'Routine' as const, condition: 'Unknown', inUse: false, noticedAt: 1 };
++    await ctx.db.insert('faultReports', { ...base, reporterId: f.reporter, operationId: 'own', symptoms: 'Own report', createdAt: 100, submissionState: 'submitted' });
++    await ctx.db.insert('faultReports', { ...base, reporterId: f.tech, operationId: 'other', symptoms: 'Other staff report', createdAt: 200, submissionState: 'submitted' });
++    await ctx.db.insert('faultReports', { ...base, reporterId: f.reporter, operationId: 'draft', symptoms: 'PRIVATE DRAFT', createdAt: 300, submissionState: 'draft' });
++    await ctx.db.insert('safetyHolds', { equipmentId: f.equipment, departmentId: f.a, active: false, reason: 'Test restriction', createdBy: f.admin, createdAt: 400, resolvedAt: 500, resolvedBy: f.admin, resolutionReason: 'Test resolution' });
++  });
++  const result = await f.user('reporter').query(api.workflows.equipmentStatus, { id: f.equipment });
++  expect(result.events.map((event) => event.at)).toEqual([500, 400, 100]);
++  expect(JSON.stringify(result)).not.toContain('PRIVATE DRAFT');
++  expect(JSON.stringify(result)).not.toContain('Other staff report');
++  const supervisor = await f.user('supervisor').query(api.workflows.equipmentStatus, { id: f.equipment });
++  expect(supervisor.events.map((event) => event.at)).toEqual([500, 400, 200, 100]);
++  await expect(f.user('other').query(api.workflows.equipmentStatus, { id: f.equipment })).rejects.toThrow(/scope/);
++  await expect(f.t.query(api.workflows.equipmentStatus, { id: f.equipment })).rejects.toThrow(/Sign in/);
++});
+diff --git a/tests/backend/staff.test.ts b/tests/backend/staff.test.ts
+index aa43daf..5133fa8 100644
+--- a/tests/backend/staff.test.ts
++++ b/tests/backend/staff.test.ts
+@@ -186,7 +186,7 @@ describe("revocation, role updates and record authorization", () => {
+     expect((await f.clinician.query(api.operations.equipment)).map((e) => e.assetId)).toEqual(["TEST-DEVICE-A"]);
+     await expect(f.clinician.query(api.operations.availability, { equipmentId: f.otherEquipment })).rejects.toThrow(/scope/);
+     await expect(f.clinician.mutation(api.operations.submitReport, { equipmentId: f.otherEquipment, operationId: "cross-scope", category: "Electrical/Power", symptoms: "Test", description: "", priority: "High", condition: "Unknown", inUse: false, noticedAt: Date.now() - 1 })).rejects.toThrow(/scope/);
+-    await expect(f.clinician.query(api.operations.exportReports)).rejects.toThrow();
++    await expect(f.clinician.query(api.operations.exportReports, {})).rejects.toThrow();
+     await expect(f.clinician.query(api.administration.auditHistory)).rejects.toThrow();
+     await expect(f.t.query(api.operations.equipment)).rejects.toThrow(/Sign in/);
+   });

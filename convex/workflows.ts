@@ -123,3 +123,36 @@ export const hasUnreadNotice = query({ args: {}, handler: async (ctx) => {
   const actor = await requireAccount(ctx);
   return !!await ctx.db.query("notifications").withIndex("by_recipient_read", (q) => q.eq("recipientId", actor._id).eq("readAt", undefined)).filter((q) => q.or(...actor.scope.map((id) => q.eq(q.field("departmentId"), id)))).first();
 } });
+
+/** Bounded status history. Summary events never expose private draft content or verification evidence. */
+export const equipmentStatus = query({ args: { id: v.id("equipment") }, handler: async (ctx, { id }) => {
+  const { actor, item } = await equipmentAccess(ctx, id);
+  const limit = 50;
+  const [tasks, holds, releases, reports] = await Promise.all([
+    ctx.db.query("maintenanceTasks").withIndex("by_equipment", (q) => q.eq("equipmentId", id)).order("desc").take(limit),
+    ctx.db.query("safetyHolds").withIndex("by_equipment", (q) => q.eq("equipmentId", id)).order("desc").take(limit),
+    ctx.db.query("releaseRecords").withIndex("by_equipment", (q) => q.eq("equipmentId", id)).order("desc").take(limit),
+    ctx.db.query("faultReports").withIndex("by_equipment", (q) => q.eq("equipmentId", id)).filter((q) => q.neq(q.field("submissionState"), "draft")).order("desc").take(limit),
+  ]);
+  type Event = { id: string; at: number; title: string; detail: string; kind: "repair" | "hold" | "resolved" | "release" | "report" | "verification" };
+  const events: Event[] = [];
+  for (const hold of holds) {
+    events.push({ id: `${hold._id}:raised`, at: hold.createdAt, title: "Safety hold raised", detail: hold.reason, kind: "hold" });
+    if (hold.resolvedAt !== undefined) events.push({ id: `${hold._id}:resolved`, at: hold.resolvedAt, title: "Safety hold resolved", detail: hold.resolutionReason ?? "Resolution recorded. This does not release equipment.", kind: "resolved" });
+  }
+  for (const task of tasks) events.push({ id: task._id, at: task.updatedAt, title: task.state === "Completed" ? "Repair completed" : task.parentTaskId ? "Follow-up rework" : "Maintenance updated", detail: `Cycle ${task.cycle} · ${task.state}`, kind: "repair" });
+  for (const report of reports) {
+    if (report.reporterId === actor._id || actor.capabilities.some((c) => ["assign", "triage"].includes(c))) events.push({ id: report._id, at: report.createdAt, title: "Fault reported", detail: report.symptoms, kind: "report" });
+  }
+  for (const release of releases) events.push({ id: release._id, at: release.at, title: "Return-to-service decision", detail: "An authorized decision was recorded. Review current availability before use.", kind: "release" });
+  // The current cycle's latest decisions are sufficient for this status overview; full attempts remain in verifier history.
+  const current = tasks[0];
+  let attemptsLimited = false;
+  if (current) {
+    const attempts = await ctx.db.query("safetyAttempts").withIndex("by_task", (q) => q.eq("taskId", current._id)).order("desc").take(limit);
+    attemptsLimited = attempts.length === limit;
+    for (const attempt of attempts) events.push({ id: attempt._id, at: attempt.at, title: `${attempt.kind === "technical" ? "Technical" : "Clinical"} verification: ${attempt.outcome}`, detail: `Repair cycle ${current.cycle} · revision ${attempt.taskRevision}`, kind: "verification" });
+  }
+  events.sort((a, b) => b.at - a.at || a.id.localeCompare(b.id));
+  return { equipment: { assetId: item.assetId, name: item.name, location: item.location }, events: events.slice(0, 100), limit, limited: attemptsLimited || tasks.length === limit || holds.length === limit || releases.length === limit || reports.length === limit || events.length > 100 };
+} });

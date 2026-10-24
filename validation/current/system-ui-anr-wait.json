@@ -1,0 +1,45 @@
+{
+  "at": "2026-10-24T17:17:32.198Z",
+  "device": "emulator-5556",
+  "platform": "Android 15",
+  "scenario": "Android System UI ANR during emulator cold boot; system failure, not app acceptance",
+  "screenshot": "validation/current/system-ui-anr-wait.png",
+  "hierarchy": "validation/current/system-ui-anr-wait.xml",
+  "labels": [
+    {
+      "text": "",
+      "label": "App Icon",
+      "bounds": "[63,1681][179,1797]"
+    },
+    {
+      "text": "SmartMaint",
+      "label": "",
+      "bounds": "[221,1686][451,1737]"
+    },
+    {
+      "text": "Runtime version: exposdk:57.0.0",
+      "label": "",
+      "bounds": "[221,1748][743,1793]"
+    },
+    {
+      "text": "",
+      "label": "Close",
+      "bounds": "[949,1719][991,1761]"
+    },
+    {
+      "text": "This is the developer menu. It gives you access to useful tools in your development builds.",
+      "label": "",
+      "bounds": "[105,1881][975,1971]"
+    },
+    {
+      "text": "You can press ⌘ + m on macOS or Ctrl + m on other platforms to get back to it at any time.",
+      "label": "",
+      "bounds": "[105,1992][975,2082]"
+    },
+    {
+      "text": "Continue",
+      "label": "",
+      "bounds": "[464,2145][617,2190]"
+    }
+  ]
+}

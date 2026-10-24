@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
   type TextInputProps,
+  type TextProps,
   type ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,7 +19,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, usePathname, useLocalSearchParams } from "expo-router";
 import { tabItems } from '@/navigation/tabs';
 import { useApp } from "@/state/app-state";
-import { palette, tokens } from "@/design/tokens";
+import { palette, tokens, readableSemanticColor } from "@/design/tokens";
 
 export type IconName = React.ComponentProps<typeof Ionicons>["name"];
 export const brandAssets = {
@@ -50,6 +51,8 @@ export function Txt({
   color,
   style,
   lineHeight,
+  accessibilityRole,
+  accessibilityLiveRegion,
 }: {
   children: React.ReactNode;
   size?: number;
@@ -57,19 +60,23 @@ export function Txt({
   muted?: boolean;
   color?: string;
   lineHeight?: number;
+  accessibilityRole?: TextProps["accessibilityRole"];
+  accessibilityLiveRegion?: TextProps["accessibilityLiveRegion"];
   style?: React.ComponentProps<typeof Text>["style"];
 }) {
   const p = usePalette();
-  const { preferences } = useApp();
+  const { preferences, dark } = useApp();
   return (
     <Text
+      accessibilityRole={accessibilityRole}
+      accessibilityLiveRegion={accessibilityLiveRegion}
       style={[
         {
           fontFamily: preferences.bold || Number(weight) >= 800 ? "InterExtraBold" : Number(weight) >= 700 ? "InterBold" : Number(weight) >= 600 ? "InterSemiBold" : "InterRegular",
           fontSize: size * (preferences.largeText ? 1.18 : 1),
           lineHeight: (lineHeight ?? size * 1.38) * (preferences.largeText ? 1.18 : 1),
           fontWeight: preferences.bold ? "700" : weight,
-          color: color ?? (muted ? p.secondary : p.text),
+          color: readableSemanticColor(color, dark) ?? (muted ? p.secondary : p.text),
         },
         style,
       ]}
@@ -87,7 +94,7 @@ export function Icon({
   size?: number;
   color?: string;
 }) {
-  return <Ionicons name={name} size={size} color={color} accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />;
+  return <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Ionicons name={name} size={size} color={color} accessible={false} /></View>;
 }
 export function IconButton({
   name,
@@ -172,15 +179,15 @@ export function Screen({
   const { account, mode } = useApp();
   const pathname = usePathname();
   const { view } = useLocalSearchParams<{ view?: string }>();
-  const flowNavigation = mode === 'live' && account && pathname.startsWith('/flow/') && view && ['equipment-detail', 'live-equipment', 'holds', 'hold-detail', 'status-timeline', 'equipment-history', 'task-detail', 'live-task', 'progress', 'parts', 'completion', 'rework', 'maintenance-history', 'technical-queue', 'clinical-queue', 'technical-result', 'clinical-result', 'analytics', 'live-analytics', 'export', 'live-export', 'audit', 'staff-audit', 'role', 'staff-role', 'suspend', 'sync', 'queue', 'upload-failed', 'report-detail', 'triage'].includes(view);
+  const flowNavigation = mode === 'live' && account && pathname.startsWith('/flow/') && !!view && ['settings', 'notification-settings', 'appearance', 'text-contrast', 'privacy', 'account-security', 'help', 'equipment-detail', 'live-equipment', 'holds', 'hold-detail', 'status-timeline', 'equipment-history', 'task-detail', 'live-task', 'progress', 'parts', 'completion', 'rework', 'maintenance-history', 'technical-queue', 'clinical-queue', 'technical-result', 'clinical-result', 'analytics', 'live-analytics', 'export', 'live-export', 'audit', 'staff-audit', 'role', 'staff-role', 'suspend', 'sync', 'queue', 'upload-failed', 'report-detail', 'triage'].includes(view);
   const content = (
     <View style={[styles.content, padding !== undefined && { padding }]}>
-      {title && (
+      {!!title && (
         <View style={{ gap: 4, marginBottom: 8 }}>
-          <Txt size={26} weight="800">
+          <Txt size={26} weight="800" accessibilityRole="header">
             {title}
           </Txt>
-          {subtitle && <Txt muted>{subtitle}</Txt>}
+          {!!subtitle && <Txt muted>{subtitle}</Txt>}
         </View>
       )}
       {children}
@@ -214,7 +221,7 @@ export function Screen({
           ) : (
             content
           )}
-          {footer && (
+          {!!footer && (
             <SafeAreaView
               edges={safeBottom ? [] : ['bottom']}
               style={{
@@ -236,7 +243,7 @@ export function Screen({
 function FlowNavigation({ view }: { view: string }) {
   const { account } = useApp(); const p = usePalette();
   if (!account) return null;
-  const selected = ['sync', 'queue', 'upload-failed'].includes(view) ? 'profile' : ['audit', 'staff-audit', 'role', 'staff-role', 'suspend'].includes(view) ? 'accounts' : ['report-detail', 'triage', 'analytics', 'live-analytics', 'export', 'live-export'].includes(view) ? 'reports' : ['equipment-detail', 'live-equipment', 'holds', 'hold-detail', 'status-timeline', 'equipment-history'].includes(view) ? 'equipment' : 'tasks';
+  const selected = ['settings', 'notification-settings', 'appearance', 'text-contrast', 'privacy', 'account-security', 'help', 'sync', 'queue', 'upload-failed', 'conflict'].includes(view) ? 'profile' : ['audit', 'staff-audit', 'role', 'staff-role', 'suspend'].includes(view) ? 'accounts' : ['report-detail', 'triage', 'analytics', 'live-analytics', 'export', 'live-export'].includes(view) ? 'reports' : ['equipment-detail', 'live-equipment', 'holds', 'hold-detail', 'status-timeline', 'equipment-history'].includes(view) ? 'equipment' : 'tasks';
   return <View accessibilityRole="tablist" style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: p.border, backgroundColor: p.card, paddingTop: 7, paddingBottom: 5 }}>{tabItems(account).map((tab) => <Pressable key={tab.name} accessibilityRole="tab" accessibilityLabel={tab.label} accessibilityState={{ selected: selected === tab.name }} onPress={() => router.replace(`/workspace/${tab.name}`)} style={{ flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 4 }}><Icon name={tab.icon} size={25} color={selected === tab.name ? tokens.blue : p.secondary} /><Txt size={10} color={selected === tab.name ? tokens.blue : p.secondary} weight={selected === tab.name ? '700' : '400'}>{tab.label}</Txt></Pressable>)}</View>;
 }
 export function Card({
@@ -329,7 +336,7 @@ export function Button({
           color={variant === "secondary" ? tokens.blue : "#fff"}
         />
       )}
-      <Txt weight="600" color={variant === "secondary" ? tokens.blue : "#fff"}>
+      <Txt weight="600" color={variant === "secondary" ? tokens.blue : "#fff"} style={{ flexShrink: 1, textAlign: "center" }}>
         {loading ? "Please wait…" : label}
       </Txt>
     </Pressable>
@@ -375,8 +382,8 @@ export function Field({
       />
       </View>
       </View>
-      {error && (
-        <Txt size={12} color={tokens.danger}>
+      {!!error && (
+        <Txt size={12} color={tokens.danger} accessibilityRole="alert" accessibilityLiveRegion="polite">
           {error}
         </Txt>
       )}
@@ -643,7 +650,7 @@ export function LinkRow({
           <Icon name={icon} />
           <View style={{ flex: 1, gap: 3 }}>
             <Txt weight="600">{title}</Txt>
-            {detail && (
+            {!!detail && (
               <Txt size={12} muted>
                 {detail}
               </Txt>
@@ -665,7 +672,7 @@ export function Section({
 }) {
   return (
     <View style={{ gap: 10 }}>
-      <Txt size={17} weight="700">
+      <Txt size={17} weight="700" accessibilityRole="header">
         {title}
       </Txt>
       {children}

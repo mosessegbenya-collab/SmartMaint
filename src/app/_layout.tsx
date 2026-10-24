@@ -1,5 +1,5 @@
 import "@/global.css";
-import { Stack, ThemeProvider, DarkTheme, DefaultTheme } from "expo-router";
+import { Stack, ThemeProvider, DarkTheme, DefaultTheme, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { IdentityProvider, useIdentity } from "@/features/access/identity";
 import { ActivityIndicator, View } from "react-native";
@@ -49,9 +49,12 @@ export default function Root() {
 function SessionBoundary() {
   const identity = useIdentity();
   const access = useStaffAccess();
+  const pathname = usePathname();
+  // The isolated development probe has no staff data or backend operations and must work without identity services.
+  const storageProbe = __DEV__ && pathname === "/diagnostics";
   // Discard synthetic account data when the real identity/session changes.
   return <AppProvider key={identity.signedIn ? accessCacheKey(identity.sessionId, access) : "signed-out-preview"}>
-    {identity.loaded ? <Navigation /> : <View style={{ flex: 1, gap: 12, alignItems: "center", justifyContent: "center" }}>
+    {identity.loaded || storageProbe ? <Navigation /> : <View style={{ flex: 1, gap: 12, alignItems: "center", justifyContent: "center" }}>
       <ActivityIndicator accessibilityLabel="Restoring secure session" />
       <Txt>Restoring secure session…</Txt>
       {identity.restoreTimedOut && <><Txt>Identity services are taking too long to respond.</Txt><Button label="Retry secure sign-in" onPress={identity.retry} /></>}

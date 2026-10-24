@@ -103,7 +103,7 @@ export function VerificationWorkflow({
         <Detail label="Repair status" value={task.state} />
         <Badge label="Not available" tone="danger" />
       </Card>
-      {message && <Notice tone="danger">{message}</Notice>}
+      {!!message && <Notice tone="danger">{message}</Notice>}
       {screen.endsWith("checklist") && (
         <>
           <Notice>

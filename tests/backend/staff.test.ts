@@ -186,7 +186,7 @@ describe("revocation, role updates and record authorization", () => {
     expect((await f.clinician.query(api.operations.equipment)).map((e) => e.assetId)).toEqual(["TEST-DEVICE-A"]);
     await expect(f.clinician.query(api.operations.availability, { equipmentId: f.otherEquipment })).rejects.toThrow(/scope/);
     await expect(f.clinician.mutation(api.operations.submitReport, { equipmentId: f.otherEquipment, operationId: "cross-scope", category: "Electrical/Power", symptoms: "Test", description: "", priority: "High", condition: "Unknown", inUse: false, noticedAt: Date.now() - 1 })).rejects.toThrow(/scope/);
-    await expect(f.clinician.query(api.operations.exportReports)).rejects.toThrow();
+    await expect(f.clinician.query(api.operations.exportReports, {})).rejects.toThrow();
     await expect(f.clinician.query(api.administration.auditHistory)).rejects.toThrow();
     await expect(f.t.query(api.operations.equipment)).rejects.toThrow(/Sign in/);
   });

@@ -114,13 +114,13 @@ export function ReportWorkflow({
       }
       subtitle="Track the progress and current status of this report."
     >
-      {message && <Notice tone="warning">{message}</Notice>}
+      {!!message && <Notice tone="warning">{message}</Notice>}
       <Card style={{ gap: 10 }}>
         <Txt size={18} weight="700">
           {report.id}
         </Txt>
         <Detail label="Equipment" value={report.equipmentId} />
-        {report.linkedEquipmentId && (
+        {!!report.linkedEquipmentId && (
           <Detail
             label="Reconciled equipment"
             value={report.linkedEquipmentId}

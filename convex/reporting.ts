@@ -16,12 +16,16 @@ export const saveDraft = mutation({ args: { ...fields, expectedRevision: v.optio
   const prior = await ctx.db.query("faultReports").withIndex("by_reporter_operation", (q) => q.eq("reporterId", actor._id).eq("operationId", operationId)).unique();
   if (prior) {
     if (prior.submissionState !== "draft") deny("This report has already been submitted.");
+    const identical = Object.entries(data).every(([key, value]) => prior[key as keyof typeof prior] === value);
     if (args.expectedRevision === undefined) {
-      const identical = Object.entries(data).every(([key, value]) => prior[key as keyof typeof prior] === value);
       if (!identical) deny("Draft conflict: reload the current saved revision.");
       return { id: prior._id, revision: prior.revision ?? 1 };
     }
-    if (args.expectedRevision !== prior.revision) deny("Draft conflict: another revision has been saved.");
+    if (args.expectedRevision !== prior.revision) {
+      // The immediately preceding update may have committed before its response was lost.
+      if (identical && prior.revision === args.expectedRevision + 1) return { id: prior._id, revision: prior.revision };
+      deny("Draft conflict: another revision has been saved.");
+    }
     if (prior.equipmentId !== item._id && await ctx.db.query("reportAttachments").withIndex("by_report", (q) => q.eq("reportId", prior._id)).filter((q) => q.eq(q.field("deletedAt"), undefined)).first()) deny("Remove existing photos before changing equipment identity.");
     const revision = (prior.revision ?? 1) + 1; await ctx.db.patch(prior._id, { ...data, revision }); return { id: prior._id, revision };
   }

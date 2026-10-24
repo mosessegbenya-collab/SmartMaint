@@ -1,0 +1,40 @@
+{
+  "at": "2026-10-24T16:02:13.692Z",
+  "device": "emulator-5556",
+  "platform": "Android 15",
+  "scenario": "fresh-metro-port-8082",
+  "screenshot": "validation/current/current-bundle-loading.png",
+  "hierarchy": "validation/current/current-bundle-loading.xml",
+  "labels": [
+    {
+      "text": "There was a problem loading the project.",
+      "label": "",
+      "bounds": "[21,170][817,221]"
+    },
+    {
+      "text": "This development build encountered the following error:",
+      "label": "",
+      "bounds": "[21,263][926,308]"
+    },
+    {
+      "text": "java.lang.Exception: Failed to open app.&#10;&#10;If you are trying to load the app from a development server, check your network connectivity and make sure you can access the server from your device.&#10;&#10;If you are trying to open a published project, install a compatible version of expo-updates and follow all setup and integration steps.&#10;&#9;at expo.modules.devlauncher.launcher.manifest.DevLauncherManifestParser.downloadManifest(DevLauncherManifestParser.kt:30)&#10;&#9;at expo.modules.devlauncher.launcher.manifest.DevLauncherManifestParser.access$downloadManifest(DevLauncherManifestParser.kt:13)&#10;&#9;at expo.modules.devlauncher.launcher.manifest.DevLauncherManifestParser$downloadManifest$1.invokeSuspend(Unknown Source:14)&#10;&#9;at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)&#10;&#9;at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)&#10;&#9;at kotlinx.coroutines.scheduling.CoroutineScheduler.runSafely(CoroutineScheduler.kt:586)&#10;&#9;at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:829)&#10;&#9;at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:717)&#10;&#9;at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:704)&#10;",
+      "label": "",
+      "bounds": "[63,350][1080,973]"
+    },
+    {
+      "text": "Reload",
+      "label": "",
+      "bounds": "[473,2109][607,2160]"
+    },
+    {
+      "text": "Go home",
+      "label": "",
+      "bounds": "[197,2223][374,2274]"
+    },
+    {
+      "text": "Copy",
+      "label": "",
+      "bounds": "[742,2223][847,2274]"
+    }
+  ]
+}

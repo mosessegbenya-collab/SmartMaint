@@ -1,0 +1,43 @@
+[
+  {
+    "number": 39,
+    "role": "management",
+    "reference": "Design/SmartMaint management overview dashboard-3.png",
+    "route": "/workspace/home",
+    "evidence": "reference-39-management.json",
+    "labels": [
+      "SmartMaint",
+      "",
+      "DEVELOPMENT PREVIEW · Synthetic data · Memory only",
+      "Hello,",
+      "Demo Equipment Department Head",
+      "Manage authorized operations and equipment safety.",
+      "Equipment Department Head",
+      "",
+      "Equipment Overview",
+      "Demonstration data quality",
+      "",
+      "",
+      "Exports",
+      "Scoped demonstration reports",
+      "",
+      "Recent Activity",
+      "",
+      "DEMO-REP-014",
+      "Pending upload",
+      "Device does not power on&#10;DEMO-VENT-014",
+      "",
+      "",
+      "DEMO-REP-013",
+      "Simulated activity",
+      "Battery warning&#10;DEMO-INF-002",
+      "",
+      "",
+      "More",
+      "Verification, sync, settings and help",
+      "",
+      "Overview"
+    ],
+    "status": "captured; comparison pending; synthetic only"
+  }
+]

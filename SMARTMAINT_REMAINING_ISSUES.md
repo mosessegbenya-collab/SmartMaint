@@ -1,5 +1,11 @@
 # Corrective implementation checkpoint
 
+**Fresh acceptance pass (2026-10-24):** further recovery, upload-finalization, lost-update retry, matching-receipt and storage-budget defects were corrected. Pixel API 35 was started and used for actual native storage/restart/network, permission and layout checks. All 73 reference routes have capture attempts; 72 public/synthetic variants are recorded, with **0/73 exact-state/full accessibility acceptances** and no live-backend acceptance. See [fresh evidence and remaining gates](validation/current/FINAL_ACCEPTANCE_PASS.md), [73-state checklist](validation/current/CHECKLIST.md), [native procedure](docs/NATIVE_ACCEPTANCE_PROCEDURE.md) and [prepared integration](docs/LIVE_INTEGRATION_ACCEPTANCE.md). Earlier counts below are historical.
+
+**Recovery continuation (2026-10-24):** encrypted photo recovery now preserves referenced evidence after uncertain index writes and prevents changing a recovered draft's equipment/department identity. Recovery opens saved server drafts for revision comparison; retaining the current form preserves its recovered photo operation. Confirmed server revisions remain in form state if a subsequent device save fails. Review/submission requires pending photos to be uploaded or explicitly removed. See [continuation evidence](validation/current/RESUMED_RECOVERY.md). Full offline access and native/live acceptance remain outstanding.
+
+**Screen implementation update (2026-10-24):** profile/settings detail pages, selected-hold details, status timeline, report receipts/unmatched recovery, administration layouts and management/export screens were expanded. See [screen pass details](docs/SCREEN_BUILD_2026-10-24.md). This updates source coverage; the delivery and live/native acceptance limits below remain.
+
 2026-10-24. Overall: **Partial / Blocked**. No deployment, staff approval, administrator bootstrap or institutional safety policy was enabled.
 
 ## Implemented source, pending live acceptance
@@ -14,12 +20,12 @@
 
 ## Unfinished implementation
 
-1. Full offline new-draft/photo storage, approved cached inventory/authorization, background retry/backoff and complete conflict comparison. The publication queue does not fulfill full offline-first reporting.
+1. Full offline report creation with approved cached inventory/authorization, background replay and complete conflict comparison. Encrypted authorized-form draft/photo recovery, bounded foreground publication retry and physical storage limits are implemented; protected offline access remains disabled. Pending edits before the debounced commit can still be lost on abrupt termination. The publication queue and recovery copies do not fulfill full offline-first reporting.
 2. Expanded work-order acceptance/awaiting-parts/awaiting-verification/closed transitions and their separate reference layouts.
 3. Notification coverage for due-date/cancellation/overdue changes and broader institutional recipient fan-out; persisted notification preferences. Push/email infrastructure is unavailable. Current operational notices target the affected reporter and assigned technician; verification requests target an explicitly selected eligible verifier.
 4. Uncapped management analytics, downtime/release metrics and complete file export. Current management summaries/export explicitly disclose the 100-per-department cap.
 5. Department/facility/system configuration UI, inventory editing/import and institutional provisional reconciliation. Reconciliation currently shows actual unverified reports; approval remains disabled.
-6. Visual corrections and native control/accessibility testing for all 73 references. Two public comparisons exist and both need correction; 71 comparisons remain outstanding.
+6. Exact-state visual corrections and complete native control/accessibility testing for all 73 references. Fresh native public/synthetic variants are captured for 72 references; the distinct splash was not captured. Route captures, empty states, synthetic fixtures and contact-sheet inspection do not complete the 73 exact-state acceptance checks.
 7. Hardware camera/permission tests, Android native regression, iOS native/device tests and signed distribution validation.
 
 ## External acceptance gates

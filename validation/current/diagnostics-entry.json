@@ -1,0 +1,55 @@
+{
+  "at": "2026-10-24T15:58:24.367Z",
+  "device": "emulator-5556",
+  "platform": "Android 15",
+  "scenario": "development-probe-entry",
+  "screenshot": "validation/current/diagnostics-entry.png",
+  "hierarchy": "validation/current/diagnostics-entry.xml",
+  "labels": [
+    {
+      "text": "",
+      "label": "Tools",
+      "bounds": "[937,205][1005,273]"
+    },
+    {
+      "text": "Unmatched Route",
+      "label": "",
+      "bounds": "[63,1025][1016,1319]"
+    },
+    {
+      "text": "Page could not be found.",
+      "label": "",
+      "bounds": "[63,1329][1016,1555]"
+    },
+    {
+      "text": "",
+      "label": "smartmaint://diagnostics",
+      "bounds": "[333,1587][748,1640]"
+    },
+    {
+      "text": "smartmaint://diagnostics",
+      "label": "",
+      "bounds": "[333,1587][748,1640]"
+    },
+    {
+      "text": "Go back",
+      "label": "",
+      "bounds": "[306,1713][499,1784]"
+    },
+    {
+      "text": "•",
+      "label": "",
+      "bounds": "[530,1713][548,1784]"
+    },
+    {
+      "text": "",
+      "label": "Sitemap",
+      "bounds": "[580,1713][774,1784]"
+    },
+    {
+      "text": "Sitemap",
+      "label": "",
+      "bounds": "[580,1713][774,1784]"
+    }
+  ]
+}

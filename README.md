@@ -1,5 +1,7 @@
 # SmartMaint
 
+Latest continuation: [fresh implementation and acceptance evidence](validation/current/FINAL_ACCEPTANCE_PASS.md), [73-reference checklist](validation/current/CHECKLIST.md), [prepared native procedure](docs/NATIVE_ACCEPTANCE_PROCEDURE.md) and [live integration prerequisites/commands](docs/LIVE_INTEGRATION_ACCEPTANCE.md). Native synthetic coverage is separate from exact-state and live acceptance.
+
 Current corrective checkpoint: [acceptance status](SMARTMAINT_FINAL_ACCEPTANCE_REPORT.md), [73-reference matrix](SMARTMAINT_73_SCREEN_MATRIX.md), [remaining issues](SMARTMAINT_REMAINING_ISSUES.md). Backend/source implementation and live/native acceptance are tracked separately. For SDK57 in-place native regeneration, use `npx expo prebuild --platform android --no-clean --no-install`; this SDK recreates native folders by default. Do not clear generated projects while builds or IDE imports hold them open.
 
 Expo SDK 57 / React Native application for equipment identification, fault reporting, maintenance and independent safety verification. The approved references are in `Design/`.

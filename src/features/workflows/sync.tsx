@@ -135,7 +135,7 @@ export function SyncWorkflow({ screen }: { screen: string }) {
       title={title}
       subtitle="Synthetic in-memory synchronization demonstration."
     >
-      {message && <Notice tone="warning">{message}</Notice>}
+      {!!message && <Notice tone="warning">{message}</Notice>}
       <Notice tone={app.online ? "success" : "warning"}>
         {app.online ? "Connection available for demonstration" : "Offline"} · No
         real server connection is configured.
@@ -191,7 +191,7 @@ export function SyncWorkflow({ screen }: { screen: string }) {
                 <Detail label="Operation ID" value={q.id} />
                 <Detail label="Status" value={q.state} />
                 <Detail label="Attempts" value={q.attempts} />
-                {q.nextRetryAt && (
+                {!!q.nextRetryAt && (
                   <Detail label="Next retry" value={q.nextRetryAt} />
                 )}
                 <Txt size={11} muted>

@@ -1,0 +1,135 @@
+{
+  "at": "2026-10-24T15:19:57.846Z",
+  "device": "emulator-5556",
+  "platform": "Android 15",
+  "scenario": "public-sign-in-default-font",
+  "screenshot": "validation/current/sign-in-before.png",
+  "hierarchy": "validation/current/sign-in-before.xml",
+  "labels": [
+    {
+      "text": "",
+      "label": "Tools",
+      "bounds": "[937,205][1005,273]"
+    },
+    {
+      "text": "",
+      "label": "SmartMaint gear and heartbeat logo",
+      "bounds": "[252,154][389,291]"
+    },
+    {
+      "text": "SmartMaint",
+      "label": "",
+      "bounds": "[406,167][827,276]"
+    },
+    {
+      "text": "Staff Sign In",
+      "label": "",
+      "bounds": "[55,798][1025,914]"
+    },
+    {
+      "text": "Access your account to continue to SmartMaint.",
+      "label": "",
+      "bounds": "[55,940][1025,1062]"
+    },
+    {
+      "text": "Access requires administrator approval.",
+      "label": "",
+      "bounds": "[55,1088][1025,1143]"
+    },
+    {
+      "text": "Email address",
+      "label": "",
+      "bounds": "[55,1170][1025,1218]"
+    },
+    {
+      "text": "",
+      "label": "",
+      "bounds": "[94,1268][155,1331]"
+    },
+    {
+      "text": "you@hospital.org",
+      "label": "Email address",
+      "bounds": "[155,1237][1023,1363]"
+    },
+    {
+      "text": "",
+      "label": "Send sign-in code",
+      "bounds": "[55,1397][1025,1523]"
+    },
+    {
+      "text": "Send sign-in code",
+      "label": "",
+      "bounds": "[377,1434][702,1485]"
+    },
+    {
+      "text": "",
+      "label": "Trouble signing in?",
+      "bounds": "[55,1549][1025,1675]"
+    },
+    {
+      "text": "Trouble signing in?",
+      "label": "",
+      "bounds": "[370,1586][709,1637]"
+    },
+    {
+      "text": "",
+      "label": "Request an account",
+      "bounds": "[55,1701][1025,1827]"
+    },
+    {
+      "text": "Request an account",
+      "label": "",
+      "bounds": "[365,1738][713,1789]"
+    },
+    {
+      "text": "or continue with",
+      "label": "",
+      "bounds": "[406,1853][673,1901]"
+    },
+    {
+      "text": "",
+      "label": "Continue with Google",
+      "bounds": "[55,1927][1025,2053]"
+    },
+    {
+      "text": "",
+      "label": "",
+      "bounds": "[312,1965][360,2015]"
+    },
+    {
+      "text": "Continue with Google",
+      "label": "",
+      "bounds": "[381,1964][766,2015]"
+    },
+    {
+      "text": "",
+      "label": "Continue with Apple",
+      "bounds": "[55,2080][1025,2206]"
+    },
+    {
+      "text": "",
+      "label": "",
+      "bounds": "[323,2118][371,2168]"
+    },
+    {
+      "text": "Continue with Apple",
+      "label": "",
+      "bounds": "[392,2117][755,2168]"
+    },
+    {
+      "text": "Development preview",
+      "label": "",
+      "bounds": "[55,2232][1025,2294]"
+    },
+    {
+      "text": "",
+      "label": "",
+      "bounds": "[89,2354][142,2337]"
+    },
+    {
+      "text": "Synthetic accounts only. Changes are held in memory and reset when the app restarts.",
+      "label": "",
+      "bounds": "[168,2354][991,2337]"
+    }
+  ]
+}

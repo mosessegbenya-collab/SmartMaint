@@ -79,7 +79,7 @@ export function MaintenanceWorkflow({
           tone={task.state === "Completed" ? "success" : "warning"}
         />
       </Card>
-      {message && <Notice tone="warning">{message}</Notice>}
+      {!!message && <Notice tone="warning">{message}</Notice>}
       {screen === "task-detail" && (
         <>
           <Card style={{ gap: 10 }}>

@@ -35,7 +35,7 @@ export function StaffAccountStatus() {
   const application = access.application;
   return <View style={{ gap: 14 }}>
     <Txt size={26} weight="800">{titles[access.status]}</Txt>
-    {identity.email && <Detail label="Clerk email" value={identity.email} />}
+    {!!identity.email && <Detail label="Clerk email" value={identity.email} />}
     <Badge label={access.status.replaceAll("_", " ")} tone={access.status === "approved" ? "success" : "warning"} />
     {access.status === "approved" && access.account ? <>
       <Detail label="Verified staff" value={access.account.name} />
@@ -57,7 +57,7 @@ export function StaffAccountStatus() {
     {["unconfigured", "authorization_error", "backend_unavailable", "timeout"].includes(access.status) && <Notice tone="warning">The staff access service could not confirm your authorization. Staff records remain locked. Try again or contact your administrator.</Notice>}
     {access.status === "session_expired" && <Notice tone="warning">Your identity could not be authenticated by the staff service. Sign in again. An administrator may also need to check the identity-service connection.</Notice>}
     {access.configured && access.connected && ["no_application", "rejected"].includes(access.status) && <ApplicationEntry />}
-    {message && <Notice tone="warning">{message}</Notice>}
+    {!!message && <Notice tone="warning">{message}</Notice>}
     <Button label="Refresh account status" loading={busy} onPress={() => void refresh()} />
     <Button label="Sign out" variant="secondary" disabled={busy} onPress={() => void signOut()} />
   </View>;
@@ -98,7 +98,7 @@ function ApplicationForm({ hint }: { hint: Record<string, unknown> }) {
     <Select label="Requested role" values={roles} value={role} onChange={setRole} />
     <Notice>Your details will be checked against institutional records. Requested roles do not grant permissions.</Notice>
     {departments?.length === 0 && <Notice tone="warning">Approved departments are not available yet. Contact your administrator.</Notice>}
-    {message && <Notice tone="warning">{message}</Notice>}
+    {!!message && <Notice tone="warning">{message}</Notice>}
     <Button label="Submit staff application" loading={busy} disabled={!departments?.length} onPress={() => void save()} />
   </Card>;
 }
