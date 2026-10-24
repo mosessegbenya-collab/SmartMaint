@@ -1,9 +1,9 @@
-param([ValidateSet('native','expo-go')][string]$Runtime='native')
+param([ValidateSet('native','expo-go')][string]$Runtime='native', [string]$SignInCapture='artifacts/runtime/corrective-native-sign-in.png', [string]$RegistrationCapture='artifacts/runtime/corrective-native-registration.png', [string]$Iteration='')
 Add-Type -AssemblyName System.Drawing
 $comparisonInventory=Get-Content -LiteralPath 'artifacts/design-inventory.json' -Raw | ConvertFrom-Json
 $comparisonPairs=if($Runtime -eq 'native'){@(
-  @('SmartMaint Staff Sign-In Screen-1.png','artifacts/runtime/corrective-native-sign-in.png'),
-  @('SmartMaint Staff Registration Mockup-1.png','artifacts/runtime/corrective-native-registration.png')
+  @('SmartMaint Staff Sign-In Screen-1.png',$SignInCapture),
+  @('SmartMaint Staff Registration Mockup-1.png',$RegistrationCapture)
 )}else{@(
   @('SmartMaint Staff Sign-In Screen-1.png','artifacts/runtime/corrective-sign-in-clean.png'),
   @('SmartMaint Staff Registration Mockup-1.png','artifacts/runtime/corrective-registration.png')
@@ -13,7 +13,8 @@ foreach($comparisonPair in $comparisonPairs) {
   for($comparisonCounter=0;$comparisonCounter -lt $comparisonInventory.Count;$comparisonCounter++) { if([IO.Path]::GetFileName($comparisonInventory[$comparisonCounter].reference) -eq $comparisonPair[0]) { $comparisonIndex=$comparisonCounter; break } }
   if($comparisonIndex -lt 0) { throw 'Approved reference not found in inventory.' }
   $comparisonFolder=Join-Path 'validation/screens' (($comparisonIndex+1).ToString('00'))
-  if($Runtime -eq 'native') { foreach($preservedName in @('implementation.png','comparison.png','comparison-protocol.json')) { $preservedPath=Join-Path $comparisonFolder $preservedName; $preservedDestination=Join-Path $comparisonFolder ($preservedName.Replace('.png','-expo-go.png').Replace('.json','-expo-go.json')); if((Test-Path -LiteralPath $preservedPath) -and -not (Test-Path -LiteralPath $preservedDestination)){Copy-Item -LiteralPath $preservedPath -Destination $preservedDestination} } }
+  if($Iteration) { if($Iteration -notmatch '^[a-z0-9-]+$'){throw 'Use a simple iteration name.'}; $comparisonFolder=Join-Path $comparisonFolder "iterations/$Iteration"; New-Item -ItemType Directory -Path $comparisonFolder -Force | Out-Null }
+  if($Runtime -eq 'native' -and -not $Iteration) { foreach($preservedName in @('implementation.png','comparison.png','comparison-protocol.json')) { $preservedPath=Join-Path $comparisonFolder $preservedName; $preservedDestination=Join-Path $comparisonFolder ($preservedName.Replace('.png','-expo-go.png').Replace('.json','-expo-go.json')); if((Test-Path -LiteralPath $preservedPath) -and -not (Test-Path -LiteralPath $preservedDestination)){Copy-Item -LiteralPath $preservedPath -Destination $preservedDestination} } }
   Copy-Item -LiteralPath $comparisonPair[1] -Destination (Join-Path $comparisonFolder 'implementation.png')
   $comparisonRef=[Drawing.Image]::FromFile((Join-Path $PWD $comparisonInventory[$comparisonIndex].reference))
   $comparisonActual=[Drawing.Image]::FromFile((Join-Path $PWD $comparisonPair[1]))
@@ -29,7 +30,7 @@ foreach($comparisonPair in $comparisonPairs) {
   $comparisonCanvas.Save((Join-Path $PWD (Join-Path $comparisonFolder 'comparison.png')),[Drawing.Imaging.ImageFormat]::Png)
   $comparisonGraphics.Dispose(); $comparisonCanvas.Dispose(); $comparisonRef.Dispose(); $comparisonActual.Dispose(); $comparisonFont.Dispose()
   $comparisonRuntime=if($Runtime -eq 'native'){'Pixel API35, Android debug x86_64 development build, 1080x2400'}else{'Pixel API35, Expo Go57, 1080x2400'}
-  $comparisonMetadata=@{ referenceCrop=@(198,170,628,1253); implementationCrop=@(0,139,1080,2198); normalizedWidth=393; method='App-content crops, density normalization preserving aspect approximately; qualitative comparison only, no similarity score'; runtime=$comparisonRuntime; exclusions='OS bars and source phone frame excluded; floating developer button remains runtime chrome'; checkpoint='2026-10-23' }
+  $comparisonMetadata=@{ referenceCrop=@(198,170,628,1253); implementationCrop=@(0,139,1080,2198); normalizedWidth=393; method='App-content crops, density normalization preserving aspect approximately; qualitative comparison only, no similarity score'; runtime=$comparisonRuntime; exclusions='OS bars and source phone frame excluded; floating developer button remains runtime chrome'; checkpoint='2026-10-24'; iteration=$Iteration }
   [IO.File]::WriteAllText((Join-Path $PWD (Join-Path $comparisonFolder 'comparison-protocol.json')),($comparisonMetadata|ConvertTo-Json -Depth 5),(New-Object Text.UTF8Encoding $false))
   Write-Output $comparisonFolder
 }

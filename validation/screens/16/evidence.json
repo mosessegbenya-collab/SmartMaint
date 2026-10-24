@@ -6,7 +6,7 @@
   "component": "src/features/access/screens.tsx + email-auth.tsx",
   "sourceStatus": "Partial",
   "authenticatedAccess": "Requires configured backend and approved account where protected; runtime role-route testing pending",
-  "controls": "Empty email rejected; Request an account navigates (two sampled controls pass)",
+  "controls": "Empty email rejected; Request an account navigates (2 sampled controls pass; authentication not completed)",
   "backend": "Blocked: no deployment",
   "authorization": "Mock tests only; live validation pending",
   "offline": "Not accepted",
@@ -14,7 +14,10 @@
   "comparison": "validation/screens/16/comparison.png",
   "visual": "Compared; FAIL / needs correction, not accepted",
   "accessibility": "Labeled native controls observed; full accessibility testing pending",
-  "discrepancies": "Email-code strategy differs intentionally from password reference; logo scale, heading size, spacing, flat surfaces and SSO notice/scroll differ.",
-  "runtime": "Current corrective run; Pixel API35 Expo Go57; public unsigned-in screen only",
+  "discrepancies": "Email-code strategy differs intentionally from password reference; logo scale, heading size, spacing, field treatment and flat surfaces need correction.",
+  "runtime": "Pixel API35 Android debug x86_64 development build; public unsigned-in screen only",
+  "supplementalScreenshots": [
+    "artifacts/runtime/corrective-native-email-validation.png"
+  ],
   "finalStatus": "Partial / Blocked"
 }

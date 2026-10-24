@@ -1,0 +1,41 @@
+env: load .env
+env: export EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
+Starting project at C:\Users\Edem Segbenya\Desktop\SmartMaint\SmartMaint
+Logs: C:\Users\Edem Segbenya\Desktop\SmartMaint\SmartMaint\.expo\dev\logs\start.log
+Using src/app as the root directory for Expo Router.
+React Compiler enabled
+Metro is running in CI mode, reloads are disabled. Remove CI=true to enable watch mode.
+Starting Metro Bundler
+
+Waiting on http://localhost:8081
+
+Logs for your project will appear below.
+| (node:16976) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:16976) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:16976) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+Android Bundling failed 37787ms node_modules\expo-router\entry.js (2086 modules)
+Unable to resolve "./dashboard-screens" from "src\features\staff\workspace.tsx"
+[0m [90m 22 |[39m [36mimport[39m { [33mReportQueueScreen[39m } [36mfrom[39m [32m"./report-queue"[39m[33m;[39m
+ [90m 23 |[39m [36mimport[39m { [33mStaffDataBoundary[39m } [36mfrom[39m [32m"./data-boundary"[39m[33m;[39m
+[31m[1m>[22m[39m[90m 24 |[39m [36mimport[39m { [33mStaffHome[39m } [36mfrom[39m [32m'./dashboard-screens'[39m[33m;[39m
+ [90m    |[39m                            [31m[1m^[22m[39m
+ [90m 25 |[39m
+ [90m 26 |[39m [36mexport[39m [36mfunction[39m [33mStaffWorkspaceRoute[39m({ screen[33m,[39m preview[33m:[39m [33mPreview[39m }[33m:[39m { screen[33m:[39m string[33m;[39m preview[33m:[39m [33mComponentType[39m }) {
+ [90m 27 |[39m   [36mreturn[39m [33m<[39m[33mStaffDataBoundary[39m key[33m=[39m{screen}[33m>[39m[33m<[39m[33mWorkspaceScreen[39m screen[33m=[39m{screen} preview[33m=[39m{[33mPreview[39m} [33m/[39m[33m>[39m[33m<[39m[33m/[39m[33mStaffDataBoundary[39m[33m>[39m[33m;[39m[0m
+
+Import stack:
+
+ src\features\staff\workspace.tsx
+ | import "./dashboard-screens"
+
+ src\features\workflows\route.tsx
+ | import "@/features/staff/workspace"
+
+ src\app\flow\[view].tsx
+ | import "@/features/workflows/route"
+
+ src\app (require.context)
+

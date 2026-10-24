@@ -1,7 +1,7 @@
 [
   {
     "file": "src\\components\\smart\\ui.tsx",
-    "line": 339,
+    "line": 357,
     "text": "placeholderTextColor={p.secondary}",
     "classification": "Input hint/style (not a backend stub)"
   },
@@ -30,6 +30,36 @@
     "classification": "Preview contract or storage error continuation; not a visible success control"
   },
   {
+    "file": "src\\features\\access\\email-auth.tsx",
+    "line": 94,
+    "text": "<Field label=\"Full name\" insetLabel icon=\"person-outline\" placeholder=\"Your full name\" value={name} onChangeText={setName} editable={!fetching} maxLength={120} />",
+    "classification": "Input hint/style (not a backend stub)"
+  },
+  {
+    "file": "src\\features\\access\\email-auth.tsx",
+    "line": 95,
+    "text": "<Field label=\"Email address\" insetLabel icon=\"mail-outline\" placeholder=\"you@hospital.org\" value={email} onChangeText={setEmail} keyboardType=\"email-address\" autoCapitalize=\"none\" autoCorrect={false} autoComplete=\"email\" editable={!fetching} error={signUpErrors.fields.emailAddress?.message} />",
+    "classification": "Input hint/style (not a backend stub)"
+  },
+  {
+    "file": "src\\features\\access\\email-auth.tsx",
+    "line": 96,
+    "text": "<Field label=\"Staff ID\" insetLabel icon=\"id-card-outline\" placeholder=\"Your institutional staff ID\" value={staffId} onChangeText={setStaffId} editable={!fetching} maxLength={80} />",
+    "classification": "Input hint/style (not a backend stub)"
+  },
+  {
+    "file": "src\\features\\access\\email-auth.tsx",
+    "line": 97,
+    "text": "<Field label=\"Department (requested)\" insetLabel icon=\"business-outline\" placeholder=\"Your department\" value={department} onChangeText={setDepartment} editable={!fetching} maxLength={100} />",
+    "classification": "Input hint/style (not a backend stub)"
+  },
+  {
+    "file": "src\\features\\access\\email-auth.tsx",
+    "line": 101,
+    "text": "{!registration && <Field label=\"Email address\" icon=\"mail-outline\" placeholder=\"you@hospital.org\" value={email} onChangeText={setEmail} keyboardType=\"email-address\"",
+    "classification": "Input hint/style (not a backend stub)"
+  },
+  {
     "file": "src\\features\\access\\identity.tsx",
     "line": 21,
     "text": "expired: false, restoreTimedOut: false, retry: () => {},",
@@ -43,9 +73,21 @@
   },
   {
     "file": "src\\features\\access\\screens.tsx",
-    "line": 348,
+    "line": 352,
     "text": "<Detail label=\"Status\" value=\"Preview only\" />",
     "classification": "Live/shared source or unavailable-context default; requires review"
+  },
+  {
+    "file": "src\\features\\staff\\operational-screens.tsx",
+    "line": 46,
+    "text": "return <><Field label=\"Equipment search\" icon=\"search-outline\" placeholder={searchBy === 'Exact Asset ID' ? 'Enter the complete asset identifier' : `Search equipment by ${searchBy.toLowerCase()}`} value={input} onChangeText={setInput} maxLength={200} autoCorrect={false} onSubmitEditing={() => setSearch(input.trim())} /><Select label=\"Search by\" values={['Name', 'Model', 'Exact Asset ID']} value={searchBy} onChange={(value) => { setSearchBy(value); setSearch(''); setInput(''); }} /><Button label=\"Search Equipment\" icon=\"search-outline\" onPress={() => setSearch(input.trim())} />{!!search && <Button label=\"Browse All Equipment\" variant=\"secondary\" onPress={() => { setSearch(''); setInput(''); }} />}{page.status === 'Exhausted' && !page.results.length && <Card><Txt muted>No equipment matches in this department.</Txt></Card>}{page.results.map((r) => <Card key={r._id} style={{ gap: 10 }}><Row><View style={{ padding: 12, borderRadius: 18, backgroundColor: '#E8F3FF' }}><Icon name=\"medkit-outline\" size={33} /></View><View style={{ flex: 1, gap: 5 }}><Txt size={21} weight=\"700\">{r.assetId}</Txt><Txt size={16}>{r.name}</Txt><Txt muted>{r.location}</Txt></View></Row><Badge label={r.identityVerified ? 'Inventory identity verified' : 'Identity unverified'} tone={r.identityVerified ? 'info' : 'warning'} /><Button label=\"View Equipment\" variant=\"secondary\" icon=\"chevron-forward\" onPress={() => go('live-equipment', r._id)} /></Card>)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /></>;",
+    "classification": "Input hint/style (not a backend stub)"
+  },
+  {
+    "file": "src\\features\\staff\\operational-screens.tsx",
+    "line": 132,
+    "text": "<Card style={{ gap: 12 }}><Field label=\"Equipment ID\" icon=\"barcode-outline\" placeholder=\"Enter the identifier on the asset label\" value={input} onChangeText={(value) => { setInput(value); setIdentifier(''); setLookupError(''); }} maxLength={200} autoCapitalize=\"none\" autoCorrect={false} /><Txt muted size={13}>Use the exact identifier printed on the equipment label.</Txt>{!!input && <Button label=\"Clear identifier\" variant=\"secondary\" onPress={() => { setInput(''); setIdentifier(''); setLookupError(''); }} />}</Card><Button label=\"Search Equipment\" icon=\"arrow-forward\" disabled={!input.trim()} onPress={find} /><Button label={scanning ? 'Use manual entry' : 'Scan QR code'} icon={scanning ? 'keypad-outline' : 'qr-code-outline'} variant=\"secondary\" onPress={() => { setIdentifier(''); setLookupError(''); setScanning(!scanning); }} />",
+    "classification": "Input hint/style (not a backend stub)"
   },
   {
     "file": "src\\features\\staff\\provider.tsx",

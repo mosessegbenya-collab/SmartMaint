@@ -3,7 +3,7 @@
   "screen": "home",
   "reference": "Design/SmartMaint clinician home dashboard-2.png",
   "route": "/workspace/home",
-  "component": "src/features/staff/workspace.tsx (shared live workflow; reference-specific fidelity pending)",
+  "component": "src/features/staff/dashboard-screens.tsx (role-specific live grids; runtime fidelity pending)",
   "sourceStatus": "Partial",
   "authenticatedAccess": "Requires configured backend and approved account where protected; runtime role-route testing pending",
   "controls": "Not tested on live deployment",
@@ -14,5 +14,6 @@
   "comparison": null,
   "visual": "Not tested",
   "accessibility": "Not tested",
+  "supplementalScreenshots": [],
   "finalStatus": "Partial / Blocked"
 }

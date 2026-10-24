@@ -135,17 +135,17 @@ function AccountList() {
     {page.status !== "Exhausted" && <Button label="Load more accounts" variant="secondary" loading={page.isLoading} disabled={page.status !== "CanLoadMore"} onPress={() => page.loadMore(20)} />}
   </Screen>;
 }
-export function StaffRoleAssignment({ id }: { id: string }) {
+export function StaffRoleAssignment({ id, focus = 'all' }: { id: string; focus?: 'all' | 'role' | 'suspend' }) {
   const { account } = useStaffAccess();
   if (!account?.capabilities.some((c) => ["roles", "suspend"].includes(c))) return <Restricted />;
-  return <RoleLoader id={id} />;
+  return <RoleLoader id={id} focus={focus} />;
 }
-function RoleLoader({ id }: { id: string }) {
+function RoleLoader({ id, focus }: { id: string; focus: 'all' | 'role' | 'suspend' }) {
   const target = useQuery(staffApi.administration.account, { id: id as GenericId<"staffAccounts"> });
   if (!target) return <Screen title="Staff account"><Notice>Loading authorized account…</Notice></Screen>;
-  return <RoleForm key={`${target.id}:${target.revision}`} target={target} />;
+  return <RoleForm key={`${target.id}:${target.revision}:${focus}`} target={target} focus={focus} />;
 }
-function RoleForm({ target }: { target: FunctionReturnType<typeof staffApi.administration.accounts>[number] }) {
+function RoleForm({ target, focus }: { target: FunctionReturnType<typeof staffApi.administration.accounts>[number]; focus: 'all' | 'role' | 'suspend' }) {
   const { account } = useStaffAccess();
   const changeRole = useMutation(staffApi.administration.changeRole);
   const changeStatus = useMutation(staffApi.administration.changeStatus);
@@ -153,21 +153,23 @@ function RoleForm({ target }: { target: FunctionReturnType<typeof staffApi.admin
   const [reason, setReason] = useState("");
   const self = target.id === account?.id;
   const locked = self || target.status === "revoked";
-  return <Screen title="Staff Role Assignment">
+  return <Screen title={focus === 'suspend' ? 'Account Suspension Controls' : 'Staff Role Assignment'} subtitle={focus === 'suspend' ? 'Manage staff account access with an audited reason.' : 'Review the staff member’s role, permissions and department scope.'}>
     <Card style={{ gap: 10 }}><Txt size={22} weight="800">{target.name}</Txt><Detail label="Verified Staff ID" value={target.staffId} /><Detail label="Current role" value={target.role} /><Badge label={target.status} tone="warning" /></Card>
     {self && <Notice>You cannot change your own authorization or access status.</Notice>}
     {target.status === "revoked" && <Notice>Revoked access requires a separate authorized revalidation procedure.</Notice>}
-    {account?.capabilities.includes("roles") && !locked && <GrantFields value={grant} onChange={setGrant} />}
+    {focus !== 'suspend' && account?.capabilities.includes("roles") && !locked && <GrantFields value={grant} onChange={setGrant} />}
     {!locked && <Field label="Administrative justification" value={reason} onChangeText={setReason} maxLength={500} />}
-    {account?.capabilities.includes("roles") && <ConfirmAction label="Save authorization" title="Change staff authorization?" detail="The role, capabilities and scope will be replaced and audited. Existing access will be re-evaluated." disabled={locked || !reason.trim()}
+    {focus !== 'suspend' && account?.capabilities.includes("roles") && <ConfirmAction label="Save authorization" title="Change staff authorization?" detail="The role, capabilities and scope will be replaced and audited. Existing access will be re-evaluated." disabled={locked || !reason.trim()}
       onConfirm={() => changeRole({ id: target.id, expectedRevision: target.revision, ...grant, reason })} />}
-    {account?.capabilities.includes("suspend") && <>
+    {focus !== 'role' && account?.capabilities.includes("suspend") && <>
       <ConfirmAction label={target.status === "suspended" ? "Reinstate account" : "Suspend account"} title={target.status === "suspended" ? "Reinstate staff access?" : "Suspend staff access?"}
         detail="This action is audited and authorization changes take effect on the backend." danger={target.status !== "suspended"} disabled={locked || !reason.trim()}
         onConfirm={() => changeStatus({ id: target.id, expectedRevision: target.revision, status: target.status === "suspended" ? "approved" : "suspended", reason })} />
       <ConfirmAction label="Revoke access" title="Revoke staff access?" detail="Revocation cannot be reversed through this screen. Authorized revalidation will be required." danger disabled={locked || !reason.trim()}
         onConfirm={() => changeStatus({ id: target.id, expectedRevision: target.revision, status: "revoked", reason })} />
     </>}
+    {focus !== 'suspend' && account?.capabilities.includes('suspend') && <LinkRow title="Account suspension controls" icon="person-remove-outline" onPress={() => go('suspend', target.id)} />}
+    {focus === 'suspend' && account?.capabilities.includes('roles') && <LinkRow title="Role assignment" icon="shield-checkmark-outline" onPress={() => go('role', target.id)} />}
   </Screen>;
 }
 

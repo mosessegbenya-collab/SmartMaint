@@ -3,16 +3,20 @@
   "screen": "welcome",
   "reference": "Design/SmartMaint medical equipment splash screen-2.png",
   "route": "/",
-  "component": "src/features/staff/workspace.tsx (shared live workflow; reference-specific fidelity pending)",
+  "component": "src/features/access/screens.tsx (WelcomeScreen)",
   "sourceStatus": "Partial",
   "authenticatedAccess": "Requires configured backend and approved account where protected; runtime role-route testing pending",
-  "controls": "Not tested on live deployment",
+  "controls": "Staff Sign In opens the actual sign-in form (1 sampled control passes)",
   "backend": "Blocked: no deployment",
   "authorization": "Mock tests only; live validation pending",
   "offline": "Not accepted",
-  "screenshot": null,
+  "screenshot": "artifacts/runtime/corrective-native-welcome.png",
   "comparison": null,
-  "visual": "Not tested",
-  "accessibility": "Not tested",
+  "visual": "Captured; comparison pending",
+  "accessibility": "Action labels inspected; 1.3x font sample returns to Welcome after activity recreation; full accessibility acceptance pending",
+  "runtime": "Pixel API35 Android debug development build; public welcome only",
+  "supplementalScreenshots": [
+    "artifacts/runtime/corrective-native-large-text.png"
+  ],
   "finalStatus": "Partial / Blocked"
 }

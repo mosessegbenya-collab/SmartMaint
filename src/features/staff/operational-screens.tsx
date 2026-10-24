@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { router, useLocalSearchParams } from 'expo-router';
+import { ReportSteps } from '@/components/smart/report-steps';
+import { useCurrentTime } from '@/hooks/use-current-time';
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { Linking } from "react-native";
+import { Linking, View } from "react-native";
 import { randomUUID } from "expo-crypto";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import type { GenericId } from "convex/values";
-import { Badge, Button, Card, Choices, Detail, Field, LinkRow, Notice, Screen, Select, Txt } from "@/components/smart/ui";
+import { Badge, Button, Card, Choices, Detail, Field, Icon, LinkRow, Notice, Row, Screen, Select, Txt } from "@/components/smart/ui";
 import { staffApi } from "@/services/staff-api";
 import { go } from "@/navigation/go";
 import { useStaffAccess } from "./provider";
@@ -21,28 +24,45 @@ function More({ status, load, busy }: { status: string; load: () => void; busy: 
   return status === "LoadingFirstPage" ? <Notice>Loading authorized records…</Notice> : status === "Exhausted" ? <Txt muted size={12}>All records in this selection are shown.</Txt> : <Button label="Load more" loading={busy} disabled={status !== "CanLoadMore"} variant="secondary" onPress={load} />;
 }
 export function OperationalList({ kind, verification }: { kind: "equipment" | "reports" | "tasks" | "provisional"; verification?: "technical" | "clinical" }) {
-  const { account } = useStaffAccess(); const [department, setDepartment] = useState<GenericId<"departments"> | null>(account?.scope[0] ?? null);
+  const params = useLocalSearchParams<{ department?: string; priority?: string; submission?: string }>();
+  return <ScopedOperationalList key={kind === 'reports' ? JSON.stringify(params) : kind} kind={kind} verification={verification} filters={kind === 'reports' ? params : {}} />;
+}
+type ReportSelection = { department?: string; priority?: string; submission?: string };
+function ScopedOperationalList({ kind, verification, filters }: { kind: 'equipment' | 'reports' | 'tasks' | 'provisional'; verification?: 'technical' | 'clinical'; filters: ReportSelection }) {
+  const { account } = useStaffAccess(); const [department, setDepartment] = useState<GenericId<"departments"> | null>((account?.scope.find((id) => id === filters.department) ?? account?.scope[0] ?? null) as GenericId<'departments'> | null);
   return <Screen title={verification ? `${verification === "technical" ? "Technical" : "Clinical"} Verification Queue` : kind === "equipment" ? "Equipment" : kind === "reports" ? "Fault Reports" : kind === "provisional" ? "Provisional Reports" : "Maintenance Tasks"} back={false}>
     {verification && <Notice>Completed repairs by other staff in your authorized department. Open a repair to review its recorded decisions and current approved policy.</Notice>}
     <ScopeSelect value={department} onChange={setDepartment} />
     {kind === "equipment" && <Button label="Scan or enter equipment ID" onPress={() => go("scan")} />}
     {kind === "reports" && account?.capabilities.includes("report") && <Button label="Report a fault" onPress={() => go("scan")} />}
     {kind === "reports" && <LinkRow title="Unverified equipment reports" onPress={() => go("live-provisional-reports")} />}
-    {department && (kind === "equipment" ? <EquipmentPage department={department} /> : kind === "reports" ? <ReportPage department={department} /> : kind === "tasks" ? <TaskPage department={department} verification={verification} /> : <ProvisionalPage department={department} />)}
+    {kind === 'reports' && <Button label="Report filters" icon="options-outline" variant="secondary" onPress={() => go('filters')} />}
+    {department && (kind === "equipment" ? <EquipmentPage department={department} /> : kind === "reports" ? <ReportPage department={department} filters={filters} /> : kind === "tasks" ? <TaskPage department={department} verification={verification} /> : <ProvisionalPage department={department} />)}
   </Screen>;
 }
 function EquipmentPage({ department }: { department: GenericId<"departments"> }) {
-  const page = usePaginatedQuery(staffApi.workflows.equipmentPage, { departmentId: department }, { initialNumItems: 20 });
-  return <>{page.results.map((r) => <LinkRow key={r._id} title={r.assetId} detail={`${r.name} · ${r.location}`} onPress={() => go("live-equipment", r._id)} />)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /></>;
+  const [input, setInput] = useState(''); const [search, setSearch] = useState(''); const [searchBy, setSearchBy] = useState<'Name' | 'Model' | 'Exact Asset ID'>('Name');
+  const page = usePaginatedQuery(staffApi.workflows.equipmentPage, { departmentId: department, search, searchBy: searchBy === 'Model' ? 'model' : searchBy === 'Exact Asset ID' ? 'assetId' : 'name' }, { initialNumItems: 20 });
+  return <><Field label="Equipment search" icon="search-outline" placeholder={searchBy === 'Exact Asset ID' ? 'Enter the complete asset identifier' : `Search equipment by ${searchBy.toLowerCase()}`} value={input} onChangeText={setInput} maxLength={200} autoCorrect={false} onSubmitEditing={() => setSearch(input.trim())} /><Select label="Search by" values={['Name', 'Model', 'Exact Asset ID']} value={searchBy} onChange={(value) => { setSearchBy(value); setSearch(''); setInput(''); }} /><Button label="Search Equipment" icon="search-outline" onPress={() => setSearch(input.trim())} />{!!search && <Button label="Browse All Equipment" variant="secondary" onPress={() => { setSearch(''); setInput(''); }} />}{page.status === 'Exhausted' && !page.results.length && <Card><Txt muted>No equipment matches in this department.</Txt></Card>}{page.results.map((r) => <Card key={r._id} style={{ gap: 10 }}><Row><View style={{ padding: 12, borderRadius: 18, backgroundColor: '#E8F3FF' }}><Icon name="medkit-outline" size={33} /></View><View style={{ flex: 1, gap: 5 }}><Txt size={21} weight="700">{r.assetId}</Txt><Txt size={16}>{r.name}</Txt><Txt muted>{r.location}</Txt></View></Row><Badge label={r.identityVerified ? 'Inventory identity verified' : 'Identity unverified'} tone={r.identityVerified ? 'info' : 'warning'} /><Button label="View Equipment" variant="secondary" icon="chevron-forward" onPress={() => go('live-equipment', r._id)} /></Card>)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /></>;
 }
-function ReportPage({ department }: { department: GenericId<"departments"> }) {
-  const [priority, setPriority] = useState<"All" | "Urgent" | "High" | "Routine">("All"); const [submission, setSubmission] = useState<"All" | "Drafts" | "Submitted">("All");
+function ReportPage({ department, filters }: { department: GenericId<"departments">; filters: ReportSelection }) {
+  const [priority, setPriority] = useState<"All" | "Urgent" | "High" | "Routine">(filters.priority === 'Urgent' || filters.priority === 'High' || filters.priority === 'Routine' ? filters.priority : 'All'); const [submission, setSubmission] = useState<"All" | "Drafts" | "Submitted">(filters.submission === 'Drafts' || filters.submission === 'Submitted' ? filters.submission : 'All');
   const page = usePaginatedQuery(staffApi.workflows.reportPage, { departmentId: department, priority: priority === "All" ? undefined : priority, submission: submission === "All" ? undefined : submission === "Drafts" ? "draft" : "submitted" }, { initialNumItems: 20 });
   return <><Choices label="Effective priority" values={["All", "Urgent", "High", "Routine"]} value={priority} onChange={setPriority} /><Choices label="Report status" values={["All", "Drafts", "Submitted"]} value={submission} onChange={setSubmission} />{page.results.map((r) => <LinkRow key={r._id} title={`${r.submissionState === "draft" ? "Draft · " : ""}${r.symptoms}`} detail={`${r.triagedPriority ?? r.priority} · ${new Date(r.createdAt).toLocaleString()}`} onPress={() => go("report-detail", r._id)} />)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /></>;
 }
+export function ReportFilters() {
+  const { account } = useStaffAccess();
+  const [department, setDepartment] = useState<GenericId<'departments'> | null>(account?.scope[0] ?? null);
+  const [priority, setPriority] = useState<'All' | 'Urgent' | 'High' | 'Routine'>('All');
+  const [submission, setSubmission] = useState<'All' | 'Drafts' | 'Submitted'>('All');
+  return <Screen title="Report Filters" subtitle="Choose the reports you want to review."><Card style={{ gap: 20 }}><ScopeSelect value={department} onChange={setDepartment} /><Select label="Effective priority" values={['All', 'Urgent', 'High', 'Routine']} value={priority} onChange={setPriority} /><Select label="Report status" values={['All', 'Drafts', 'Submitted']} value={submission} onChange={setSubmission} /></Card><Notice>Results include only reports you are authorized to view. Other staff members’ private drafts are excluded.</Notice><Button label="Apply Filters" icon="checkmark-outline" disabled={!department} onPress={() => router.push({ pathname: '/workspace/reports', params: { department: department!, priority, submission } })} /><Button label="Reset Filters" variant="secondary" onPress={() => { setPriority('All'); setSubmission('All'); setDepartment(account?.scope[0] ?? null); }} /></Screen>;
+}
 function TaskPage({ department, verification }: { department: GenericId<"departments">; verification?: "technical" | "clinical" }) {
-  const page = usePaginatedQuery(staffApi.workflows.taskPage, { departmentId: department, verification }, { initialNumItems: 20 });
-  return <>{page.results.map((r) => <LinkRow key={r._id} title={r.state} detail={`Due ${new Date(r.dueAt).toLocaleString()} · ${r._id}`} onPress={() => go(verification ? `${verification}-verification` : "live-task", r._id)} />)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /></>;
+  const [state, setState] = useState<'All' | 'Unassigned' | 'Assigned' | 'In progress' | 'Completed' | 'Cancelled'>('All');
+  const [timing, setTiming] = useState<'All dates' | 'Overdue'>('All dates');
+  const now = useCurrentTime();
+  const page = usePaginatedQuery(staffApi.workflows.taskPage, { departmentId: department, verification, state: state === 'All' ? undefined : state, overdueBefore: timing === 'Overdue' ? now : undefined }, { initialNumItems: 20 });
+  return <>{!verification && <><Select label="Task status" values={['All', 'Unassigned', 'Assigned', 'In progress', 'Completed', 'Cancelled']} value={state} onChange={setState} /><Choices label="Due dates" values={['All dates', 'Overdue']} value={timing} onChange={setTiming} /></>}{page.status === 'Exhausted' && !page.results.length && <Card><Txt muted>No tasks match this selection.</Txt></Card>}{page.results.map((r) => <Card key={r._id} style={{ gap: 10 }}><Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}><Icon name={verification ? 'shield-checkmark-outline' : 'clipboard-outline'} size={30} /><Badge label={r.state} tone={r.state === 'Completed' ? 'success' : 'warning'} /></Row><Txt size={20} weight="700">{r.equipment?.assetId ?? r._id}</Txt><Txt size={16}>{r.equipment?.name ?? 'Equipment record unavailable'}</Txt><Txt muted>{r.equipment?.location}</Txt><Row><Icon name="calendar-outline" size={19} color={r.dueAt < now && !['Completed', 'Cancelled'].includes(r.state) ? '#C92E40' : '#566C8D'} /><Txt size={13} color={r.dueAt < now && !['Completed', 'Cancelled'].includes(r.state) ? '#C92E40' : undefined}>Due: {new Date(r.dueAt).toLocaleString()}</Txt></Row>{r.parentTaskId && <Badge label="Follow-up rework" tone="danger" />}<Button label={verification ? 'Review verification' : 'View Task'} variant="secondary" icon="chevron-forward" onPress={() => go(verification ? `${verification}-verification` : 'task-detail', r._id)} /></Card>)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /></>;
 }
 export function EquipmentHistory({ id }: { id: string }) {
   const page = usePaginatedQuery(staffApi.workflows.equipmentHistory, { id: id as GenericId<"equipment"> }, { initialNumItems: 20 });
@@ -52,17 +72,17 @@ function ProvisionalPage({ department }: { department: GenericId<"departments"> 
   const page = usePaginatedQuery(staffApi.workflows.provisionalPage, { departmentId: department }, { initialNumItems: 20 });
   return <>{page.results.map((r) => <Card key={r._id} style={{ gap: 8 }}><Badge label="Unverified identity" tone="warning" /><Txt weight="700">{r.rawIdentifier}</Txt><Detail label="Equipment" value={r.equipmentType} /><Detail label="Location" value={r.location} /><Detail label="Symptoms" value={r.symptoms} /><Detail label="Reference" value={r._id} /><Notice>Institutional reconciliation is required. This report does not establish inventory identity or equipment availability.</Notice></Card>)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /></>;
 }
-export function ReportDetail({ id }: { id: string }) {
+export function ReportDetail({ id, triageOnly = false }: { id: string; triageOnly?: boolean }) {
   const report = useQuery(staffApi.workflows.reportDetail, { id: id as GenericId<"faultReports"> });
   const { account } = useStaffAccess(); const [priority, setPriority] = useState<"Urgent" | "High" | "Routine">("High"); const [reason, setReason] = useState("");
   const triage = useMutation(staffApi.operations.triage);
-  return <Screen title="Fault Report Details">{report ? <>
+  return <Screen title={triageOnly ? 'Authorized Priority Triage' : 'Fault Report Details'}>{report ? <>
     <Card style={{ gap: 10 }}><Detail label="Reference" value={report._id} /><Txt size={23} weight="700">{report.symptoms}</Txt><Detail label="Category" value={report.category} /><Detail label="Description" value={report.description || "Not supplied"} /><Detail label="Reported condition" value={report.condition} /><Detail label="Reported priority" value={report.priority} /><Detail label="Triaged priority" value={report.triagedPriority ?? "Not triaged"} /><Detail label="Time noticed" value={new Date(report.noticedAt).toLocaleString()} /></Card>
-    <Button label="View equipment" variant="secondary" onPress={() => go("live-equipment", report.equipmentId)} />
+    {!triageOnly && <Button label="View equipment" variant="secondary" onPress={() => go("live-equipment", report.equipmentId)} />}
     {report.submissionState === "draft" && report.reporterId === account?.id && <Button label="Continue saved draft" onPress={() => go("resume-report", report._id)} />}
-    <ReportPhotos reportId={report._id} />
-    {report.submissionState !== "draft" && account?.capabilities.includes("assign") && <Button label="Create maintenance task" onPress={() => go("live-task-create", report._id)} />}
-    {report.submissionState !== "draft" && account?.capabilities.includes("triage") && <Card style={{ gap: 10 }}><Txt weight="700">Authorized triage</Txt><Choices label="Priority" values={["Urgent", "High", "Routine"]} value={priority} onChange={setPriority} /><Field label="Triage justification" value={reason} onChangeText={setReason} maxLength={500} /><ConfirmAction label="Save triage" title="Confirm triage?" detail="The reporter's original priority is preserved." disabled={!reason.trim()} onConfirm={() => triage({ id: report._id, priority, reason })} /></Card>}
+    {!triageOnly && <ReportPhotos reportId={report._id} />}
+    {!triageOnly && report.submissionState !== "draft" && account?.capabilities.includes("assign") && <Button label="Create maintenance task" onPress={() => go("live-task-create", report._id)} />}
+    {report.submissionState !== "draft" && account?.capabilities.includes("triage") && (triageOnly ? <Card style={{ gap: 16 }}><Txt size={22} weight="700">Triage Decision</Txt><Txt muted>Choose the authorized maintenance priority. The reporter’s original suggestion is retained.</Txt><Choices label="Priority" values={["Urgent", "High", "Routine"]} value={priority} onChange={setPriority} /><Field label="Triage justification" value={reason} onChangeText={setReason} maxLength={500} multiline style={{ minHeight: 100 }} /><ConfirmAction label="Save triage" title="Confirm triage?" detail="The reporter's original priority is preserved." disabled={!reason.trim()} onConfirm={() => triage({ id: report._id, priority, reason })} /></Card> : <LinkRow title="Authorized priority triage" icon="options-outline" onPress={() => go('triage', report._id)} />)}
   </> : <Notice>Loading authorized report…</Notice>}</Screen>;
 }
 export function EquipmentRecord({ id }: { id: string }) {
@@ -80,11 +100,15 @@ export function HoldControls({ id }: { id: string }) {
 }
 export function WorkHistory({ id }: { id: string }) {
   const page = usePaginatedQuery(staffApi.workflows.workHistory, { id: id as GenericId<"maintenanceTasks"> }, { initialNumItems: 20 });
-  return <Card style={{ gap: 10 }}><Txt size={20} weight="700">Work history</Txt>{page.results.map((r) => <Card key={r._id} style={{ gap: 7 }}><Detail label="Revision" value={String(r.revision)} /><Badge label={r.state} /><Detail label="Diagnosis" value={r.diagnosis || "Not recorded"} /><Detail label="Notes" value={r.notes || "Not recorded"} /><Detail label="Parts" value={r.parts.join(", ") || "None recorded"} /><Detail label="Recorded" value={new Date(r.at).toLocaleString()} /></Card>)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /></Card>;
+  return <Card style={{ gap: 10 }}><Txt size={20} weight="700">Work history</Txt>{page.results.map((r) => <Card key={r._id} style={{ gap: 7 }}><Detail label="Revision" value={String(r.revision)} /><Badge label={r.state} /><Detail label="Diagnosis" value={r.diagnosis || "Not recorded"} /><Detail label="Evidence" value={r.diagnosisEvidence || 'Not recorded'} /><Detail label="Cause assessment" value={r.causeAssessment || 'Not recorded'} /><Detail label="Notes" value={r.notes || "Not recorded"} /><Detail label="Parts" value={r.parts.join(", ") || "None recorded"} /><Detail label="Recorded" value={new Date(r.at).toLocaleString()} /></Card>)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /></Card>;
 }
 export function NotificationInbox() {
-  const page = usePaginatedQuery(staffApi.workflows.inbox, {}, { initialNumItems: 20 }); const mark = useMutation(staffApi.workflows.markRead);
-  return <Screen title="Notifications" back={false}><Notice>In-app notices only. Push/email dispatch and confirmed delivery are not configured.</Notice>{page.results.map((r) => <Card key={r._id} style={{ gap: 8 }}><Badge label={r.readAt ? "Read" : "Unread"} tone="info" /><Txt weight="700">{r.title}</Txt><Txt>{r.body}</Txt><Button label="Open record" onPress={() => go(r.targetKind === "task" ? "live-task" : r.targetKind === "report" ? "report-detail" : "live-equipment", r.targetId)} /><ConfirmAction label={r.readAt ? "Mark unread" : "Mark read"} title="Update notification?" detail="This changes only your inbox state." onConfirm={() => mark({ id: r._id, read: !r.readAt })} /></Card>)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /></Screen>;
+  const [filter, setFilter] = useState<'All' | 'Unread' | 'Tasks' | 'Reports' | 'Equipment'>('All');
+  const page = usePaginatedQuery(staffApi.workflows.inbox, { unreadOnly: filter === 'Unread', targetKind: filter === 'Tasks' ? 'task' : filter === 'Reports' ? 'report' : filter === 'Equipment' ? 'equipment' : undefined }, { initialNumItems: 20 }); const mark = useMutation(staffApi.workflows.markRead);
+  return <Screen title="Notification Centre" subtitle="Stay up to date with system activity." back={false}>
+    <Choices label="Show notifications" values={['All', 'Unread', 'Tasks', 'Reports', 'Equipment']} value={filter} onChange={setFilter} />
+    {page.status === 'Exhausted' && !page.results.length && <Card><Txt muted>No {filter === 'All' ? '' : filter.toLowerCase() + ' '}notifications to show.</Txt></Card>}
+    {page.results.map((r) => <Card key={r._id} style={{ gap: 12 }}><Row style={{ alignItems: 'flex-start' }}><View style={{ backgroundColor: '#E8F3FF', borderRadius: 30, padding: 12 }}><Icon name={r.targetKind === 'task' ? 'construct-outline' : r.targetKind === 'equipment' ? 'medkit-outline' : 'document-text-outline'} size={25} /></View><View style={{ flex: 1, gap: 6 }}><Row style={{ flexWrap: 'wrap', justifyContent: 'space-between' }}><Txt weight="700" size={18} style={{ flex: 1 }}>{r.title}</Txt>{!r.readAt && <Badge label="Unread" />}</Row><Txt muted>{r.body}</Txt><Txt size={11} muted>{new Date(r.createdAt).toLocaleString()}</Txt></View></Row><Button label="Open record" variant="secondary" icon="chevron-forward" onPress={() => go(r.targetKind === 'task' ? 'live-task' : r.targetKind === 'report' ? 'report-detail' : 'live-equipment', r.targetId)} /><ConfirmAction label={r.readAt ? 'Mark unread' : 'Mark read'} title="Update notification?" detail="This changes only your inbox state." onConfirm={() => mark({ id: r._id, read: !r.readAt })} /></Card>)}<More status={page.status} busy={page.isLoading} load={() => page.loadMore(20)} /><Txt size={11} muted>In-app activity. External push and email delivery are not configured.</Txt></Screen>;
 }
 export function EquipmentRegistry() {
   const { account } = useStaffAccess(); const register = useMutation(staffApi.workflows.registerEquipment); const [department, setDepartment] = useState<GenericId<"departments"> | null>(account?.scope[0] ?? null);
@@ -101,13 +125,16 @@ export function EquipmentLookup({ scan = false, emergency = false }: { scan?: bo
   const result = useQuery(staffApi.workflows.lookup, identifier ? { identifier } : "skip");
   const [lookupError, setLookupError] = useState("");
   const find = () => { if (!input.trim() || input.length > 200 || /[\u0000-\u001f]/.test(input)) { setIdentifier(""); setLookupError("Use 1–200 printable characters from the equipment label."); return; } setLookupError(""); setScanning(false); setIdentifier(input.trim()); };
-  return <Screen title={scan ? "Scan Equipment QR" : "Find Equipment"}>
+  return <Screen>
+    <ReportSteps current={1} />
+    <Txt size={28} weight="800">{scanning ? 'Scan Equipment QR' : 'Enter Equipment ID'}</Txt><Txt size={17} muted>{scanning ? 'Align the equipment QR label inside the camera view.' : 'Enter the equipment identifier manually if QR scanning is unavailable.'}</Txt>
     {scanning && (!permission?.granted ? <><Notice>Camera access is needed to scan equipment. You can enter the asset ID manually.</Notice><Button label="Allow camera" onPress={() => void requestPermission()} />{permission?.canAskAgain === false && <Button label="Open device settings" onPress={() => void Linking.openSettings()} />}</> : <CameraView style={{ height: 250, borderRadius: 20 }} barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={({ data }) => { setScanning(false); setInput(data); setIdentifier(""); if (data.trim() && data.length <= 200 && !/[\u0000-\u001f]/.test(data)) { setIdentifier(data.trim()); setLookupError(""); } else setLookupError("QR identifier must contain 1–200 printable characters. Use manual entry if needed."); }} />)}
-    <Field label="Exact equipment identifier" value={input} onChangeText={(value) => { setInput(value); setIdentifier(""); setLookupError(""); }} maxLength={200} autoCapitalize="none" /><Button label="Look up equipment" disabled={!input.trim()} onPress={find} /><Button label={scanning ? "Use manual entry" : "Scan QR code"} variant="secondary" onPress={() => { setIdentifier(""); setLookupError(""); setScanning(!scanning); }} />
+    <Card style={{ gap: 12 }}><Field label="Equipment ID" icon="barcode-outline" placeholder="Enter the identifier on the asset label" value={input} onChangeText={(value) => { setInput(value); setIdentifier(''); setLookupError(''); }} maxLength={200} autoCapitalize="none" autoCorrect={false} /><Txt muted size={13}>Use the exact identifier printed on the equipment label.</Txt>{!!input && <Button label="Clear identifier" variant="secondary" onPress={() => { setInput(''); setIdentifier(''); setLookupError(''); }} />}</Card><Button label="Search Equipment" icon="arrow-forward" disabled={!input.trim()} onPress={find} /><Button label={scanning ? 'Use manual entry' : 'Scan QR code'} icon={scanning ? 'keypad-outline' : 'qr-code-outline'} variant="secondary" onPress={() => { setIdentifier(''); setLookupError(''); setScanning(!scanning); }} />
     {lookupError && <Notice tone="warning">{lookupError}</Notice>}
     {identifier && result === undefined && <Notice>Checking authorized inventory…</Notice>}
     {result && <Card style={{ gap: 9 }}><Txt weight="700">{result.name}</Txt><Detail label="Asset" value={result.assetId} /><Detail label="Location" value={result.location} /><Button label="Confirm equipment" onPress={() => go(emergency ? "emergency-form" : "live-equipment", result._id)} /></Card>}
     {identifier && result === null && <><Notice>No equipment matches in your authorized scope. A scan does not create or verify inventory.</Notice>{account?.capabilities.includes("report") && <Button label="Report unverified equipment" onPress={() => go("provisional", input)} />}</>}
+    <Button label="Browse All Equipment" icon="search-outline" variant="secondary" onPress={() => router.push('/workspace/equipment')} />
   </Screen>;
 }
 export function ProvisionalForm({ identifier }: { identifier: string }) {

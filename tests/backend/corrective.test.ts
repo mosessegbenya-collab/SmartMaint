@@ -20,6 +20,73 @@ async function setup() {
   });
   return { t, ...records, user: (name: string) => t.withIdentity(identity(name)) };
 }
+test('inbox filters paginate matching notices and preserve recipient and department isolation', async () => {
+  const f = await setup();
+  const unread = await f.t.run(async (ctx) => {
+    const base = { recipientId: f.reporter, departmentId: f.a, title: 'Test notice', body: 'Test activity', targetKind: 'task' as const, targetId: String(f.equipment), dispatchState: 'in_app' as const, createdAt: 1 };
+    const wanted = await ctx.db.insert('notifications', base);
+    for (let i = 0; i < 105; i++) await ctx.db.insert('notifications', { ...base, createdAt: i + 2, readAt: i + 2 });
+    await ctx.db.insert('notifications', { ...base, recipientId: f.other });
+    await ctx.db.insert('notifications', { ...base, departmentId: f.b });
+    await ctx.db.insert('notifications', { ...base, targetKind: 'report' });
+    return wanted;
+  });
+  const args = { paginationOpts: { cursor: null, numItems: 20 }, unreadOnly: true, targetKind: 'task' as const };
+  const page = await f.user('reporter').query(api.workflows.inbox, args);
+  expect(page.page.map((r) => r._id)).toEqual([unread]);
+  await expect(f.t.query(api.workflows.inbox, args)).rejects.toThrow(/Sign in/);
+  await f.user('reporter').mutation(api.workflows.markRead, { id: unread, read: true });
+  expect((await f.user('reporter').query(api.workflows.inbox, args)).page).toHaveLength(0);
+});
+
+test('task filters apply before pagination and overdue excludes completed and cancelled work', async () => {
+  const f = await setup();
+  const wanted = await f.t.run(async (ctx) => {
+    const base = { equipmentId: f.equipment, departmentId: f.a, assigneeId: f.tech, dueAt: 100, diagnosis: '', notes: '', parts: [], cycle: 1, revision: 1, createdAt: 1, updatedAt: 1 };
+    const id = await ctx.db.insert('maintenanceTasks', { ...base, state: 'Assigned' });
+    for (let i = 0; i < 105; i++) await ctx.db.insert('maintenanceTasks', { ...base, state: 'Completed' });
+    await ctx.db.insert('maintenanceTasks', { ...base, state: 'Cancelled' });
+    await ctx.db.insert('maintenanceTasks', { ...base, state: 'Assigned', dueAt: 1000 });
+    await ctx.db.insert('maintenanceTasks', { ...base, state: 'Assigned', assigneeId: f.verifier });
+    return id;
+  });
+  const args = { departmentId: f.a, paginationOpts: { cursor: null, numItems: 20 }, state: 'Assigned' as const, overdueBefore: 500 };
+  const page = await f.user('tech').query(api.workflows.taskPage, args);
+  expect(page.page.map((r) => r._id)).toEqual([wanted]);
+  expect(page.page[0].equipment).toEqual({ assetId: 'TEST-DEVICE', name: 'Test equipment', location: 'Test room' });
+  const overdue = await f.user('tech').query(api.workflows.taskPage, { ...args, state: undefined });
+  expect(overdue.page.map((r) => r._id)).toEqual([wanted]);
+  await expect(f.user('other').query(api.workflows.taskPage, args)).rejects.toThrow(/scope/);
+});
+
+test('equipment name, model and exact identifier searches remain department scoped', async () => {
+  const f = await setup();
+  await f.t.run(async (ctx) => {
+    await ctx.db.insert('equipment', { assetId: 'TEST-VENT', name: 'Ventilator', model: 'VX200', location: 'Test bay', departmentId: f.a, identityVerified: true });
+    await ctx.db.insert('equipment', { assetId: 'OTHER-VENT', name: 'Ventilator', model: 'VX200', location: 'Other bay', departmentId: f.b, identityVerified: true });
+  });
+  const args = { departmentId: f.a, paginationOpts: { cursor: null, numItems: 20 } };
+  expect((await f.user('reporter').query(api.workflows.equipmentPage, { ...args, search: 'vent', searchBy: 'name' })).page.map((r) => r.assetId)).toEqual(['TEST-VENT']);
+  expect((await f.user('reporter').query(api.workflows.equipmentPage, { ...args, search: 'vx2', searchBy: 'model' })).page.map((r) => r.assetId)).toEqual(['TEST-VENT']);
+  expect((await f.user('reporter').query(api.workflows.equipmentPage, { ...args, search: 'OTHER-VENT', searchBy: 'assetId' })).page).toHaveLength(0);
+  await expect(f.user('other').query(api.workflows.equipmentPage, { ...args, search: 'vent', searchBy: 'name' })).rejects.toThrow(/scope/);
+});
+
+test('diagnostic evidence and cause are revisioned, retained by older clients and require supporting evidence for confirmation', async () => {
+  const f = await setup();
+  const task = await f.t.run((ctx) => ctx.db.insert('maintenanceTasks', { equipmentId: f.equipment, departmentId: f.a, assigneeId: f.tech, dueAt: Date.now() + 60000, diagnosis: '', notes: '', parts: [], cycle: 1, revision: 1, createdAt: 1, updatedAt: 1, state: 'Assigned' }));
+  const args = { id: task, expectedRevision: 1, diagnosis: 'Observed failure', notes: '', parts: [], complete: false };
+  await expect(f.user('tech').mutation(api.operations.recordWork, { ...args, causeAssessment: 'Confirmed by testing' })).rejects.toThrow(/supporting evidence/);
+  await f.user('tech').mutation(api.operations.recordWork, { ...args, diagnosisEvidence: 'Recorded electrical measurements', causeAssessment: 'Suspected cause' });
+  await f.user('tech').mutation(api.operations.recordWork, { ...args, expectedRevision: 2, notes: 'Further inspection' });
+  const current = await f.user('tech').query(api.workflows.taskDetail, { id: task });
+  expect(current.diagnosisEvidence).toBe('Recorded electrical measurements');
+  expect(current.causeAssessment).toBe('Suspected cause');
+  const history = await f.user('tech').query(api.workflows.workHistory, { id: task, paginationOpts: { cursor: null, numItems: 20 } });
+  expect(history.page.map((r) => [r.revision, r.diagnosisEvidence])).toEqual([[3, 'Recorded electrical measurements'], [2, 'Recorded electrical measurements'], [1, undefined]]);
+  await expect(f.user('verifier').mutation(api.operations.recordWork, { ...args, expectedRevision: 3, diagnosisEvidence: 'Unauthorized edit' })).rejects.toThrow();
+});
+
 test("every new public query/mutation authenticates before reading protected records", async () => {
   const f = await setup(); const paginationOpts = { cursor: null, numItems: 20 };
   await expect(f.t.query(api.workflows.equipmentPage, { departmentId: f.a, paginationOpts })).rejects.toThrow(/Sign in/);

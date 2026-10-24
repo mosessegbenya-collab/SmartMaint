@@ -1,6 +1,6 @@
 # Corrective native build report
 
-Checkpoint: **2026-10-23**. Android debug **build, installation and launch passed** on Pixel API35 (x86_64). iOS native build not run. This is an emulator development APK, not an ARM/store/distribution build.
+Checkpoint: **2026-10-24**. Android debug **build, installation and launch passed** on Pixel API35 (x86_64). iOS native build not run. This is an emulator development APK, not an ARM/store/distribution build.
 
 ## Actual attempts
 
@@ -39,9 +39,9 @@ The dependency tree became incomplete during validation. A locked CSS binary ini
 
 Earlier reference comparisons use Pixel API35 / Expo Go57 captures. The installed development build also rendered welcome, sign-in, registration, empty-email validation and the requested-role picker; screenshots/XML are under artifacts/runtime/corrective-native-*. The developer menu was dismissed. Welcome-to-sign-in navigation, empty-email rejection, registration navigation and opening the role picker were observed. No real account/email submission, completed Google/Apple authentication or protected workflow was tested. Camera hardware acceptance remains open.
 
-The first clean sign-in capture raced navigation and displayed the welcome screen; it is not used as proof of sign-in. The inspected empty-email and registration captures show the correct screens. The capture helper now waits for a fresh UI dump, records a paired XML and rejects unavailable snapshots rather than reusing a prior dump. Its binary buffer was increased to handle screenshots larger than 1 MiB.
+A navigation-race capture was rejected and recaptured. The current clean sign-in/registration images and comparisons show the expected screens. The capture helper waits for a fresh UI dump, records a paired XML and rejects unavailable snapshots rather than reusing a prior dump. Its binary buffer handles screenshots larger than 1 MiB.
 
-After an execution-environment interruption the emulator was restarted and the existing APK reinstalled. Stock Messages/System UI ANR dialogs interrupted further public UI checks; these are recorded as emulator limitations. A controlled restart with 2560 MiB RAM is used for the remaining checks. Never infer new control passes from that interrupted run.
+After an execution-environment interruption, stock Messages/System UI ANR dialogs and a pending snapshot operation interrupted further checks. A controlled cold boot with 2560 MiB RAM and snapshot loading/saving disabled restored stable public testing. The existing APK was reinstalled successfully. Seven sampled public controls passed: welcome sign-in navigation, empty sign-in validation, registration navigation, picker opening, requested-role selection, cancel preservation and empty registration validation. See validation/native-checkpoint.json. No email/account submission or access grant occurred.
 
 Doctor passed **21/21 again after dependency restoration** (corrective-doctor-restored.log). Earlier Android/iOS/web static exports passed to artifacts/corrective-bundles and compatibility was up to date. Those results are distinct from native compilation. Native build warnings include SDK XML/tooling and Gradle deprecations; no Gradle/NDK upgrade was performed outside the SDK57 setup.
 

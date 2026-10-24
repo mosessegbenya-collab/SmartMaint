@@ -3,7 +3,7 @@ import { query, mutation } from "./lib/server";
 import type { AccountDoc, QueryCtx } from "./lib/server";
 import type { GenericId } from "convex/values";
 import { requireAccount, requiredText, audit, deny } from "./lib/access";
-import { priority } from "./lib/validators";
+import { priority, causeAssessment } from "./lib/validators";
 import { csvCell } from "../src/domain/policy";
 import type { Capability } from "../src/domain/models";
 import { equipmentNotice, reportNotice, taskNotice } from "./lib/notifications";
@@ -110,19 +110,22 @@ export const assign = mutation({ args: { id: v.id("maintenanceTasks"), expectedR
   await taskNotice(ctx, task._id, "Maintenance assigned", "A maintenance task has been assigned to you.");
   await audit(ctx, actor, "task.assign", task._id, args.reason, task.departmentId, task.assigneeId, assignee._id);
 } });
-export const recordWork = mutation({ args: { id: v.id("maintenanceTasks"), expectedRevision: v.number(), diagnosis: v.string(), notes: v.string(), parts: v.array(v.string()), complete: v.boolean(), preventiveResults: v.optional(v.array(v.object({ label: v.string(), passed: v.boolean() }))) }, handler: async (ctx, args) => {
+export const recordWork = mutation({ args: { id: v.id("maintenanceTasks"), expectedRevision: v.number(), diagnosis: v.string(), diagnosisEvidence: v.optional(v.string()), causeAssessment: v.optional(causeAssessment), notes: v.string(), parts: v.array(v.string()), complete: v.boolean(), preventiveResults: v.optional(v.array(v.object({ label: v.string(), passed: v.boolean() }))) }, handler: async (ctx, args) => {
   const { actor, task } = await taskAccess(ctx, args.id, "repair");
   if (task.assigneeId !== actor._id || task.revision !== args.expectedRevision || !["Assigned", "In progress"].includes(task.state)) deny("Only the assigned technician can update active work.");
   if (args.diagnosis.length > 2000 || args.notes.length > 4000 || args.parts.length > 30 || args.parts.some((p) => !p.trim() || p.length > 120)) deny("Invalid maintenance details.");
+  const diagnosisEvidence = args.diagnosisEvidence === undefined ? task.diagnosisEvidence : args.diagnosisEvidence.trim();
+  const cause = args.causeAssessment ?? task.causeAssessment;
+  if ((diagnosisEvidence?.length ?? 0) > 2000 || (cause === 'Confirmed by testing' && !diagnosisEvidence)) deny('Record supporting evidence for a cause confirmed by testing. Evidence must be at most 2000 characters.');
   if (args.complete && !args.diagnosis.trim()) deny("Diagnosis is required before completion.");
   if (task.preventiveChecklist && (!args.preventiveResults || args.preventiveResults.length !== task.preventiveChecklist.length || args.preventiveResults.some((result, i) => result.label !== task.preventiveChecklist![i]) || (args.complete && args.preventiveResults.some((r) => !r.passed)))) deny("Record every scheduled checklist item; incomplete/failed checks cannot complete maintenance.");
   const next = args.complete ? "Completed" as const : "In progress" as const;
   // Preserve the original snapshot once, then every authorized revision. No public writer edits history.
   if (!await ctx.db.query("workEntries").withIndex("by_task", (q) => q.eq("taskId", task._id)).first()) {
-    await ctx.db.insert("workEntries", { taskId: task._id, departmentId: task.departmentId, baseline: true, revision: task.revision, diagnosis: task.diagnosis, notes: task.notes, parts: task.parts, state: task.state, at: task.updatedAt });
+    await ctx.db.insert("workEntries", { taskId: task._id, departmentId: task.departmentId, baseline: true, revision: task.revision, diagnosis: task.diagnosis, diagnosisEvidence: task.diagnosisEvidence, causeAssessment: task.causeAssessment, notes: task.notes, parts: task.parts, state: task.state, at: task.updatedAt });
   }
-  await ctx.db.insert("workEntries", { taskId: task._id, departmentId: task.departmentId, actorId: actor._id, revision: task.revision + 1, diagnosis: args.diagnosis, notes: args.notes, parts: args.parts, state: next, at: Date.now(), preventiveResults: args.preventiveResults });
-  await ctx.db.patch(task._id, { diagnosis: args.diagnosis, notes: args.notes, parts: args.parts, state: next, revision: task.revision + 1, updatedAt: Date.now(), preventiveResults: args.preventiveResults });
+  await ctx.db.insert("workEntries", { taskId: task._id, departmentId: task.departmentId, actorId: actor._id, revision: task.revision + 1, diagnosis: args.diagnosis, diagnosisEvidence, causeAssessment: cause, notes: args.notes, parts: args.parts, state: next, at: Date.now(), preventiveResults: args.preventiveResults });
+  await ctx.db.patch(task._id, { diagnosis: args.diagnosis, diagnosisEvidence, causeAssessment: cause, notes: args.notes, parts: args.parts, state: next, revision: task.revision + 1, updatedAt: Date.now(), preventiveResults: args.preventiveResults });
   if (args.complete && task.reportId) await reportNotice(ctx, task.reportId, "Repair completed — verification pending", "Repair work was recorded as complete. Independent verification and authorized release are still required.");
   await audit(ctx, actor, "task.work", task._id, "Maintenance work recorded; no equipment release granted", task.departmentId, task.state, next);
 } });

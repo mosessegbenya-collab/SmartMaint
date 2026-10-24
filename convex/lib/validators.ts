@@ -7,3 +7,4 @@ export const requestStatus = v.union(v.literal("pending"), v.literal("approved")
 export const priority = v.union(v.literal("Urgent"), v.literal("High"), v.literal("Routine"));
 export const verificationStatus = v.union(v.literal("unverified"), v.literal("verified"), v.literal("failed"));
 export const taskStatus = v.union(v.literal("Unassigned"), v.literal("Assigned"), v.literal("In progress"), v.literal("Completed"), v.literal("Cancelled"));
+export const causeAssessment = v.union(v.literal('Under investigation (unconfirmed)'), v.literal('Suspected cause'), v.literal('Confirmed by testing'), v.literal('Undetermined'));

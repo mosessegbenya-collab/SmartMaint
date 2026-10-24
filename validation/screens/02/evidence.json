@@ -3,7 +3,7 @@
   "screen": "emergency",
   "reference": "Design/Emergency equipment reporting introduction-4.png",
   "route": "/flow/emergency",
-  "component": "src/features/staff/workspace.tsx (shared live workflow; reference-specific fidelity pending)",
+  "component": "src/features/staff/emergency-introduction.tsx",
   "sourceStatus": "Partial",
   "authenticatedAccess": "Requires configured backend and approved account where protected; runtime role-route testing pending",
   "controls": "Not tested on live deployment",
@@ -14,5 +14,6 @@
   "comparison": null,
   "visual": "Not tested",
   "accessibility": "Not tested",
+  "supplementalScreenshots": [],
   "finalStatus": "Partial / Blocked"
 }

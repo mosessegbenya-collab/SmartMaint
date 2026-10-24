@@ -91,14 +91,14 @@ export function EmailAuth({ mode }: { mode: "sign-in" | "register" | "recovery" 
     {message ? <Notice tone="warning">{message}</Notice> : null}
     {step === "email" ? <>
       {registration && <>
-        <Field label="Full name" value={name} onChangeText={setName} editable={!fetching} maxLength={120} />
-        <Field label="Email address" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" editable={!fetching} error={signUpErrors.fields.emailAddress?.message} />
-        <Field label="Staff ID" value={staffId} onChangeText={setStaffId} editable={!fetching} maxLength={80} />
-        <Field label="Department (requested)" value={department} onChangeText={setDepartment} editable={!fetching} maxLength={100} />
-        <Select label="Requested role" values={roles} value={role} onChange={setRole} />
+        <Field label="Full name" insetLabel icon="person-outline" placeholder="Your full name" value={name} onChangeText={setName} editable={!fetching} maxLength={120} />
+        <Field label="Email address" insetLabel icon="mail-outline" placeholder="you@hospital.org" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" editable={!fetching} error={signUpErrors.fields.emailAddress?.message} />
+        <Field label="Staff ID" insetLabel icon="id-card-outline" placeholder="Your institutional staff ID" value={staffId} onChangeText={setStaffId} editable={!fetching} maxLength={80} />
+        <Field label="Department (requested)" insetLabel icon="business-outline" placeholder="Your department" value={department} onChangeText={setDepartment} editable={!fetching} maxLength={100} />
+        <Select label="Requested role" insetLabel icon="people-outline" values={roles} value={role} onChange={setRole} />
         <Notice>Requested staff details require authorized review. Verifying your email does not grant a staff role.</Notice>
       </>}
-      {!registration && <Field label="Email address" value={email} onChangeText={setEmail} keyboardType="email-address"
+      {!registration && <Field label="Email address" icon="mail-outline" placeholder="you@hospital.org" value={email} onChangeText={setEmail} keyboardType="email-address"
         autoCapitalize="none" autoCorrect={false} autoComplete="email" editable={!fetching}
         error={signInErrors.fields.identifier?.message} />}
       <Button label={registration ? "Create account · Send code" : "Send sign-in code"} loading={fetching} onPress={() => void send()} />

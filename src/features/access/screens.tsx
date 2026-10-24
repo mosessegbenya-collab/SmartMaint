@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Image, View, Pressable, useWindowDimensions } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { Redirect, router, useLocalSearchParams } from "expo-router";
 import * as LocalAuthentication from "expo-local-authentication";
 import {
   Badge,
@@ -18,6 +18,7 @@ import {
   Select,
   Section,
   Txt,
+  usePalette,
 } from "@/components/smart/ui";
 import { roles, type Role } from "@/domain/models";
 import { equipment } from "@/services/fixtures";
@@ -26,13 +27,14 @@ import { ConfiguredSSO } from "./sso";
 import { EmailAuth, IdentityStatus } from "./email-auth";
 import { useIdentity } from "./identity";
 import { useCurrentTime } from "@/hooks/use-current-time";
+import { AuthHeader } from './auth-header';
 
 export function WelcomeScreen() {
   const now = useCurrentTime();
   const { width } = useWindowDimensions();
   const identity = useIdentity();
   if (identity.signedIn) return <Screen back={false} title="Account access"><Card><IdentityStatus /></Card></Screen>;
-  if (identity.expired) return <Screen back={false} title="Session Expired"><Notice tone="warning">Your session ended. Sign in again to confirm staff access.</Notice><Button label="Sign in again" onPress={() => router.replace("/access/sign-in")} /></Screen>;
+  if (identity.expired) return <Redirect href="/access/expired" />;
   return (
     <Screen
       back={false}
@@ -181,6 +183,7 @@ export function AccessRoute() {
 }
 function AccessScreen({ screen }: { screen: string }) {
   const app = useApp();
+  const p = usePalette();
   const identity = useIdentity();
   const [pin, setPin] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -225,31 +228,32 @@ function AccessScreen({ screen }: { screen: string }) {
     );
   return (
     <Screen
-      title={["sign-in", "register"].includes(screen) ? undefined : titles[screen]}
-      padding={screen === "sign-in" ? 0 : undefined}
+      title={['sign-in', 'register', 'recovery', 'biometric', 'expired', 'session-recovery'].includes(screen) ? undefined : titles[screen]}
+      padding={['sign-in', 'recovery'].includes(screen) ? 0 : screen === 'register' ? 10 : undefined}
+      header={['sign-in', 'register', 'recovery', 'biometric', 'expired', 'session-recovery'].includes(screen) ? <AuthHeader date={['register', 'recovery', 'biometric'].includes(screen)} /> : undefined}
     >
       {[
         "sign-in",
         "activation",
         "pin",
         "recovery",
-        "biometric",
       ].includes(screen) && (
         <Image
-          source={screen === "sign-in" ? brandAssets.authHero : brandAssets.hero}
-          style={{ width: "100%", height: screen === "sign-in" ? 158 : 135, borderRadius: screen === "sign-in" ? 0 : 16 }}
+          source={['sign-in', 'recovery'].includes(screen) ? brandAssets.authHero : brandAssets.hero}
+          style={{ width: "100%", height: ['sign-in', 'recovery'].includes(screen) ? 158 : 135, borderRadius: ['sign-in', 'recovery'].includes(screen) ? 0 : 16 }}
         />
       )}
-      {screen === "register" && <Card style={{ minHeight: 190, padding: 0, overflow: "hidden", borderRadius: 20 }}>
-        <Image source={brandAssets.registrationHero} style={{ position: "absolute", right: 0, top: 0, width: "45%", height: "100%" }} resizeMode="cover" accessibilityLabel="Approved medical equipment imagery" />
-        <View style={{ width: "55%", padding: 16, gap: 10 }}>
+      {screen === "register" && <Card style={{ minHeight: 184, padding: 0, overflow: "hidden", borderRadius: 20 }}>
+        <Image source={brandAssets.authHero} blurRadius={12} style={{ position: "absolute", right: 0, top: 0, width: "100%", height: "100%" }} resizeMode="cover" accessible={false} />
+        <Image source={brandAssets.registrationHero} style={{ position: 'absolute', right: 0, top: 0, width: '45%', height: '100%' }} resizeMode="cover" accessibilityLabel="Approved medical equipment imagery" />
+        <View style={{ width: "59%", padding: 16, gap: 10, backgroundColor: p.card }}>
           <Txt size={30} lineHeight={32} weight="800">Create Your{"\n"}Account</Txt>
           <Txt size={14} lineHeight={18} muted>Request access to SmartMaint. Your staff details require administrator approval.</Txt>
         </View>
       </Card>}
       {message && <Notice tone="warning">{message}</Notice>}
       {screen === "sign-in" && (
-        <Card style={{ gap: 12, padding: 22, borderRadius: 28, marginTop: -14 }}>
+        <Card style={{ gap: 10, padding: 20, borderRadius: 28, marginTop: -14 }}>
             <Txt size={40} lineHeight={44} weight="800">Staff Sign In</Txt>
             <Txt size={19} lineHeight={23} muted>
               Access your account to continue to SmartMaint.
@@ -326,9 +330,9 @@ function AccessScreen({ screen }: { screen: string }) {
           )}
         </Card>
       )}
-      {screen === "register" && <Card style={{ gap: 12 }}>
+      {screen === "register" && <Card style={{ gap: 10, padding: 14 }}>
         <Txt size={24} weight="800">Registration Details</Txt>
-        <Txt muted>Verify your email to continue. Requested roles require administrator approval.</Txt>
+        <Txt muted>Provide your details to request a SmartMaint account. Requested roles require administrator approval.</Txt>
         {identity.configured ? <EmailAuth mode="register" /> : <Notice tone="warning">Clerk is not configured. Registration is unavailable.</Notice>}
         <Button label="Already have an account? Sign in" variant="secondary" onPress={() => router.replace("/access/sign-in")} />
       </Card>}
@@ -422,16 +426,17 @@ function AccessScreen({ screen }: { screen: string }) {
           />
         </>
       )}
-      {screen === "recovery" && <Card style={{ gap: 12 }}>
+      {screen === "recovery" && <Card style={{ gap: 16, padding: 22, borderRadius: 28, marginTop: -14 }}>
+        <Txt size={32} weight="800">Need help signing in?</Txt><Txt size={17} muted>Enter your registered email address to receive a fresh sign-in code.</Txt>
         {identity.configured ? <EmailAuth mode="recovery" /> : <Notice tone="warning">Clerk is not configured. Contact your administrator.</Notice>}
         <Button label="Back to sign in" variant="secondary" onPress={() => router.replace("/access/sign-in")} />
       </Card>}
       {screen === "biometric" && (
         <>
-          <Icon name="finger-print" size={80} />
-          <Txt muted>
-            Use device biometrics to reauthenticate an approved session. Device
-            verification cannot approve staff access.
+          <View style={{ minHeight: 220, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderRadius: 24 }}><Image source={brandAssets.authHero} blurRadius={12} style={{ position: 'absolute', width: '100%', height: '100%' }} accessible={false} /><Card style={{ padding: 26, borderRadius: 32 }}><Icon name="finger-print" size={96} /></Card></View>
+          <Txt size={30} weight="800" style={{ textAlign: 'center' }}>Unlock SmartMaint</Txt>
+          <Txt muted size={17} style={{ textAlign: 'center' }}>
+            Check whether this device can verify you with biometrics. A valid staff session is still required.
           </Txt>
           <Button
             label="Check biometric support"
@@ -446,11 +451,11 @@ function AccessScreen({ screen }: { screen: string }) {
       )}
       {screen === "expired" && (
         <>
-          <Icon name="time-outline" size={64} color="#C58A17" />
-          <Txt>Your session has expired. Synchronization is paused.</Txt>
+          <View style={{ alignItems: 'center', paddingVertical: 28 }}><View style={{ backgroundColor: '#FFF8E7', padding: 22, borderRadius: 90 }}><Icon name="time-outline" size={100} color="#D38B10" /></View></View>
+          <Txt size={34} weight="800" style={{ textAlign: 'center' }}>Session Expired</Txt>
+          <Txt muted size={20} style={{ textAlign: 'center', marginBottom: 10 }}>For your security, sign in again to confirm your staff access.</Txt>
           <Notice tone="warning">
-            In-memory demonstration queue entries remain isolated to their
-            synthetic account.
+            Review any pending submission attempts on this device after your approved staff session is restored. Server receipt is unchanged.
           </Notice>
           <Button
             label="Sign In Again"
@@ -461,27 +466,28 @@ function AccessScreen({ screen }: { screen: string }) {
             variant="secondary"
             onPress={() => router.push("/access/session-recovery")}
           />
+          <Card style={{ gap: 8 }}><Row><Icon name="lock-closed-outline" /><Txt weight="700">Why sign in again?</Txt></Row><Txt muted>Your identity or staff authorization must be reconfirmed before protected records can be opened or submitted.</Txt></Card>
         </>
       )}
       {screen === "session-recovery" && (
         <>
+          <View style={{ alignItems: 'center', paddingVertical: 20 }}><Icon name="cloud-upload-outline" size={78} /></View><Txt size={31} weight="800" style={{ textAlign: 'center' }}>Recover Pending Work</Txt><Txt size={18} muted style={{ textAlign: 'center' }}>Sign in to check submission attempts saved on this device.</Txt>
           <Notice>
-            No durable offline recovery is implemented. This preview can recover
-            only a synthetic session expired during the current process.
+            Pending publication attempts are private to their staff account. Their contents and server receipt status can be checked after fresh staff authorization.
           </Notice>
-          <Button
+          {app.previewEnabled && app.expired && <Button
             label="Recover synthetic session"
-            disabled={!app.expired}
+            variant="secondary"
             onPress={() => {
               app.recover();
               router.replace("/workspace/home");
             }}
-          />
+          />}
           <Button
-            label="Sign In"
-            variant="secondary"
+            label="Sign In and Recover"
             onPress={() => router.push("/access/sign-in")}
           />
+          <Button label="Back" variant="secondary" onPress={() => router.canGoBack() ? router.back() : router.replace('/')} />
         </>
       )}
       <LinkRow

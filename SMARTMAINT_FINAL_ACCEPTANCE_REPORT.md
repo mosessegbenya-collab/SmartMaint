@@ -2,14 +2,14 @@
 
 This is a checkpoint, not final acceptance. Overall status: **Partial / Blocked**.
 
-Checkpoint date: 2026-10-23. Earlier artifacts retain their actual capture/build timestamps.
+Checkpoint date: 2026-10-24. Checks and captures retain their actual recorded timestamps; the resumed check run is dated 2026-10-23.
 
 | Metric | Actual evidence |
 | --- | --- |
 | Approved references | 73/73 verified present |
 | Verified complete live screens | 0/73 accepted under the full definition of done |
 | Visually compared screens | 2/73; both need correction; 0/73 visually accepted |
-| Runtime functional controls | 2/2 sampled public controls passed; remaining live controls not tested |
+| Runtime functional controls | 7/7 sampled public controls passed; remaining controls not tested; details in validation/native-checkpoint.json |
 | Completed live E2E journeys | 0/12 verified |
 | Backend integrations | Blocked: no deployment/verified Clerk bridge |
 | Local tests | 96 pass in the latest full restored-dependency run; no live integration acceptance |
@@ -31,3 +31,5 @@ Checkpoint date: 2026-10-23. Earlier artifacts retain their actual capture/build
 Other unfinished source features are listed in SMARTMAINT_REMAINING_ISSUES.md and must not be hidden by this gate count. No real hospital deployment readiness or compliance is claimed.
 
 All mapped reference routes now have live dispatcher branches. Shared components and blocked institutional review states remain partial implementations; branch coverage does not establish distinct-screen fidelity or end-to-end acceptance. TypeScript, lint and 96 local tests passed after successful lockfile restoration; resumed checks are recorded separately. Doctor passed 21/21 after restoration. The passing native build does not establish live workflow or visual acceptance.
+
+Supporting deliverables: [implementation audit](SMARTMAINT_IMPLEMENTATION_AUDIT.md), [73-screen matrix](SMARTMAINT_73_SCREEN_MATRIX.md), [visual validation](SMARTMAINT_VISUAL_VALIDATION_REPORT.md), [workflow tests](SMARTMAINT_WORKFLOW_TEST_REPORT.md), [security validation](SMARTMAINT_SECURITY_VALIDATION.md), [backend integration](SMARTMAINT_BACKEND_INTEGRATION_REPORT.md), [native build](SMARTMAINT_NATIVE_BUILD_REPORT.md), [remaining issues](SMARTMAINT_REMAINING_ISSUES.md).

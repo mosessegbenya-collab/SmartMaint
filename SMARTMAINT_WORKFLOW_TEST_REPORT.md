@@ -15,3 +15,6 @@ Pure queue tests cover restart restoration, account isolation, write failures, c
 Preventive tests verify supervisor scope, duplicate-safe occurrence generation, checklist-required completion and rescheduling revision conflicts. Photo tests verify reviewed attachment revisions, immutable submitted evidence and bounded decoder dimensions. The Windows config test checks idempotent regeneration without replacing surrounding native settings.
 
 The 12 requested live E2E journeys remain **0/12 verified** because no deployment/approved identities/policies are available. Mock integration success is not a live Clerk integration or emulator journey. Hardware, permissions, external escalation and delivery remain unaccepted.
+
+
+Seven sampled public native controls passed: welcome sign-in navigation, empty sign-in validation, registration navigation, picker opening, requested-role selection, cancel preservation and empty registration validation. Their exact evidence paths are recorded in validation/native-checkpoint.json. These checks are separate from the 96 automated tests and do not establish completed OTP/SSO, staff approval or protected workflow acceptance.

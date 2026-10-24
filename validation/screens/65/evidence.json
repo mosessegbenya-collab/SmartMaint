@@ -3,7 +3,7 @@
   "screen": "welcome",
   "reference": "Design/SmartMaint welcome with ventilator hero-3.png",
   "route": "/",
-  "component": "src/features/staff/workspace.tsx (shared live workflow; reference-specific fidelity pending)",
+  "component": "src/features/access/screens.tsx (WelcomeScreen)",
   "sourceStatus": "Partial",
   "authenticatedAccess": "Requires configured backend and approved account where protected; runtime role-route testing pending",
   "controls": "Not tested on live deployment",
@@ -14,5 +14,6 @@
   "comparison": null,
   "visual": "Not tested",
   "accessibility": "Not tested",
+  "supplementalScreenshots": [],
   "finalStatus": "Partial / Blocked"
 }

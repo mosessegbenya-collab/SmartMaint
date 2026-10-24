@@ -1,0 +1,66 @@
+{
+    "Checkpoint":  "2026-10-24",
+    "Checks":  "validation/checks-resumed.json",
+    "Android":  {
+                    "Command":  "node node_modules/expo/bin/cli run:android --no-install --no-bundler",
+                    "ExitCode":  0,
+                    "Log":  "artifacts/corrective-android-registration.log",
+                    "Apk":  "android/app/build/outputs/apk/debug/app-debug.apk",
+                    "Abi":  "x86_64",
+                    "Runtime":  "Pixel API35 development build",
+                    "Scope":  "Debug compilation, install, launch and public screens only",
+                    "Sha256":  "20DDE054EBC38863817E4B39BEB5E1B249EDAB966ADA62EF53CDC8268898788B"
+                },
+    "PublicControls":  [
+                           {
+                               "Control":  "Welcome Staff Sign In",
+                               "Observed":  "Sign-in form opens",
+                               "Evidence":  "artifacts/runtime/corrective-native-sign-in.png",
+                               "Result":  "Pass"
+                           },
+                           {
+                               "Control":  "Send sign-in code with empty email",
+                               "Observed":  "Valid-email error shown; no email sent",
+                               "Evidence":  "artifacts/runtime/corrective-native-email-validation.png",
+                               "Result":  "Pass"
+                           },
+                           {
+                               "Control":  "Request an account",
+                               "Observed":  "Registration form opens",
+                               "Evidence":  "artifacts/runtime/corrective-native-registration.png",
+                               "Result":  "Pass"
+                           },
+                           {
+                               "Control":  "Requested role picker",
+                               "Observed":  "Role options open",
+                               "Evidence":  "artifacts/runtime/corrective-native-role-picker.png",
+                               "Result":  "Pass"
+                           },
+                           {
+                               "Control":  "Unit Head requested-role option",
+                               "Observed":  "Requested value changes; no access grant",
+                               "Evidence":  "artifacts/runtime/corrective-native-requested-role.png",
+                               "Result":  "Pass"
+                           },
+                           {
+                               "Control":  "Cancel role picker",
+                               "Observed":  "Previous requested value preserved",
+                               "Evidence":  "artifacts/runtime/corrective-native-role-cancel.png",
+                               "Result":  "Pass"
+                           },
+                           {
+                               "Control":  "Create account with empty email",
+                               "Observed":  "Valid-email error shown; no account created",
+                               "Evidence":  "artifacts/runtime/corrective-native-registration-validation.png",
+                               "Result":  "Pass"
+                           }
+                       ],
+    "FullLiveScreensAccepted":  0,
+    "VisualComparisons":  2,
+    "VisualPasses":  0,
+    "LiveJourneysPassed":  0,
+    "RequiredLiveJourneys":  12,
+    "Overall":  "Partial / Blocked",
+    "PublicControlsPassed":  7,
+    "PublicControlsTested":  7
+}

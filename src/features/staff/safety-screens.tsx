@@ -1,22 +1,34 @@
 import { useState } from "react";
+import { View } from 'react-native';
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { randomUUID } from "expo-crypto";
 import type { GenericId } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
-import { Badge, Button, Card, Choices, Detail, Field, LinkRow, Notice, Screen, Txt } from "@/components/smart/ui";
+import { Badge, Button, Card, Choices, Detail, Field, Icon, LinkRow, Notice, Row, Screen, Txt } from "@/components/smart/ui";
 import { DateTimeField } from "@/components/smart/date-time-field";
 import { staffApi } from "@/services/staff-api";
 import { go } from "@/navigation/go";
 import { useStaffAccess } from "./provider";
 import { ConfirmAction } from "./ui";
 
-export function VerificationScreen({ id, kind }: { id: string; kind: "technical" | "clinical" }) {
+export function VerificationScreen({ id, kind, view = 'checklist' }: { id: string; kind: "technical" | "clinical"; view?: 'checklist' | 'result' | 'history' }) {
   const { account } = useStaffAccess();
-  return account?.capabilities.includes(kind) ? <VerificationLoader id={id as GenericId<"maintenanceTasks">} kind={kind} /> : <Screen title="Verification restricted"><Notice>This verification requires an approved verifier capability.</Notice></Screen>;
+  return account?.capabilities.includes(kind) ? <VerificationLoader id={id as GenericId<"maintenanceTasks">} kind={kind} view={view} /> : <Screen title="Verification restricted"><Notice>This verification requires an approved verifier capability.</Notice></Screen>;
 }
-function VerificationLoader({ id, kind }: { id: GenericId<"maintenanceTasks">; kind: "technical" | "clinical" }) {
+function VerificationLoader({ id, kind, view }: { id: GenericId<"maintenanceTasks">; kind: "technical" | "clinical"; view: 'checklist' | 'result' | 'history' }) {
   const context = useQuery(staffApi.safety.verificationContext, { taskId: id, kind });
-  return context ? <VerificationForm key={`${id}:${context.task.revision}:${context.policy?.id ?? "disabled"}`} context={context} kind={kind} /> : <Screen title="Verification"><Notice>Loading authorized repair and policy…</Notice></Screen>;
+  return context ? view === 'checklist' ? <VerificationForm key={`${id}:${context.task.revision}:${context.policy?.id ?? "disabled"}`} context={context} kind={kind} /> : <VerificationDecisions context={context} kind={kind} history={view === 'history'} /> : <Screen title="Verification"><Notice>Loading authorized repair and policy…</Notice></Screen>;
+}
+
+function VerificationDecisions({ context, kind, history }: { context: FunctionReturnType<typeof staffApi.safety.verificationContext>; kind: 'technical' | 'clinical'; history: boolean }) {
+  const attempts = context.attempts.filter((attempt) => attempt.kind === kind).sort((a, b) => b.at - a.at);
+  const shown = history ? attempts : attempts.slice(0, 1);
+  return <Screen title={`${kind === 'technical' ? 'Technical' : 'Clinical'} ${history ? 'Verification History' : 'Verification Results'}`}>
+    <Card style={{ gap: 8 }}><Txt size={20} weight="700">Maintenance work order</Txt><Txt>{context.task._id}</Txt><Detail label="Repair cycle" value={String(context.task.cycle)} /><Detail label="Current repair revision" value={String(context.task.revision)} /></Card>
+    {!shown.length && <Notice>No {kind} verification decision has been recorded for this repair.</Notice>}
+    {shown.map((attempt) => <Card key={attempt._id} style={{ gap: 16 }}><Row><Icon name={attempt.outcome === 'pass' ? 'checkmark-circle' : attempt.outcome === 'unable' ? 'help-circle' : 'close-circle'} size={44} color={attempt.outcome === 'pass' ? '#13835E' : '#C92E40'} /><View style={{ flex: 1, gap: 5 }}><Txt size={23} weight="800">{attempt.outcome === 'pass' ? 'Checks passed' : attempt.outcome === 'unable' ? 'Unable to verify' : 'Verification failed'}</Txt><Txt muted>{new Date(attempt.at).toLocaleString()}</Txt></View></Row><Detail label="Recorded repair revision" value={String(attempt.taskRevision)} /><Detail label="Verified by" value={attempt.actorId} />{attempt.checks.map((check) => <Row key={check.label} style={{ alignItems: 'flex-start' }}><Icon name={check.passed ? 'checkmark-circle-outline' : 'close-circle-outline'} color={check.passed ? '#13835E' : '#C92E40'} /><Txt style={{ flex: 1 }}>{check.label}</Txt><Badge label={check.passed ? 'Pass' : 'Not passed'} tone={check.passed ? 'success' : 'danger'} /></Row>)}<View style={{ gap: 7 }}><Txt size={18} weight="700">Findings</Txt><Txt>{attempt.notes || 'No additional findings recorded.'}</Txt></View><Detail label="Evidence reference" value={attempt.evidenceReference} /><Notice tone="warning">This recorded decision does not establish current equipment release. The current policy, repair revision and safety holds must still be checked.</Notice></Card>)}
+    <LinkRow title="Current checklist and policy" icon="clipboard-outline" onPress={() => go(`${kind}-checklist`, context.task._id)} />{!history && <LinkRow title="View verification history" icon="time-outline" onPress={() => go(`${kind}-history`, context.task._id)} />}<Button label="Equipment release status" variant="secondary" onPress={() => go('release', context.task.equipmentId)} />
+  </Screen>;
 }
 function VerificationForm({ context, kind }: { context: FunctionReturnType<typeof staffApi.safety.verificationContext>; kind: "technical" | "clinical" }) {
   const { account } = useStaffAccess(); const verify = useMutation(staffApi.safety.verify); const [checks, setChecks] = useState<Record<string, "Not checked" | "Pass" | "Fail">>({}); const [outcome, setOutcome] = useState<"pass" | "fail" | "unable">("pass"); const [notes, setNotes] = useState(""); const [reference, setReference] = useState(""); const [due, setDue] = useState(""); const [operationId, setOperationId] = useState(randomUUID); const [received, setReceived] = useState("");
@@ -29,7 +41,7 @@ function VerificationForm({ context, kind }: { context: FunctionReturnType<typeo
       {policy.checks.map((label) => <Card key={label}><Choices label={label} values={["Not checked", "Pass", "Fail"]} value={checks[label] ?? "Not checked"} onChange={(value) => setChecks((old) => ({ ...old, [label]: value }))} /></Card>)}
       <Choices label="Verification outcome" values={["pass", "fail", "unable"]} value={outcome} onChange={setOutcome} /><Field label="Findings / failure or inability reason" value={notes} onChangeText={setNotes} multiline maxLength={2000} /><Field label="Evidence reference" value={reference} onChangeText={setReference} maxLength={500} />
       {outcome !== "pass" && <><Notice>A failed/unable decision creates linked rework and blocks return to service.</Notice><DateTimeField label="Required rework due date" value={due} onChange={setDue} required /></>}
-      {received && <Notice>Verification recorded: {received}</Notice>}
+      {received && <><Notice>Verification recorded: {received}</Notice><Button label="View recorded verification results" onPress={() => go(`${kind}-result`, context.task._id)} /></>}
       <ConfirmAction label="Record verification" title="Record this safety decision?" detail="This creates an immutable decision tied to the current policy, repair revision and your account. A pass does not release equipment." disabled={self || context.task.state !== "Completed" || !reference.trim() || !!received || (outcome === "pass" && policy.checks.some((label) => checks[label] !== "Pass")) || (outcome !== "pass" && (!notes.trim() || !due))}
         onConfirm={async () => { const id = await verify({ taskId: context.task._id, expectedRevision: context.task.revision, kind, outcome, checks: policy.checks.map((label) => ({ label, passed: checks[label] === "Pass" })), notes, evidenceReference: reference, operationId, reworkDueAt: outcome === "pass" ? undefined : Date.parse(due) }); setReceived(id); setOperationId(randomUUID()); }} />
     </>}

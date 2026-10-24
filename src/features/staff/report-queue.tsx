@@ -1,12 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { randomUUID } from "expo-crypto";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import type { GenericId } from "convex/values";
 import { EncryptedReportQueue, publicationFailure, type PendingPublication } from "@/domain/report-queue";
 import { staffApi } from "@/services/staff-api";
-import { Button, Card, Detail, Notice, Screen, Txt } from "@/components/smart/ui";
+import { Badge, Button, Card, Detail, Icon, LinkRow, Notice, Row, Screen, Txt } from "@/components/smart/ui";
 import { authErrorMessage } from "@/features/access/auth-policy";
 import { go } from "@/navigation/go";
 import { useStaffAccess } from "./provider";
@@ -42,9 +42,20 @@ function NativeQueue({ children, owner }: { children: ReactNode; owner: string }
   };
   return <Context.Provider value={{ available: true, rows, error, publish, retry: async (entry) => { await send(entry); } }}>{children}</Context.Provider>;
 }
-export function ReportQueueScreen() {
+export function ReportQueueScreen({ view = 'sync' }: { view?: string }) {
   const service = useReportQueue(); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
-  return <Screen title="Report Synchronization"><Notice>This native encrypted queue retains confirmed submission attempts for already-saved server drafts. It does not support offline inventory lookup, new offline photo storage or safety decisions. Access and replay require fresh staff authorization.</Notice>{!service.available && <Notice>Native secure queue is unavailable in this state. Reconnect with an approved account on Android/iOS. Browser drafts remain server-backed.</Notice>}{(error || service.error) && <Notice tone="warning">{error || service.error}</Notice>}
-    {service.rows.map((r) => <Card key={r.id} style={{ gap: 9 }}><Txt weight="700">{r.state}</Txt><Detail label="Report" value={r.reportId} /><Detail label="Attempts" value={String(r.retryCount)} />{r.lastError && <Notice tone="warning">{r.lastError}</Notice>}{r.state === "SYNCED" && <Button label="View received report" onPress={() => go("report-detail", r.serverId)} />}{r.state === "CONFLICT" ? <Button label="Review saved draft conflict" onPress={() => go("resume-report", r.reportId)} /> : r.state === "FAILED" && <Button label="Retry publication" loading={busy} onPress={() => { setBusy(true); void service.retry?.(r).catch((failure) => setError(authErrorMessage(failure))).finally(() => setBusy(false)); }} />}</Card>)}
+  const selected = service.rows.filter((row) => view === 'upload-failed' ? row.state === 'FAILED' : view === 'conflict' ? row.state === 'CONFLICT' : view === 'queue' ? row.state !== 'SYNCED' : true);
+  const states = [{ state: 'PENDING', title: 'Pending (saved locally)', route: 'queue', icon: 'document-text-outline' }, { state: 'SYNCING', title: 'Uploading', route: 'queue', icon: 'cloud-upload-outline' }, { state: 'FAILED', title: 'Failed', route: 'upload-failed', icon: 'alert-circle-outline' }, { state: 'CONFLICT', title: 'Conflicts', route: 'conflict', icon: 'sync-outline' }] as const;
+  return <Screen title={view === 'upload-failed' ? 'Upload Failed' : view === 'conflict' ? 'Sync Conflict' : view === 'queue' ? 'Pending Sync Queue' : 'Sync Status'} subtitle={view === 'sync' ? 'View the current sync status and pending items.' : view === 'queue' ? 'Report submissions awaiting a server receipt.' : view === 'conflict' ? 'Review changed revisions before submitting again.' : 'Server receipt was not confirmed for these attempts.'}>
+    <Notice tone={service.available ? 'success' : 'warning'}>{service.available ? 'Secure submission queue available for this approved account.' : 'Secure queue unavailable. Reconnect with an approved account on Android or iOS.'}</Notice>
+    {(error || service.error) && <Notice tone="warning">{error || service.error}</Notice>}
+    {view === 'sync' && <Card style={{ gap: 14 }}><Txt size={21} weight="700">Pending items</Txt>{states.map((item) => <LinkRow key={item.state} title={item.title} icon={item.icon} tail={<Badge label={String(service.rows.filter((r) => r.state === item.state).length)} tone={item.state === 'FAILED' ? 'danger' : 'info'} />} onPress={() => go(item.route)} />)}</Card>}
+    {service.available && !selected.length && <Card><Txt muted>{view === 'conflict' ? 'No conflicting submissions.' : view === 'upload-failed' ? 'No failed submissions.' : 'No pending submissions in this selection.'}</Txt></Card>}
+    {selected.map((r) => view === 'conflict' ? <PublicationConflict key={r.id} entry={r} /> : <Card key={r.id} style={{ gap: 12 }}><Row><Icon name={r.state === 'SYNCED' ? 'checkmark-circle' : r.state === 'FAILED' ? 'alert-circle' : 'cloud-upload-outline'} size={34} color={r.state === 'FAILED' ? '#C92E40' : '#0866E8'} /><View style={{ flex: 1, gap: 5 }}><Txt weight="700" size={18}>Fault report</Txt><Badge label={r.state} tone={r.state === 'FAILED' ? 'danger' : r.state === 'SYNCED' ? 'success' : 'warning'} /></View></Row><Detail label="Report" value={r.reportId} /><Detail label="Attempts" value={String(r.retryCount)} /><Detail label="Last updated" value={new Date(r.updatedAt).toLocaleString()} />{r.state !== 'SYNCED' && <Notice tone="warning">Server receipt not confirmed for this submission attempt.</Notice>}{r.lastError && <Notice tone="warning">{r.lastError}</Notice>}{r.state === 'SYNCED' && <Button label="View received report" onPress={() => go('report-detail', r.serverId)} />}{r.state === 'CONFLICT' ? <Button label="Review saved draft conflict" onPress={() => go('conflict')} /> : r.state === 'FAILED' && <Button label="Retry publication" icon="refresh-outline" loading={busy} disabled={!service.available || !service.retry} onPress={() => { setBusy(true); void service.retry?.(r).catch((failure) => setError(authErrorMessage(failure))).finally(() => setBusy(false)); }} />}</Card>)}
+    <Txt size={12} muted>This queue retains submission attempts for already-saved server drafts. New offline drafts, offline photos and safety decisions are not stored here.</Txt>
   </Screen>;
+}
+function PublicationConflict({ entry }: { entry: PendingPublication }) {
+  const report = useQuery(staffApi.workflows.reportDetail, { id: entry.reportId as GenericId<'faultReports'> });
+  return <Card style={{ gap: 16 }}><Txt size={20} weight="700">{entry.reportId}</Txt><Row style={{ alignItems: 'flex-start' }}><View style={{ flex: 1, gap: 8 }}><Icon name="phone-portrait-outline" /><Txt weight="700">Local attempt</Txt><Txt muted>Draft revision {entry.expectedRevision}</Txt><Txt muted>Photo revision {entry.expectedAttachmentRevision ?? 0}</Txt><Txt size={12} muted>{new Date(entry.updatedAt).toLocaleString()}</Txt></View><View style={{ flex: 1, gap: 8 }}><Icon name="cloud-outline" /><Txt weight="700">Current server</Txt><Txt muted>{report ? `Draft revision ${report.revision ?? 1}` : 'Loading…'}</Txt><Txt muted>{report ? `Photo revision ${report.attachmentRevision ?? 0}` : 'Loading…'}</Txt><Txt muted>{report?.submissionState === 'draft' ? 'Saved draft' : report ? 'Submitted' : ''}</Txt></View></Row><Notice tone="warning">The saved draft or its photos changed. Review the latest server content before submitting again. This queue does not retain a separate copy of the draft fields.</Notice>{entry.lastError && <Txt size={12} muted>{entry.lastError}</Txt>}<Button label="Review latest saved draft" disabled={!report} onPress={() => go('resume-report', entry.reportId)} /></Card>;
 }

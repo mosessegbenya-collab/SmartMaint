@@ -15,7 +15,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router } from "expo-router";
+import { router, usePathname, useLocalSearchParams } from "expo-router";
+import { tabItems } from '@/navigation/tabs';
 import { useApp } from "@/state/app-state";
 import { palette, tokens } from "@/design/tokens";
 
@@ -169,6 +170,9 @@ export function Screen({
 }) {
   const p = usePalette();
   const { account, mode } = useApp();
+  const pathname = usePathname();
+  const { view } = useLocalSearchParams<{ view?: string }>();
+  const flowNavigation = mode === 'live' && account && pathname.startsWith('/flow/') && view && ['equipment-detail', 'live-equipment', 'holds', 'hold-detail', 'status-timeline', 'equipment-history', 'task-detail', 'live-task', 'progress', 'parts', 'completion', 'rework', 'maintenance-history', 'technical-queue', 'clinical-queue', 'technical-result', 'clinical-result', 'analytics', 'live-analytics', 'export', 'live-export', 'audit', 'staff-audit', 'role', 'staff-role', 'suspend', 'sync', 'queue', 'upload-failed', 'report-detail', 'triage'].includes(view);
   const content = (
     <View style={[styles.content, padding !== undefined && { padding }]}>
       {title && (
@@ -223,10 +227,17 @@ export function Screen({
               {footer}
             </SafeAreaView>
           )}
+          {!footer && flowNavigation && <FlowNavigation view={view} />}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+}
+function FlowNavigation({ view }: { view: string }) {
+  const { account } = useApp(); const p = usePalette();
+  if (!account) return null;
+  const selected = ['sync', 'queue', 'upload-failed'].includes(view) ? 'profile' : ['audit', 'staff-audit', 'role', 'staff-role', 'suspend'].includes(view) ? 'accounts' : ['report-detail', 'triage', 'analytics', 'live-analytics', 'export', 'live-export'].includes(view) ? 'reports' : ['equipment-detail', 'live-equipment', 'holds', 'hold-detail', 'status-timeline', 'equipment-history'].includes(view) ? 'equipment' : 'tasks';
+  return <View accessibilityRole="tablist" style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: p.border, backgroundColor: p.card, paddingTop: 7, paddingBottom: 5 }}>{tabItems(account).map((tab) => <Pressable key={tab.name} accessibilityRole="tab" accessibilityLabel={tab.label} accessibilityState={{ selected: selected === tab.name }} onPress={() => router.replace(`/workspace/${tab.name}`)} style={{ flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 4 }}><Icon name={tab.icon} size={25} color={selected === tab.name ? tokens.blue : p.secondary} /><Txt size={10} color={selected === tab.name ? tokens.blue : p.secondary} weight={selected === tab.name ? '700' : '400'}>{tab.label}</Txt></Pressable>)}</View>;
 }
 export function Card({
   children,
@@ -327,34 +338,43 @@ export function Button({
 export function Field({
   label,
   error,
+  icon,
+  insetLabel = false,
   ...props
-}: TextInputProps & { label: string; error?: string }) {
+}: TextInputProps & { label: string; error?: string; icon?: IconName; insetLabel?: boolean }) {
   const p = usePalette();
   return (
     <View style={{ gap: 6 }}>
-      <Txt size={13} weight="600">
+      {!insetLabel && <Txt size={13} weight="600">
         {label}
-      </Txt>
+      </Txt>}
+      <View style={{ minHeight: insetLabel ? 56 : undefined, paddingVertical: insetLabel ? 6 : 0, flexDirection: 'row', alignItems: props.multiline ? 'flex-start' : 'center', borderWidth: 1, borderColor: error ? tokens.danger : p.border, backgroundColor: p.input, borderRadius: 12 }}>
+      {icon && <View style={{ paddingLeft: 14, paddingTop: props.multiline ? 14 : 0 }}><Icon name={icon} size={23} color={p.secondary} /></View>}
+      <View style={{ flex: 1, minWidth: 0 }}>
+      {insetLabel && <Txt size={11} muted style={{ paddingHorizontal: 12 }}>{label}</Txt>}
       <TextInput
         accessibilityLabel={label}
         placeholderTextColor={p.secondary}
         {...props}
         style={[
           {
-            minHeight: 48,
-            padding: 12,
+            minHeight: insetLabel ? 26 : 48,
+            paddingHorizontal: 12,
+            paddingVertical: insetLabel ? 0 : 12,
             borderRadius: 10,
-            borderWidth: 1,
-            borderColor: error ? tokens.danger : p.border,
+            flex: 1,
+            minWidth: 0,
             color: p.text,
             backgroundColor: p.input,
             fontFamily: "InterRegular",
-            fontSize: 14,
+            fontSize: insetLabel ? 16 : 14,
             textAlignVertical: props.multiline ? "top" : "center",
           },
           props.style,
         ]}
       />
+      </View>
+      </View>
       {error && (
         <Txt size={12} color={tokens.danger}>
           {error}
@@ -368,35 +388,41 @@ export function Select<T extends string>({
   values,
   value,
   onChange,
+  insetLabel = false,
+  icon,
 }: {
   label: string;
   values: readonly T[];
   value: string;
   onChange: (value: T) => void;
+  insetLabel?: boolean;
+  icon?: IconName;
 }) {
   const [open, setOpen] = useState(false);
   const p = usePalette();
   return (
     <View style={{ gap: 6 }}>
-      <Txt size={13} weight="600">
+      {!insetLabel && <Txt size={13} weight="600">
         {label}
-      </Txt>
+      </Txt>}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${value || "Select an option"}`}
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen(true)}
         style={{
-          minHeight: 48,
+          minHeight: insetLabel ? 56 : 48,
           borderRadius: 10,
-          padding: 12,
+          paddingHorizontal: 12,
+          paddingVertical: insetLabel ? 8 : 12,
           backgroundColor: p.input,
           borderWidth: 1,
           borderColor: p.border,
         }}
       >
         <Row style={{ justifyContent: "space-between" }}>
-          <Txt>{value || "Select an option"}</Txt>
+          {icon && <Icon name={icon} size={23} color={p.secondary} />}
+          <View style={{ flex: 1, gap: 2 }}>{insetLabel && <Txt size={11} muted>{label}</Txt>}<Txt size={insetLabel ? 16 : 14}>{value || 'Select an option'}</Txt></View>
           <Icon name="chevron-down" size={16} />
         </Row>
       </Pressable>
