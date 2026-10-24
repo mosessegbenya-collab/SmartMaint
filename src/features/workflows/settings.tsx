@@ -114,8 +114,7 @@ export function SettingsWorkflow({ screen }: { screen: string }) {
       ) : (
         <>
           <Notice>
-            These are in-memory demonstration preferences. Push and email
-            delivery require configured services.
+            {app.mode === "preview" ? "These are demonstration preferences." : "These preferences apply to this session."} Push and email delivery require configured services.
           </Notice>
           {[
             "Push Notifications",

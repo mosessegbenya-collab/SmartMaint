@@ -17,7 +17,7 @@ export function staffId(value: string) {
   if (!/^[A-Z0-9][A-Z0-9/-]*$/.test(normalized)) deny("Staff ID contains unsupported characters.");
   return normalized;
 }
-export async function identity(ctx: QueryCtx) {
+export async function identity(ctx: Pick<QueryCtx, "auth">) {
   const user = await ctx.auth.getUserIdentity();
   if (!user || !user.subject || !user.tokenIdentifier) deny("Sign in to continue.");
   if (user.emailVerified !== true || typeof user.email !== "string") deny("A verified Clerk email is required.");

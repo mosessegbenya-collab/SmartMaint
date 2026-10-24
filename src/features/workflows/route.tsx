@@ -43,7 +43,7 @@ export function FlowRoute() {
 }
 function FlowScreen({ screen, id }: { screen: string; id?: string }) {
   const { account, previewEnabled, mode } = useApp();
-  if (mode === "live" && !["help", "settings"].includes(screen)) return <LiveFlow screen={screen} id={id} />;
+  if (mode === "live" && !["help", "settings", "notification-settings"].includes(screen)) return <LiveFlow screen={screen} id={id} />;
   if (!publicScreens.includes(screen) && !account)
     return <Redirect href="/access/sign-in" />;
   if (

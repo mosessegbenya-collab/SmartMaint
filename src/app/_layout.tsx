@@ -3,10 +3,12 @@ import { Stack, ThemeProvider, DarkTheme, DefaultTheme } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { IdentityProvider, useIdentity } from "@/features/access/identity";
 import { ActivityIndicator, View } from "react-native";
+import { useFonts } from "expo-font";
 import { Txt, Button } from "@/components/smart/ui";
 import { canOpenPreviewWorkspace } from "@/features/access/auth-policy";
 import { StaffAccessProvider, useStaffAccess } from "@/features/staff/provider";
 import { accessCacheKey, canUseTrustedAccount } from "@/domain/staff-access";
+import { ReportQueueBoundary } from "@/features/staff/report-queue";
 import { AppProvider, useApp } from "@/state/app-state";
 import { palette } from "@/design/tokens";
 function Navigation() {
@@ -36,9 +38,11 @@ function Navigation() {
   );
 }
 export default function Root() {
+  const [fontsLoaded, fontError] = useFonts({ InterRegular: require("../../assets/fonts/Inter_400Regular.ttf"), InterSemiBold: require("../../assets/fonts/Inter_600SemiBold.ttf"), InterBold: require("../../assets/fonts/Inter_700Bold.ttf"), InterExtraBold: require("../../assets/fonts/Inter_800ExtraBold.ttf") });
+  if (!fontsLoaded && !fontError) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator accessibilityLabel="Loading SmartMaint typography" /></View>;
   return (
     <IdentityProvider>
-      <StaffAccessProvider><SessionBoundary /></StaffAccessProvider>
+      <StaffAccessProvider><ReportQueueBoundary><SessionBoundary /></ReportQueueBoundary></StaffAccessProvider>
     </IdentityProvider>
   );
 }

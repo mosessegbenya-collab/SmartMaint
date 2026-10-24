@@ -1,0 +1,17 @@
+{
+    "runtime":  "Pixel API35, Expo Go57, 1080x2400; OS bars and source phone frame excluded; floating developer button remains runtime chrome",
+    "method":  "App-content crops, density normalization preserving aspect approximately; qualitative comparison only, no similarity score",
+    "normalizedWidth":  393,
+    "referenceCrop":  [
+                          198,
+                          170,
+                          628,
+                          1253
+                      ],
+    "implementationCrop":  [
+                               0,
+                               139,
+                               1080,
+                               2198
+                           ]
+}

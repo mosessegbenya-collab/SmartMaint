@@ -1,0 +1,18 @@
+{
+  "number": "72",
+  "screen": "camera",
+  "reference": "Design/Ventilator fault photo capture-6.png",
+  "route": "/flow/camera",
+  "component": "src/features/staff/reporting-journey.tsx + report-photos.tsx",
+  "sourceStatus": "Partial",
+  "authenticatedAccess": "Requires configured backend and approved account where protected; runtime role-route testing pending",
+  "controls": "Not tested on live deployment",
+  "backend": "Blocked: no deployment",
+  "authorization": "Mock tests only; live validation pending",
+  "offline": "Not accepted",
+  "screenshot": null,
+  "comparison": null,
+  "visual": "Not tested",
+  "accessibility": "Not tested",
+  "finalStatus": "Partial / Blocked"
+}

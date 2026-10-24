@@ -25,6 +25,8 @@ test("Clerk identity and loading sessions cannot enter synthetic workspaces", ()
 test("Clerk structured errors and offline failures produce usable messages", () => {
   assert.equal(authErrorMessage({ errors: [{ message: "Invalid code", longMessage: "The code has expired." }] }), "The code has expired.");
   assert.equal(authErrorMessage(new Error("Network unavailable")), "Network unavailable");
+  assert.equal(authErrorMessage({ data: "Draft conflict: review the current report.", message: "[CONVEX M(reporting:publish)] Server Error\n at private/server.ts:20" }), "Draft conflict: review the current report.");
+  assert.doesNotMatch(authErrorMessage(new Error("[CONVEX M(private:function)] Server Error\n at private/server.ts:20")), /private|Server Error|CONVEX/);
   assert.match(authErrorMessage(null), /connection/);
 });
 const {

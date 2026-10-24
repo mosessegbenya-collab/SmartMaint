@@ -1,0 +1,18 @@
+{
+  "number": "59",
+  "screen": "scan",
+  "reference": "Design/SmartMaint ventilator QR scanner-1.png",
+  "route": "/flow/scan",
+  "component": "src/features/staff/operational-screens.tsx",
+  "sourceStatus": "Partial",
+  "authenticatedAccess": "Requires configured backend and approved account where protected; runtime role-route testing pending",
+  "controls": "Not tested on live deployment",
+  "backend": "Blocked: no deployment",
+  "authorization": "Mock tests only; live validation pending",
+  "offline": "Not accepted",
+  "screenshot": null,
+  "comparison": null,
+  "visual": "Not tested",
+  "accessibility": "Not tested",
+  "finalStatus": "Partial / Blocked"
+}

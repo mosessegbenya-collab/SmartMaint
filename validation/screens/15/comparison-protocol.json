@@ -1,0 +1,19 @@
+{
+    "implementationCrop":  [
+                               0,
+                               139,
+                               1080,
+                               2198
+                           ],
+    "normalizedWidth":  393,
+    "exclusions":  "OS bars and source phone frame excluded; floating developer button remains runtime chrome",
+    "method":  "App-content crops, density normalization preserving aspect approximately; qualitative comparison only, no similarity score",
+    "referenceCrop":  [
+                          198,
+                          170,
+                          628,
+                          1253
+                      ],
+    "runtime":  "Pixel API35, Android debug x86_64 development build, 1080x2400",
+    "checkpoint":  "2026-10-23"
+}

@@ -64,6 +64,7 @@ export function Txt({
     <Text
       style={[
         {
+          fontFamily: preferences.bold || Number(weight) >= 800 ? "InterExtraBold" : Number(weight) >= 700 ? "InterBold" : Number(weight) >= 600 ? "InterSemiBold" : "InterRegular",
           fontSize: size * (preferences.largeText ? 1.18 : 1),
           lineHeight: (lineHeight ?? size * 1.38) * (preferences.largeText ? 1.18 : 1),
           fontWeight: preferences.bold ? "700" : weight,
@@ -85,7 +86,7 @@ export function Icon({
   size?: number;
   color?: string;
 }) {
-  return <Ionicons name={name} size={size} color={color} />;
+  return <Ionicons name={name} size={size} color={color} accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />;
 }
 export function IconButton({
   name,
@@ -284,6 +285,7 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
       accessibilityState={{ disabled: disabled || loading, busy: loading }}
       disabled={disabled || loading}
       onPress={onPress}
@@ -346,6 +348,7 @@ export function Field({
             borderColor: error ? tokens.danger : p.border,
             color: p.text,
             backgroundColor: p.input,
+            fontFamily: "InterRegular",
             fontSize: 14,
             textAlignVertical: props.multiline ? "top" : "center",
           },
@@ -606,6 +609,7 @@ export function LinkRow({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityLabel={detail ? `${title}. ${detail}` : title}
       style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
     >
       <Card>

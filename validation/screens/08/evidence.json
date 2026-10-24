@@ -1,0 +1,18 @@
+{
+  "number": "08",
+  "screen": "submitted",
+  "reference": "Design/Saved locally, pending sync-2.png",
+  "route": "/flow/submitted",
+  "component": "src/features/staff/operational-screens.tsx",
+  "sourceStatus": "Partial",
+  "authenticatedAccess": "Requires configured backend and approved account where protected; runtime role-route testing pending",
+  "controls": "Not tested on live deployment",
+  "backend": "Blocked: no deployment",
+  "authorization": "Mock tests only; live validation pending",
+  "offline": "Not accepted",
+  "screenshot": null,
+  "comparison": null,
+  "visual": "Not tested",
+  "accessibility": "Not tested",
+  "finalStatus": "Partial / Blocked"
+}

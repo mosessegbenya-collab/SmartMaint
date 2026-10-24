@@ -1,0 +1,20 @@
+{
+  "number": "15",
+  "screen": "register",
+  "reference": "Design/SmartMaint Staff Registration Mockup-1.png",
+  "route": "/access/register",
+  "component": "src/features/access/screens.tsx + email-auth.tsx",
+  "sourceStatus": "Partial",
+  "authenticatedAccess": "Requires configured backend and approved account where protected; runtime role-route testing pending",
+  "controls": "Registration form rendered after navigation; complete submission not tested",
+  "backend": "Blocked: no deployment",
+  "authorization": "Mock tests only; live validation pending",
+  "offline": "Not accepted",
+  "screenshot": "validation/screens/15/implementation.png",
+  "comparison": "validation/screens/15/comparison.png",
+  "visual": "Compared; FAIL / needs correction, not accepted",
+  "accessibility": "Labeled native controls observed; full accessibility testing pending",
+  "discrepancies": "Header/date chip, field treatment/icons, spacing, glass and extra requested department differ. Text/image columns no longer overlap.",
+  "runtime": "Current corrective run; Pixel API35 Expo Go57; public unsigned-in screen only",
+  "finalStatus": "Partial / Blocked"
+}

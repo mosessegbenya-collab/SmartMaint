@@ -1,5 +1,9 @@
 # SmartMaint implementation notes
 
+## Corrective source update — 2026-10-22
+
+The current corrective work also adds operational pagination, report filters, verifier queues, equipment history, QR/manual lookup, private report/photo/review persistence, policy-bound verification/rework/release, preventive schedules, targeted in-app notices and an encrypted native publication queue. All reference routes now have live branches, frequently sharing these components. This is not acceptance of 73 distinct screens. The queue only publishes already-saved server drafts; full offline reporting remains unfinished. See [the current acceptance checkpoint](../SMARTMAINT_FINAL_ACCEPTANCE_REPORT.md), [screen matrix](../SMARTMAINT_73_SCREEN_MATRIX.md) and [remaining issues](../SMARTMAINT_REMAINING_ISSUES.md). Historical preview-only descriptions below are not descriptions of the new live source. No deployment or real staff/safety approval was created.
+
 ## Staff-access scope update — 2026-10-21
 
 The new brief expands the original frontend boundary. Convex schema, authenticated functions, staff review, audit and client authorization/cache isolation now exist. See [staff-access implementation and operator handover](STAFF_ACCESS.md) and [current validation](../VALIDATION.md). Earlier descriptions of unavailable backend contracts below describe the original preview architecture; they are superseded for the new staff routes. No deployment or approved verification policy exists. Live routes use backend functions; fictional operational records remain isolated preview data. Production safety/release policies are still unavailable.

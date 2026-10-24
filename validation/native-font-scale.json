@@ -1,0 +1,7 @@
+{
+    "Original":  "1.0",
+    "Tested":  "1.3",
+    "Screenshot":  "artifacts/runtime/corrective-native-large-text.png",
+    "Scope":  "Public Welcome only; changing system font scale recreated the activity and returned to Welcome. Full accessibility acceptance pending.",
+    "Restored":  "1.0"
+}

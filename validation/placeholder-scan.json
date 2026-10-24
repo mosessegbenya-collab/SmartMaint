@@ -1,0 +1,176 @@
+[
+  {
+    "file": "src\\components\\smart\\ui.tsx",
+    "line": 339,
+    "text": "placeholderTextColor={p.secondary}",
+    "classification": "Input hint/style (not a backend stub)"
+  },
+  {
+    "file": "src\\domain\\models.ts",
+    "line": 40,
+    "text": "| \"Simulated acknowledgment\"",
+    "classification": "Preview contract or storage error continuation; not a visible success control"
+  },
+  {
+    "file": "src\\domain\\report-queue.ts",
+    "line": 24,
+    "text": "const operation = this.serial.catch(() => {}).then(async () => {",
+    "classification": "Preview contract or storage error continuation; not a visible success control"
+  },
+  {
+    "file": "src\\domain\\report-queue.ts",
+    "line": 32,
+    "text": "catch (error) { await Promise.all(chunks.map((_, i) => this.store.remove(`${key}.${generation}.${i}`).catch(() => {}))); throw error; }",
+    "classification": "Preview contract or storage error continuation; not a visible success control"
+  },
+  {
+    "file": "src\\domain\\report-queue.ts",
+    "line": 33,
+    "text": "if (prior) await Promise.all(Array.from({ length: prior.count }, (_, i) => this.store.remove(`${key}.${prior.generation}.${i}`).catch(() => {})));",
+    "classification": "Preview contract or storage error continuation; not a visible success control"
+  },
+  {
+    "file": "src\\features\\access\\identity.tsx",
+    "line": 21,
+    "text": "expired: false, restoreTimedOut: false, retry: () => {},",
+    "classification": "Live/shared source or unavailable-context default; requires review"
+  },
+  {
+    "file": "src\\features\\access\\identity.tsx",
+    "line": 22,
+    "text": "signOut: async () => {}, refresh: async () => {},",
+    "classification": "Live/shared source or unavailable-context default; requires review"
+  },
+  {
+    "file": "src\\features\\access\\screens.tsx",
+    "line": 348,
+    "text": "<Detail label=\"Status\" value=\"Preview only\" />",
+    "classification": "Live/shared source or unavailable-context default; requires review"
+  },
+  {
+    "file": "src\\features\\staff\\provider.tsx",
+    "line": 10,
+    "text": "const defaultValue: StaffAccess = { status: \"unconfigured\", account: null, configured: false, connected: false, retry: () => {} };",
+    "classification": "Live/shared source or unavailable-context default; requires review"
+  },
+  {
+    "file": "src\\features\\workflows\\admin.tsx",
+    "line": 302,
+    "text": "r.sync === \"Simulated acknowledgment\",",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\features\\workflows\\admin.tsx",
+    "line": 310,
+    "text": "(r) => r.sync !== \"Simulated acknowledgment\",",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\features\\workflows\\equipment.tsx",
+    "line": 163,
+    "text": "onPress={() => {}}",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\features\\workflows\\reporting.tsx",
+    "line": 65,
+    "text": "placeholder=\"DEMO-VENT-014\"",
+    "classification": "Input hint/style (not a backend stub)"
+  },
+  {
+    "file": "src\\features\\workflows\\reports.tsx",
+    "line": 62,
+    "text": "\"Simulated acknowledgment\",",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\features\\workflows\\reports.tsx",
+    "line": 185,
+    "text": "report.sync === \"Simulated acknowledgment\"",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\features\\workflows\\sync.tsx",
+    "line": 68,
+    "text": "![\"Simulated acknowledgment\", \"Rejected\"].includes(q.state)",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\features\\workflows\\sync.tsx",
+    "line": 74,
+    "text": "![\"Simulated acknowledgment\", \"Rejected\"].includes(r.sync)",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\features\\workflows\\sync.tsx",
+    "line": 84,
+    "text": "? \"Simulated acknowledgment only. No real server received these records.\"",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\features\\workflows\\sync.tsx",
+    "line": 115,
+    "text": "\"Automatic demonstration retry finished: simulated acknowledgment only.\",",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\features\\workspace\\dashboard.tsx",
+    "line": 204,
+    "text": "report.sync === \"Simulated acknowledgment\"",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\features\\workspace\\dashboard.tsx",
+    "line": 211,
+    "text": "report.sync === \"Simulated acknowledgment\"",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\features\\workspace\\lists.tsx",
+    "line": 76,
+    "text": "placeholder=\"Search equipment…\"",
+    "classification": "Input hint/style (not a backend stub)"
+  },
+  {
+    "file": "src\\features\\workspace\\lists.tsx",
+    "line": 134,
+    "text": "placeholder=\"Search by reference, device or issue…\"",
+    "classification": "Input hint/style (not a backend stub)"
+  },
+  {
+    "file": "src\\features\\workspace\\support.tsx",
+    "line": 14,
+    "text": "q.ownerId === app.account?.id && q.state !== \"Simulated acknowledgment\",",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\hooks\\use-color-scheme.web.ts",
+    "line": 7,
+    "text": "const subscribe = () => () => {};",
+    "classification": "Live/shared source or unavailable-context default; requires review"
+  },
+  {
+    "file": "src\\services\\development.ts",
+    "line": 292,
+    "text": "? \"Simulated acknowledgment\"",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\services\\development.ts",
+    "line": 301,
+    "text": "q.state !== \"Simulated acknowledgment\" &&",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\services\\development.ts",
+    "line": 458,
+    "text": "r.sync === \"Simulated acknowledgment\" &&",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  },
+  {
+    "file": "src\\services\\fixtures.ts",
+    "line": 126,
+    "text": "sync: \"Simulated acknowledgment\",",
+    "classification": "Preview or shared source; inspect live dispatcher"
+  }
+]

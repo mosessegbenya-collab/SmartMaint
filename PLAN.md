@@ -1,6 +1,24 @@
 # SmartMaint implementation plan
 
-Last updated: 2026-10-21
+Last updated: 2026-10-23
+
+## Corrective checkpoint — 2026-10-23
+
+- [x] Inventory all 73 actual reference files and create numbered evidence folders and the requested audit/matrix/reports.
+- [x] Implement operational pagination/direct lookups, inventory onboarding, QR/manual and provisional report source.
+- [x] Implement private resumable server drafts, photo actions, review/publication conflicts, triage and scoped hold controls.
+- [x] Implement immutable work snapshots and policy-gated safety attempts/rework/hold resolution/release source.
+- [x] Implement preventive schedule/occurrence/checklist source and native encrypted publication queue for saved drafts.
+- [x] Bundle Inter; preserve approved assets and Clerk setup.
+- [x] 96 local tests pass; TypeScript and lint pass after dependency restoration. Compatibility/Doctor passes are recorded separately.
+- [x] Wire all mapped live routes, scoped report filters, verifier queues, equipment timelines and targeted in-app operational/request notices; retain explicit policy gates.
+- [x] Android debug x86_64 APK builds, installs and renders public screens after the Windows linker/lifecycle correction; Doctor 21/21.
+- [ ] Complete protected native/device regression, camera/permission/hardware tests and iOS/distribution validation.
+- [ ] Full offline draft/photo storage, expanded work-order states, full notifications/analytics/admin integration.
+- [ ] Real deployment, approved staff/safety/offline policies and live E2E acceptance.
+- [ ] Individual visual and accessibility acceptance: currently 0/73 in the corrective run.
+
+The source checkboxes above do not mean module acceptance. See SMARTMAINT_FINAL_ACCEPTANCE_REPORT.md and SMARTMAINT_REMAINING_ISSUES.md for exact gates.
 
 ## Staff-access scope expansion
 

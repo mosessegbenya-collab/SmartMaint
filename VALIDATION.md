@@ -1,5 +1,7 @@
 # Staff-access validation
 
+The 2026-10-22 corrective run supersedes the historical checks below. Current results and limitations are recorded in [the corrective workflow report](SMARTMAINT_WORKFLOW_TEST_REPORT.md), [native build report](SMARTMAINT_NATIVE_BUILD_REPORT.md) and [acceptance checkpoint](SMARTMAINT_FINAL_ACCEPTANCE_REPORT.md). Earlier passes do not establish acceptance of later edits.
+
 Recorded 2026-10-21. Source implementation is reviewable; production authorization is not declared complete.
 
 ## Executed checks

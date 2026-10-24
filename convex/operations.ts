@@ -6,28 +6,30 @@ import { requireAccount, requiredText, audit, deny } from "./lib/access";
 import { priority } from "./lib/validators";
 import { csvCell } from "../src/domain/policy";
 import type { Capability } from "../src/domain/models";
+import { equipmentNotice, reportNotice, taskNotice } from "./lib/notifications";
 
-async function equipmentAccess(ctx: QueryCtx, id: GenericId<"equipment">) {
+export async function equipmentAccess(ctx: QueryCtx, id: GenericId<"equipment">) {
   const actor = await requireAccount(ctx);
   if (!actor.capabilities.some((c) => ["report", "repair", "assign", "clinical", "technical", "analytics", "export", "reconcile", "hold"].includes(c))) deny();
   const item = await ctx.db.get(id);
   if (!item || !actor.scope.includes(item.departmentId)) deny("Equipment unavailable in your authorized scope.");
   return { actor, item };
 }
-async function taskAccess(ctx: QueryCtx, id: GenericId<"maintenanceTasks">, capability: Capability) {
+export async function taskAccess(ctx: QueryCtx, id: GenericId<"maintenanceTasks">, capability: Capability) {
   const actor = await requireAccount(ctx, capability);
   const task = await ctx.db.get(id);
   if (!task || !actor.scope.includes(task.departmentId)) deny("Task unavailable in your authorized scope.");
   return { actor, task };
 }
-async function reportAccess(ctx: QueryCtx, id: GenericId<"faultReports">, capability: Capability) {
+export async function reportAccess(ctx: QueryCtx, id: GenericId<"faultReports">, capability: Capability) {
   const actor = await requireAccount(ctx, capability);
   const report = await ctx.db.get(id);
   if (!report || !actor.scope.includes(report.departmentId)) deny("Report unavailable in your authorized scope.");
+  if (report.submissionState === "draft") deny("A draft report cannot enter an operational workflow.");
   return { actor, report };
 }
 async function scopedReports(ctx: QueryCtx, actor: AccountDoc) {
-  return (await Promise.all(actor.scope.map((id) => ctx.db.query("faultReports").withIndex("by_department", (q) => q.eq("departmentId", id)).order("desc").take(100)))).flat();
+  return (await Promise.all(actor.scope.map((id) => ctx.db.query("faultReports").withIndex("by_department", (q) => q.eq("departmentId", id)).filter((q) => q.neq(q.field("submissionState"), "draft")).order("desc").take(100)))).flat();
 }
 export const equipment = query({ args: {}, handler: async (ctx) => {
   const actor = await requireAccount(ctx);
@@ -58,6 +60,7 @@ export const submitReport = mutation({ args: {
 export const triage = mutation({ args: { id: v.id("faultReports"), priority, reason: v.string() }, handler: async (ctx, args) => {
   const { actor, report } = await reportAccess(ctx, args.id, "triage");
   await ctx.db.patch(report._id, { triagedPriority: args.priority, triageReason: requiredText(args.reason, "triage reason", 500) });
+  await reportNotice(ctx, report._id, "Fault report triaged", "The authorized maintenance team updated your report's triaged priority. Open the report for details.");
   await audit(ctx, actor, "report.triage", report._id, args.reason, report.departmentId, report.triagedPriority, args.priority);
 } });
 export const tasks = query({ args: {}, handler: async (ctx) => {
@@ -104,15 +107,23 @@ export const assign = mutation({ args: { id: v.id("maintenanceTasks"), expectedR
   if (!assignee || assignee.status !== "approved" || assignee.role !== "Biomedical Technician" || !assignee.capabilities.includes("repair") || !assignee.scope.includes(task.departmentId)) deny("Choose an authorized technician in scope.");
   if (!Number.isFinite(args.dueAt) || args.dueAt <= Date.now()) deny("Choose a future due date.");
   await ctx.db.patch(task._id, { assigneeId: assignee._id, dueAt: args.dueAt, state: task.state === "Unassigned" ? "Assigned" : task.state, revision: task.revision + 1, updatedAt: Date.now() });
+  await taskNotice(ctx, task._id, "Maintenance assigned", "A maintenance task has been assigned to you.");
   await audit(ctx, actor, "task.assign", task._id, args.reason, task.departmentId, task.assigneeId, assignee._id);
 } });
-export const recordWork = mutation({ args: { id: v.id("maintenanceTasks"), expectedRevision: v.number(), diagnosis: v.string(), notes: v.string(), parts: v.array(v.string()), complete: v.boolean() }, handler: async (ctx, args) => {
+export const recordWork = mutation({ args: { id: v.id("maintenanceTasks"), expectedRevision: v.number(), diagnosis: v.string(), notes: v.string(), parts: v.array(v.string()), complete: v.boolean(), preventiveResults: v.optional(v.array(v.object({ label: v.string(), passed: v.boolean() }))) }, handler: async (ctx, args) => {
   const { actor, task } = await taskAccess(ctx, args.id, "repair");
   if (task.assigneeId !== actor._id || task.revision !== args.expectedRevision || !["Assigned", "In progress"].includes(task.state)) deny("Only the assigned technician can update active work.");
   if (args.diagnosis.length > 2000 || args.notes.length > 4000 || args.parts.length > 30 || args.parts.some((p) => !p.trim() || p.length > 120)) deny("Invalid maintenance details.");
   if (args.complete && !args.diagnosis.trim()) deny("Diagnosis is required before completion.");
+  if (task.preventiveChecklist && (!args.preventiveResults || args.preventiveResults.length !== task.preventiveChecklist.length || args.preventiveResults.some((result, i) => result.label !== task.preventiveChecklist![i]) || (args.complete && args.preventiveResults.some((r) => !r.passed)))) deny("Record every scheduled checklist item; incomplete/failed checks cannot complete maintenance.");
   const next = args.complete ? "Completed" as const : "In progress" as const;
-  await ctx.db.patch(task._id, { diagnosis: args.diagnosis, notes: args.notes, parts: args.parts, state: next, revision: task.revision + 1, updatedAt: Date.now() });
+  // Preserve the original snapshot once, then every authorized revision. No public writer edits history.
+  if (!await ctx.db.query("workEntries").withIndex("by_task", (q) => q.eq("taskId", task._id)).first()) {
+    await ctx.db.insert("workEntries", { taskId: task._id, departmentId: task.departmentId, baseline: true, revision: task.revision, diagnosis: task.diagnosis, notes: task.notes, parts: task.parts, state: task.state, at: task.updatedAt });
+  }
+  await ctx.db.insert("workEntries", { taskId: task._id, departmentId: task.departmentId, actorId: actor._id, revision: task.revision + 1, diagnosis: args.diagnosis, notes: args.notes, parts: args.parts, state: next, at: Date.now(), preventiveResults: args.preventiveResults });
+  await ctx.db.patch(task._id, { diagnosis: args.diagnosis, notes: args.notes, parts: args.parts, state: next, revision: task.revision + 1, updatedAt: Date.now(), preventiveResults: args.preventiveResults });
+  if (args.complete && task.reportId) await reportNotice(ctx, task.reportId, "Repair completed — verification pending", "Repair work was recorded as complete. Independent verification and authorized release are still required.");
   await audit(ctx, actor, "task.work", task._id, "Maintenance work recorded; no equipment release granted", task.departmentId, task.state, next);
 } });
 export const submitVerification = mutation({ args: { id: v.id("maintenanceTasks"), kind: v.union(v.literal("technical"), v.literal("clinical")) }, handler: async (ctx, args) => {
@@ -129,6 +140,7 @@ export const placeHold = mutation({ args: { equipmentId: v.id("equipment"), reas
   const actor = await requireAccount(ctx, "hold", item.departmentId);
   const reason = requiredText(args.reason, "safety hold reason", 500);
   const id = await ctx.db.insert("safetyHolds", { equipmentId: item._id, departmentId: item.departmentId, active: true, reason, createdBy: actor._id, createdAt: Date.now() });
+  await equipmentNotice(ctx, item._id, { departmentId: item.departmentId, title: "Equipment safety hold placed", body: "A safety hold now blocks return to service. Open the linked record and current equipment status." });
   await audit(ctx, actor, "hold.create", id, reason, item.departmentId, undefined, "active");
   return id;
 } });

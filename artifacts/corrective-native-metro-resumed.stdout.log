@@ -1,0 +1,18 @@
+env: load .env
+env: export EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
+Starting project at C:\Users\Edem Segbenya\Desktop\SmartMaint\SmartMaint
+Logs: C:\Users\Edem Segbenya\Desktop\SmartMaint\SmartMaint\.expo\dev\logs\start.log
+Using src/app as the root directory for Expo Router.
+React Compiler enabled
+Metro is running in CI mode, reloads are disabled. Remove CI=true to enable watch mode.
+Starting Metro Bundler
+
+Waiting on http://localhost:8081
+
+Logs for your project will appear below.
+Android Bundled 49104ms node_modules\expo-router\entry.js (2093 modules)
+ WARN  Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+Android Bundled 354ms node_modules\expo-router\entry.js (1 module)
+ WARN  Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+Android Bundled 238ms node_modules\expo-router\entry.js (1 module)
+ WARN  Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
