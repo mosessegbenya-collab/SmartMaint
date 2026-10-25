@@ -15,6 +15,100 @@ function setup() {
 }
 const draft:Omit<RecoveryDraft,'photos'>={owner:'OWNER',operationId:'OP',equipmentId:'DEVICE',departmentId:'DEPARTMENT',updatedAt:1,fields:{category:'',symptoms:'Private TEST draft',description:'',priority:'High',condition:'',inUse:'',noticedAt:'2026-10-24T10:00:00Z',emergency:false}};
 const photo={operationId:'PHOTO',contentType:'image/png' as const,base64:Buffer.from('TEST PHOTOGRAPH').toString('base64')};
+
+test('continuation: legacy pointers upgrade lazily; unsupported future formats fail closed and rollback preserves evidence', async () => {
+  const f = setup(); await f.repo.saveDraft(draft);
+  const key = 'smartmaint.recovery.OWNER';
+  const current = JSON.parse(f.metadata.get(key)!);
+  expect(current.formatVersion).toBe(2);
+  const { formatVersion, minReaderVersion, ...legacy } = current; void formatVersion; void minReaderVersion;
+  f.metadata.set(key, JSON.stringify(legacy));
+  expect(await f.repo.list('OWNER')).toHaveLength(1);
+  f.metadata.set(key, JSON.stringify({ ...current, formatVersion: 99, minReaderVersion: 99 }));
+  const files = [...f.files.keys()];
+  await expect(f.repo.list('OWNER')).rejects.toThrow(/metadata/);
+  await expect(f.repo.saveDraft({ ...draft, updatedAt: 2 })).rejects.toThrow(/metadata/);
+  expect([...f.files.keys()]).toEqual(files);
+  f.metadata.set(key, JSON.stringify(current));
+  expect((await f.repo.list('OWNER'))[0].updatedAt).toBe(1);
+});
+
+test('review 5: explicit discard frees space at ciphertext allocation quota and preserves other drafts and owners', async () => {
+  const f = setup(); await f.repo.saveDraft(draft); await f.repo.savePhoto('OWNER', 'OP', photo);
+  await f.repo.saveDraft({ ...draft, operationId: 'KEEP' });
+  await f.repo.savePhoto('OWNER', 'KEEP', { ...photo, operationId: 'INTACT' });
+  await f.repo.saveDraft({ ...draft, owner: 'OTHER' });
+  const before = [...f.files.values()].reduce((n, bytes) => n + bytes.length, 0);
+  const originalWrite = f.fileAdapter.write;
+  f.fileAdapter.write = async () => { throw Error('Physical ciphertext allocation quota'); };
+  await expect(f.repo.removeDraft('OWNER', 'OP')).resolves.toBeUndefined();
+  const restarted = new ReportRecoveryRepository(new AuthenticatedFileStore(f.vault, f.fileAdapter, f.cipher, f.next));
+  expect((await restarted.list('OWNER')).map((d) => d.operationId)).toEqual(['KEEP']);
+  expect(await restarted.readPhoto('OWNER', 'KEEP', 'INTACT')).toEqual({ ...photo, operationId: 'INTACT' });
+  expect(await restarted.list('OTHER')).toHaveLength(1);
+  expect([...f.files.values()].reduce((n, bytes) => n + bytes.length, 0)).toBeLessThan(before);
+  f.fileAdapter.write = originalWrite;
+  await restarted.saveDraft({ ...draft, operationId: 'NEW' });
+  expect(await restarted.list('OWNER')).toHaveLength(2);
+});
+
+test('review 5: interruption during explicit cleanup is resumed after restart without losing its deletion intent', async () => {
+  const f = setup(); await f.repo.saveDraft(draft); await f.repo.savePhoto('OWNER', 'OP', photo);
+  await f.repo.saveDraft({ ...draft, operationId: 'KEEP' });
+  const originalRemove = f.fileAdapter.remove;
+  let interrupted = false;
+  f.fileAdapter.remove = async (name) => { if (!interrupted) { interrupted = true; throw Error('Cleanup interrupted'); } await originalRemove(name); };
+  await expect(f.repo.removeDraft('OWNER', 'OP')).rejects.toThrow(/Cleanup interrupted/);
+  const restarted = new ReportRecoveryRepository(new AuthenticatedFileStore(f.vault, f.fileAdapter, f.cipher, f.next));
+  expect((await restarted.list('OWNER')).map((d) => d.operationId)).toEqual(['KEEP']);
+  expect(f.files.size).toBe(0); // Remaining index lives in the bounded encrypted deletion journal.
+});
+
+test('review 5: failing to commit deletion intent preserves every draft and photo', async () => {
+  const f = setup(); await f.repo.saveDraft(draft); await f.repo.savePhoto('OWNER', 'OP', photo);
+  const original = f.vault.set;
+  f.vault.set = async () => { throw Error('Vault allocation failed'); };
+  await expect(f.repo.removeDraft('OWNER', 'OP')).rejects.toThrow(/Vault allocation failed/);
+  f.vault.set = original;
+  expect(await f.repo.readPhoto('OWNER', 'OP', 'PHOTO')).toEqual(photo);
+  expect(await f.repo.list('OWNER')).toHaveLength(1);
+});
+
+test.each(['missing', 'corrupt'])('review 6: remove only the %s pending photo without decrypting it, even at quota', async (damage) => {
+  const f = setup(); await f.repo.saveDraft(draft);
+  await f.repo.savePhoto('OWNER', 'OP', { ...photo, operationId: 'INTACT' });
+  await f.repo.savePhoto('OWNER', 'OP', { ...photo, operationId: 'UNAVAILABLE' });
+  const pointer = JSON.parse(f.metadata.get('smartmaint.recovery.OWNER.OP.UNAVAILABLE')!);
+  if (damage === 'missing') f.files.delete(pointer.file);
+  else f.files.get(pointer.file)![0] ^= 1;
+  await expect(f.repo.readPhoto('OWNER', 'OP', 'UNAVAILABLE')).rejects.toThrow();
+  f.fileAdapter.write = async () => { throw Error('Physical ciphertext allocation quota'); };
+  await f.repo.removePhoto('OWNER', 'OP', 'UNAVAILABLE');
+  const restarted = new ReportRecoveryRepository(new AuthenticatedFileStore(f.vault, f.fileAdapter, f.cipher, f.next));
+  expect((await restarted.list('OWNER'))[0].photos.map((p) => p.operationId)).toEqual(['INTACT']);
+  expect(await restarted.readPhoto('OWNER', 'OP', 'INTACT')).toEqual({ ...photo, operationId: 'INTACT' });
+  await restarted.removePhoto('OWNER', 'OP', 'INTACT');
+  expect((await restarted.list('OWNER'))[0].photos).toEqual([]);
+  expect((await restarted.list('OWNER'))[0].fields).toEqual(draft.fields);
+});
+
+test('review 5: a lost deletion commit resumes only explicitly selected cleanup and preserves uncertain orphans', async () => {
+  const f = setup(); await f.repo.saveDraft(draft); await f.repo.savePhoto('OWNER', 'OP', photo);
+  f.files.set('UNCERTAIN.bin', Uint8Array.of(1, 2, 3));
+  const original = f.vault.set;
+  let lost = false;
+  f.vault.set = async (key, value) => {
+    expect(new TextEncoder().encode(value).length).toBeLessThanOrEqual(1536);
+    await original(key, value);
+    if (key === 'smartmaint.recovery.OWNER' && !lost) { lost = true; throw Error('Lost deletion completion'); }
+  };
+  await expect(f.repo.removeDraft('OWNER', 'OP')).rejects.toThrow(/Lost deletion/);
+  f.vault.set = original;
+  const restarted = new ReportRecoveryRepository(new AuthenticatedFileStore(f.vault, f.fileAdapter, f.cipher, f.next));
+  expect(await restarted.list('OWNER')).toEqual([]);
+  expect([...f.files.keys()]).toEqual(['UNCERTAIN.bin']);
+  expect([...f.metadata.values()].some((v) => v.includes('Private TEST draft'))).toBe(false);
+});
 test('encrypted draft and photo survive adapter recreation, isolate accounts and never leave plaintext in ciphertext files',async()=>{
   const f=setup();await f.repo.saveDraft(draft);await f.repo.savePhoto('OWNER','OP',photo);
   const restarted=new ReportRecoveryRepository(new AuthenticatedFileStore(f.vault,f.fileAdapter,f.cipher,f.next));

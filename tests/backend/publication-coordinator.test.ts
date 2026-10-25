@@ -10,6 +10,68 @@ function setup() {
   return {values,store,queue,send,worker,time:(value:number)=>{now=value;},active:(value:boolean)=>{active=value;}};
 }
 const row:PendingPublication={id:'OP',owner:'OWNER',reportId:'REPORT',expectedRevision:1,expectedAttachmentRevision:2,createdAt:1,updatedAt:1,state:'PENDING',retryCount:0};
+
+test('review 4: an exhausted uncertain attempt can reconcile a committed receipt without a sixth send', async () => {
+  const f = setup();
+  await f.queue.update('OWNER', () => [{ ...row, state: 'SYNCING', retryCount: 5, lastAttempt: 1 }]);
+  // The optional final constructor argument is a read-only receipt lookup.
+  const args = [f.queue, 'OWNER', f.send, () => true, () => {}, () => 100000, undefined, async () => 'REPORT'] as const;
+  const worker = new PublicationCoordinator(...args);
+  expect(await worker.sendEntry('OP')).toBe('REPORT');
+  expect(f.send).not.toHaveBeenCalled();
+  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ reportId: 'REPORT', state: 'SYNCED', retryCount: 5 });
+});
+
+test('review 4: reviewing an exhausted unchanged snapshot cannot silently reset its attempt budget', async () => {
+  const f = setup();
+  await f.queue.update('OWNER', () => [{ ...row, state: 'FAILED', retryCount: 5, retryable: false }]);
+  await expect(f.worker.enqueue('REPORT', 1, 2, 'NEW_OPERATION')).rejects.toThrow(/limit|reconcil|recovery/i);
+  expect(f.send).not.toHaveBeenCalled();
+  expect((await f.queue.load('OWNER'))[0].retryCount).toBe(5);
+});
+
+test('review 4: interruption before sending attempt five requires reconciliation and one explicitly confirmed recovery', async () => {
+  const f = setup(); await f.queue.update('OWNER', () => [{ ...row, retryCount: 4 }]);
+  const original = f.store.set;
+  f.store.set = async (key, value) => { await original(key, value); if (key === 'smartmaint.queue.OWNER') f.active(false); };
+  await expect(f.worker.sendEntry('OP')).rejects.toThrow(/paused/);
+  expect(f.send).not.toHaveBeenCalled();
+  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ state: 'SYNCING', retryCount: 5 });
+  f.store.set = original;
+  const restarted = new PublicationCoordinator(f.queue, 'OWNER', f.send, () => true, () => {}, () => 100000, undefined, async () => null);
+  await expect(restarted.sendEntry('OP')).rejects.toThrow(/explicit bounded recovery/);
+  expect(f.send).not.toHaveBeenCalled();
+  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ retryCount: 5, recoveryEligible: true, reconciliationCount: 1 });
+  expect(await restarted.sendEntry('OP', true)).toBe('REPORT');
+  expect(f.send).toHaveBeenCalledOnce();
+  expect(f.send.mock.calls[0][0]).toMatchObject({ reportId: 'REPORT', retryCount: 5, recoveryCount: 1 });
+  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ state: 'SYNCED', retryCount: 5, recoveryCount: 1 });
+});
+
+test('review 4: receipt checks and explicit recovery remain bounded across restarts and uncertain failures', async () => {
+  const f = setup(); await f.queue.update('OWNER', () => [{ ...row, state: 'SYNCING', retryCount: 5 }]);
+  const lookup = vi.fn(async () => null);
+  const worker = () => new PublicationCoordinator(f.queue, 'OWNER', f.send, () => true, () => {}, () => 100000, undefined, lookup);
+  await expect(worker().sendEntry('OP')).rejects.toThrow(/explicit bounded recovery/);
+  f.send.mockRejectedValue(Error('Network timeout during recovery'));
+  await expect(worker().sendEntry('OP', true)).rejects.toThrow(/Network timeout/);
+  await expect(worker().sendEntry('OP', true)).rejects.toThrow(/unavailable/);
+  for (let i = 0; i < 2; i++) await expect(worker().sendEntry('OP')).rejects.toThrow(/explicit bounded recovery/);
+  await expect(worker().sendEntry('OP')).rejects.toThrow(/limit/);
+  expect(lookup).toHaveBeenCalledTimes(3); expect(f.send).toHaveBeenCalledOnce();
+  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ retryCount: 5, recoveryCount: 1, reconciliationCount: 3, recoveryEligible: false });
+});
+
+test('review 4: receipt reconciliation reports a changed draft as a conflict and permits review of its new snapshot', async () => {
+  const f = setup(); await f.queue.update('OWNER', () => [{ ...row, state: 'SYNCING', retryCount: 5 }]);
+  const worker = new PublicationCoordinator(f.queue, 'OWNER', f.send, () => true, () => {}, () => 100000, undefined, async () => { throw Error('Draft revision conflict: review the current report'); });
+  await expect(worker.sendEntry('OP')).rejects.toThrow(/revision conflict/);
+  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ state: 'CONFLICT', retryCount: 5, reconciliationCount: 1, recoveryEligible: false });
+  await expect(worker.enqueue('REPORT', 1, 2, 'UNCHANGED')).rejects.toThrow(/limit/);
+  expect(await worker.enqueue('REPORT', 2, 3, 'REVIEWED')).toBe('REPORT');
+  expect(f.send).toHaveBeenCalledOnce();
+  expect(f.send.mock.calls[0][0]).toMatchObject({ reportId: 'REPORT', expectedRevision: 2, expectedAttachmentRevision: 3 });
+});
 test('parallel sends share one operation and preserve the reviewed revisions',async()=>{
   const f=setup();await f.queue.update('OWNER',()=>[row]);
   const [a,b]=await Promise.all([f.worker.sendEntry('OP'),f.worker.sendEntry('OP')]);expect(a).toBe('REPORT');expect(b).toBe('REPORT');expect(f.send).toHaveBeenCalledOnce();expect(f.send.mock.calls[0][0]).toMatchObject({expectedRevision:1,expectedAttachmentRevision:2});expect((await f.queue.load('OWNER'))[0]).toMatchObject({state:'SYNCED',serverId:'REPORT'});

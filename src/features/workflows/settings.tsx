@@ -7,6 +7,7 @@ import { useApp } from "@/state/app-state";
 import { useIdentity } from "@/features/access/identity";
 import { authErrorMessage } from "@/features/access/auth-policy";
 import { go } from "@/navigation/go";
+import { StaffNotificationPreferences } from "@/features/staff/extensions-ui";
 import { tokens } from "@/design/tokens";
 
 export const settingsScreens = ["settings", "notification-settings", "appearance", "text-contrast", "privacy", "account-security", "help"];
@@ -36,7 +37,7 @@ export function SettingsWorkflow({ screen }: { screen: string }) {
       <SettingLink title="Privacy & Data" detail="How your information is handled" icon="shield-outline" onPress={() => go("privacy")} />
       <SettingLink title="About SmartMaint" detail="Version, support and application information" icon="information-circle-outline" onPress={() => go("help")} />
     </>}
-    {screen === "notification-settings" && <>
+    {screen === "notification-settings" && app.mode === "live" && <StaffNotificationPreferences />}{screen === "notification-settings" && app.mode !== "live" && <>
       <Notice>Preferences apply for this session. Push and email delivery are not configured. In-app records remain available in Notification Centre.</Notice>
       {notificationOptions.map((option) => {
         const delivery = "delivery" in option;

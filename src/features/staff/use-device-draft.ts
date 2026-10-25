@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { reportRecovery } from "@/services/report-recovery";
 import type { RecoveryDraft, RecoveryFields } from "@/domain/report-recovery";
 import { useStaffAccess } from "./provider";
 import { authErrorMessage } from "@/features/access/auth-policy";
+import { DraftWriter } from "@/domain/draft-writer";
 
 export function useDeviceDraft({ equipmentId, departmentId, operationId, fields, server, requestedOperation, enabled = true }: { equipmentId: string; departmentId?: string; operationId: string; fields: RecoveryFields; server?: { id: string; revision: number }; requestedOperation?: string; enabled?: boolean }) {
   const { account } = useStaffAccess();
@@ -13,6 +14,17 @@ export function useDeviceDraft({ equipmentId, departmentId, operationId, fields,
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [committed, setCommitted] = useState<{ snapshot: string; at: number } | null>(null);
+  const writer = useRef<DraftWriter<{ snapshot: string; data: Omit<RecoveryDraft, "photos" | "updatedAt"> }> | null>(null);
+  useEffect(() => {
+    let current = true;
+    const pending = new DraftWriter<{ snapshot: string; data: Omit<RecoveryDraft, "photos" | "updatedAt"> }>(async ({ snapshot, data }) => {
+      const updatedAt = Date.now(); await reportRecovery?.saveDraft({ ...data, updatedAt });
+      if (current) { setCommitted({ snapshot, at: updatedAt }); setError(""); }
+    }, (failure) => { if (current) setError(authErrorMessage(failure)); });
+    writer.current = pending;
+    const listener = AppState.addEventListener("change", (state) => { if (state !== "active") void pending.flush().catch((failure) => { if (current) setError(authErrorMessage(failure)); }); });
+    return () => { current = false; listener.remove(); void pending.flush().catch(() => { console.warn("Device draft flush did not complete; only the last committed device copy is recoverable."); }); if (writer.current === pending) writer.current = null; };
+  }, [owner]);
   const snapshot = JSON.stringify({ owner, equipmentId, departmentId, operationId, fields, server });
   useEffect(() => {
     let current = true;
@@ -26,19 +38,16 @@ export function useDeviceDraft({ equipmentId, departmentId, operationId, fields,
   }, [allowed, owner, equipmentId, departmentId, requestedOperation, fields.emergency]);
   useEffect(() => {
     if (!allowed || !ready || candidate || !reportRecovery) return;
-    let current = true;
     const data = JSON.parse(snapshot) as Omit<RecoveryDraft, "photos" | "updatedAt">;
     if (!data.server && !data.fields.category && !data.fields.symptoms && !data.fields.description) return;
-    const save = () => { const updatedAt = Date.now(); void reportRecovery!.saveDraft({ ...data, updatedAt }).then(() => { if (current) { setCommitted({ snapshot, at: updatedAt }); setError(""); } }).catch((failure) => { if (current) setError(authErrorMessage(failure)); }); };
-    const timer = setTimeout(save, 750);
-    const listener = AppState.addEventListener("change", (state) => { if (state !== "active") save(); });
-    return () => { current = false; clearTimeout(timer); listener.remove(); };
+    writer.current?.schedule({ snapshot, data });
   }, [allowed, ready, candidate, snapshot]);
   const save = async (nextServer = server) => {
     if (!reportRecovery) return;
     if (!allowed || !owner || !departmentId) throw Error("Fresh approved access to this department is required for device recovery.");
     if (!ready) throw Error("Device recovery is still loading. Wait before replacing saved work.");
     if (candidate) throw Error("Review the saved device draft before replacing its contents.");
+    writer.current?.cancel();
     await reportRecovery.saveDraft({ owner, equipmentId, departmentId, operationId, fields, server: nextServer, updatedAt: Date.now() });
     setCommitted({ snapshot: JSON.stringify({ owner, equipmentId, departmentId, operationId, fields, server: nextServer }), at: Date.now() }); setError("");
   };

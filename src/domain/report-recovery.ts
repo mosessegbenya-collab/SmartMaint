@@ -76,16 +76,21 @@ export class ReportRecoveryRepository {
     return this.exclusive(async () => {
       if (!id(operationId) || !id(photoId)) throw Error("Invalid recovery reference.");
       const rows = await this.list(owner);
-      await this.commit(owner, rows.map((row) => row.operationId === operationId ? { ...row, photos: row.photos.filter((photo) => photo.operationId !== photoId) } : row));
-      await this.store.remove(`${this.root(owner)}.${operationId}.${photoId}`);
+      const updated = rows.map((row) => row.operationId === operationId ? { ...row, photos: row.photos.filter((photo) => photo.operationId !== photoId) } : row);
+      const keys = rows.some((row) => row.operationId === operationId && row.photos.some((p) => p.operationId === photoId)) ? [`${this.root(owner)}.${operationId}.${photoId}`] : [];
+      await this.prune(owner, updated, keys);
     });
   }
   removeDraft(owner: string, operationId: string) {
     return this.exclusive(async () => {
       if (!id(operationId)) throw Error("Invalid recovery reference.");
       const rows = await this.list(owner); const prior = rows.find((row) => row.operationId === operationId);
-      await this.commit(owner, rows.filter((row) => row.operationId !== operationId));
-      for (const photo of prior?.photos ?? []) await this.store.remove(`${this.root(owner)}.${operationId}.${photo.operationId}`);
+      await this.prune(owner, rows.filter((row) => row.operationId !== operationId), (prior?.photos ?? []).map((photo) => `${this.root(owner)}.${operationId}.${photo.operationId}`));
     });
+  }
+  private async prune(owner: string, rows: RecoveryDraft[], removeKeys: string[]) {
+    this.validate(rows, owner);
+    if (this.store.prune) await this.store.prune(this.root(owner), JSON.stringify(rows), removeKeys);
+    else { await this.commit(owner, rows); for (const key of removeKeys) await this.store.remove(key); }
   }
 }

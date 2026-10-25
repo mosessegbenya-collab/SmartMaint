@@ -1,10 +1,18 @@
 import { v } from "convex/values";
-import { mutation } from "./lib/server";
+import { mutation, query } from "./lib/server";
 import { audit, deny, requireAccount, requiredText } from "./lib/access";
 import { equipmentAccess } from "./operations";
 import { priority } from "./lib/validators";
 
 const fields = { equipmentId: v.id("equipment"), operationId: v.string(), category: v.string(), symptoms: v.string(), description: v.string(), priority, condition: v.string(), inUse: v.boolean(), noticedAt: v.number(), emergency: v.boolean() };
+/** Read-only reconciliation never publishes or creates a report. */
+export const publicationReceipt = query({ args: { id: v.id("faultReports"), expectedRevision: v.number(), expectedAttachmentRevision: v.number() }, handler: async (ctx, args) => {
+  const actor = await requireAccount(ctx, "report"); const report = await ctx.db.get(args.id);
+  if (!report || report.reporterId !== actor._id || !actor.scope.includes(report.departmentId)) deny();
+  if (report.submissionState === "submitted") return report._id;
+  if (report.submissionState !== "draft" || report.revision !== args.expectedRevision || (report.attachmentRevision ?? 0) !== args.expectedAttachmentRevision) deny("Draft or photo revision conflict: review the current server report.");
+  return null;
+} });
 export const saveDraft = mutation({ args: { ...fields, expectedRevision: v.optional(v.number()) }, handler: async (ctx, args) => {
   const { item } = await equipmentAccess(ctx, args.equipmentId); const actor = await requireAccount(ctx, "report", item.departmentId);
   const operationId = requiredText(args.operationId, "operation reference", 100);

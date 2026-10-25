@@ -20,6 +20,7 @@ import { go } from "@/navigation/go";
 import { staffApi } from "@/services/staff-api";
 import { StaffAdministration, StaffApplicationReview, StaffRoleAssignment, StaffAccounts, StaffAudit } from "./administration";
 import { ConfirmAction } from "./ui";
+import { MaintenanceFlow } from "./extensions-ui";
 import { ReportingJourney, ResumeReport } from "./reporting-journey";
 import { EquipmentHistory, EquipmentLookup, EquipmentRecord, EquipmentRegistry, NotificationInbox, OperationalList, ProvisionalForm, ReportDetail, ReportFilters, WorkHistory } from "./operational-screens";
 import type { GenericId } from "convex/values";
@@ -73,7 +74,7 @@ function TaskList() {
 function TaskLoader({ id, view = 'task-detail' }: { id: string; view?: string }) {
   const task = useQuery(staffApi.workflows.taskDetail, { id: id as GenericId<"maintenanceTasks"> });
   if (!task) return <Screen title="Maintenance task"><Notice>Loading authorized task…</Notice></Screen>;
-  return <TaskForm key={`${task._id}:${task.revision}:${view}`} task={task} view={view} />;
+  return <TaskForm key={`${task._id}:${task.revision}:${task.workflowRevision ?? 0}:${view}`} task={task} view={view} />;
 }
 function TaskForm({ task, view }: { task: FunctionReturnType<typeof staffApi.operations.tasks>[number]; view: string }) {
   const { account } = useStaffAccess();
@@ -86,9 +87,9 @@ function TaskForm({ task, view }: { task: FunctionReturnType<typeof staffApi.ope
   const [cause, setCause] = useState(task.causeAssessment ?? 'Under investigation (unconfirmed)');
   const [preventiveResults, setPreventiveResults] = useState(task.preventiveResults ?? task.preventiveChecklist?.map((label) => ({ label, passed: false })));
   const terminal = ["Completed", "Cancelled"].includes(task.state);
-  const canRepair = account?.capabilities.includes("repair") && task.assigneeId === account.id && !terminal;
+  const canRepair = account?.capabilities.includes("repair") && task.assigneeId === account.id && !terminal && task.workflowPhase !== "awaiting_parts";
   const saveWork = (complete: boolean) => save({ id: task._id, expectedRevision: task.revision, diagnosis, diagnosisEvidence, causeAssessment: cause, notes, parts: parts.split(',').map((p) => p.trim()).filter(Boolean), complete, preventiveResults });
-  const summary = <Card style={{ gap: 10 }}><Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}><View style={{ flex: 1, minWidth: 180 }}><Txt muted size={13}>Work Order</Txt><Txt size={23} weight="800">{task._id}</Txt></View><Badge label={task.state} tone={task.state === 'Completed' ? 'success' : 'warning'} /></Row><Txt size={18} weight="600">{equipment?.name ?? 'Loading equipment…'}</Txt><Txt muted>{equipment?.assetId}</Txt><Txt muted>{equipment?.location}</Txt>{task.parentTaskId && <Badge label="Follow-up rework" tone="danger" />}</Card>;
+  const summary = <Card style={{ gap: 10 }}><Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}><View style={{ flex: 1, minWidth: 180 }}><Txt muted size={13}>Work Order</Txt><Txt size={23} weight="800">{task._id}</Txt></View><Badge label={task.state} tone={task.state === 'Completed' ? 'success' : 'warning'} /></Row><Txt size={18} weight="600">{equipment?.name ?? 'Loading equipment…'}</Txt><Txt muted>{equipment?.assetId}</Txt><Txt muted>{equipment?.location}</Txt>{task.parentTaskId && <Badge label="Follow-up rework" tone="danger" />}<MaintenanceFlow task={task} /></Card>;
   if (['task-detail', 'rework', 'live-task'].includes(view)) return <Screen title={view === 'rework' ? 'Follow-up Rework' : 'Maintenance Task Details'} subtitle={view === 'rework' ? 'Review the work linked to a previous maintenance cycle.' : 'Review the fault, assigned work and recorded activity.'}>
     {summary}
     {!!task.parentTaskId && <Card style={{ gap: 10 }}><Detail label="Original maintenance task" value={task.parentTaskId} /><Detail label="Linked verification decision" value={task.failureAttemptId ?? "Not recorded"} /></Card>}

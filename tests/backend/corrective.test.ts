@@ -5,8 +5,10 @@ import { staffApi as api } from "../../src/services/staff-api";
 import { POLICY_VERSION, roleCapabilities } from "../../src/domain/role-policy";
 import type { Role } from "../../src/domain/models";
 import type { FunctionReturnType } from "convex/server";
+import { EncryptedReportQueue } from "../../src/domain/report-queue";
+import { PublicationCoordinator } from "../../src/domain/publication-coordinator";
 
-const modules = { "./staff.ts": () => import("../../convex/staff"), "./administration.ts": () => import("../../convex/administration"), "./operations.ts": () => import("../../convex/operations"), "./workflows.ts": () => import("../../convex/workflows"), "./reporting.ts": () => import("../../convex/reporting"), "./attachments.ts": () => import("../../convex/attachments"), "./safety.ts": () => import("../../convex/safety"), "./preventive.ts": () => import("../../convex/preventive"), "./_generated/loader-marker.js": async () => ({}) };
+const modules = { "./extensions.ts": () => import("../../convex/extensions"), "./staff.ts": () => import("../../convex/staff"), "./administration.ts": () => import("../../convex/administration"), "./operations.ts": () => import("../../convex/operations"), "./workflows.ts": () => import("../../convex/workflows"), "./reporting.ts": () => import("../../convex/reporting"), "./attachments.ts": () => import("../../convex/attachments"), "./safety.ts": () => import("../../convex/safety"), "./preventive.ts": () => import("../../convex/preventive"), "./_generated/loader-marker.js": async () => ({}) };
 const identity = (subject: string) => ({ subject, tokenIdentifier: `https://test.invalid|${subject}`, email: `${subject}@example.invalid`, emailVerified: true });
 async function setup() {
   const t = convexTest(schema, modules);
@@ -20,6 +22,93 @@ async function setup() {
   });
   return { t, ...records, user: (name: string) => t.withIdentity(identity(name)) };
 }
+
+test('continuation: notification preferences persist per owner and reject stale revisions', async () => {
+  const f = await setup(); const initial = await f.user('reporter').query(api.extensions.preferences, {});
+  const { revision, ...fields } = initial;
+  expect(await f.user('reporter').mutation(api.extensions.savePreferences, { ...fields, reportUpdates: false, expectedRevision: revision })).toBe(1);
+  expect((await f.user('reporter').query(api.extensions.preferences, {})).reportUpdates).toBe(false);
+  expect((await f.user('tech').query(api.extensions.preferences, {})).reportUpdates).toBe(true);
+  await expect(f.user('reporter').mutation(api.extensions.savePreferences, { ...fields, expectedRevision: 0 })).rejects.toThrow(/changed/);
+  await expect(f.t.query(api.extensions.preferences, {})).rejects.toThrow(/Sign in/);
+});
+
+test('continuation: waiting for parts blocks stale clients from work and closure never bypasses unapproved safety', async () => {
+  const f = await setup();
+  const id = await f.t.run((ctx) => ctx.db.insert('maintenanceTasks', { equipmentId: f.equipment, departmentId: f.a, assigneeId: f.tech, state: 'Assigned', diagnosis: '', notes: '', parts: [], cycle: 1, revision: 1, dueAt: Date.now() + 10000, createdAt: 1, updatedAt: 1 }));
+  const change = { id, expectedRevision: 1, expectedWorkflowRevision: 0, action: 'accept' as const, reason: 'TEST acceptance' };
+  await expect(f.user('verifier').mutation(api.extensions.transition, change)).rejects.toThrow(/assigned/);
+  await f.user('tech').mutation(api.extensions.transition, change);
+  await f.user('tech').mutation(api.extensions.transition, { ...change, expectedWorkflowRevision: 1, action: 'await_parts' });
+  await expect(f.user('tech').mutation(api.operations.recordWork, { id, expectedRevision: 1, diagnosis: 'Test', notes: '', parts: [], complete: true })).rejects.toThrow(/parts/);
+  await expect(f.user('tech').mutation(api.extensions.transition, { ...change, action: 'resume' })).rejects.toThrow(/revision/);
+  await f.user('tech').mutation(api.extensions.transition, { ...change, expectedWorkflowRevision: 2, action: 'resume' });
+  await f.user('tech').mutation(api.operations.recordWork, { id, expectedRevision: 1, diagnosis: 'Test', notes: '', parts: [], complete: true });
+  const task = (await f.t.run((ctx) => ctx.db.get(id)))!;
+  expect(task.workflowPhase).toBe('awaiting_verification');
+  await expect(f.user('supervisor').mutation(api.extensions.transition, { id, expectedRevision: task.revision, expectedWorkflowRevision: task.workflowRevision!, action: 'close', reason: 'TEST' })).rejects.toThrow(/independent/);
+});
+
+test('continuation: paginated export reaches all 125 submitted reports and inventory edit preserves identity and scope', async () => {
+  const f = await setup();
+  await f.t.run(async (ctx) => { for (let i = 0; i < 125; i++) await ctx.db.insert('faultReports', { equipmentId: f.equipment, departmentId: f.a, reporterId: f.reporter, operationId: `EXPORT-${i}`, category: 'Other/Unknown', symptoms: 'TEST', description: '', priority: 'High', condition: 'Unknown', inUse: false, noticedAt: 1, createdAt: i + 1, submissionState: i === 124 ? 'draft' : 'submitted' }); });
+  const { collectReportExport } = await import('../../src/domain/paged-export');
+  const result = await collectReportExport((cursor) => f.user('admin').query(api.extensions.exportPage, { departmentId: f.a, paginationOpts: { cursor, numItems: 20 } }));
+  expect(result.count).toBe(124); expect(result.csv.split('\r\n')).toHaveLength(125);
+  await expect(f.user('other').query(api.extensions.exportPage, { departmentId: f.a, paginationOpts: { cursor: null, numItems: 20 } })).rejects.toThrow();
+  const edit = { id: f.equipment, expectedRevision: 1, name: 'Corrected TEST name', model: 'TEST', location: 'TEST room', reason: 'TEST correction' };
+  await expect(f.user('tech').mutation(api.extensions.editEquipment, edit)).rejects.toThrow(/administrator/);
+  expect(await f.user('admin').mutation(api.extensions.editEquipment, edit)).toBe(2);
+  const item = (await f.t.run((ctx) => ctx.db.get(f.equipment)))!;
+  expect([item.assetId, item.departmentId, item.identityVerified]).toEqual(['TEST-DEVICE', f.a, true]);
+  await expect(f.user('admin').mutation(api.extensions.editEquipment, edit)).rejects.toThrow(/changed/);
+});
+
+test('continuation: inventory imports are atomic, idempotent, scoped and never verify identity', async () => {
+  const f = await setup();
+  const batch = { departmentId: f.a, operationId: 'TEST-IMPORT', reason: 'TEST import', rows: [{ assetId: 'TEST-NEW', name: 'TEST', model: 'TEST', location: 'TEST' }] };
+  await expect(f.user('tech').mutation(api.extensions.importInventory, batch)).rejects.toThrow(/administrator/);
+  const ids = await f.user('admin').mutation(api.extensions.importInventory, batch);
+  expect(await f.user('admin').mutation(api.extensions.importInventory, batch)).toEqual(ids);
+  expect((await f.t.run((ctx) => ctx.db.get(ids[0])))?.identityVerified).toBe(false);
+  await expect(f.user('admin').mutation(api.extensions.importInventory, { ...batch, rows: [{ ...batch.rows[0], model: 'Changed' }] })).rejects.toThrow(/different records/);
+  await expect(f.user('admin').mutation(api.extensions.importInventory, { ...batch, departmentId: f.b })).rejects.toThrow(/scope/);
+  await expect(f.user('admin').mutation(api.extensions.importInventory, { ...batch, operationId: 'NEW', rows: [{ ...batch.rows[0], assetId: 'BEFORE-COLLISION' }, { ...batch.rows[0], assetId: 'TEST-DEVICE' }] })).rejects.toThrow(/exists/);
+  expect(await f.t.run((ctx) => ctx.db.query('equipment').withIndex('by_asset', (q) => q.eq('assetId', 'BEFORE-COLLISION')).first())).toBeNull();
+});
+
+test('continuation: overdue notices deduplicate repeated sweeps and due/cancel events remain recipient scoped', async () => {
+  const f = await setup();
+  const id = await f.t.run((ctx) => ctx.db.insert('maintenanceTasks', { equipmentId: f.equipment, departmentId: f.a, assigneeId: f.tech, state: 'Assigned', diagnosis: '', notes: '', parts: [], cycle: 1, revision: 1, dueAt: 1, createdAt: 1, updatedAt: 1 }));
+  const sweep = { departmentId: f.a, paginationOpts: { cursor: null, numItems: 20 } };
+  expect((await f.user('supervisor').mutation(api.extensions.overdue, sweep)).notified).toBe(1);
+  expect((await f.user('supervisor').mutation(api.extensions.overdue, sweep)).notified).toBe(0);
+  await f.user('supervisor').mutation(api.operations.changeDue, { id, expectedRevision: 1, dueAt: Date.now() + 10000, reason: 'TEST extension' });
+  await f.user('supervisor').mutation(api.operations.cancelTask, { id, expectedRevision: 2, reason: 'TEST cancellation' });
+  const notices = await f.t.run((ctx) => ctx.db.query('notifications').collect());
+  expect(notices.map((n) => n.title)).toEqual(expect.arrayContaining(['Maintenance overdue', 'Maintenance due date changed', 'Maintenance cancelled']));
+  expect(notices.every((n) => n.recipientId === f.tech && n.departmentId === f.a)).toBe(true);
+});
+
+test.each([false, true])('review 4: interrupted fifth publication reconciles a real saved report (server committed: %s)', async (committed) => {
+  const f = await setup();
+  const saved = await f.user('reporter').mutation(api.reporting.saveDraft, draftFields(f.equipment));
+  const args = { id: saved.id, expectedRevision: saved.revision, expectedAttachmentRevision: 0 };
+  if (committed) await f.user('reporter').mutation(api.reporting.publish, args);
+  const values = new Map<string, string>(); let generation = 0, sends = 0;
+  const queue = new EncryptedReportQueue({ get: async (key) => values.get(key) ?? null, set: async (key, value) => { values.set(key, value); }, remove: async (key) => { values.delete(key); } }, () => `g${++generation}`);
+  await queue.update(String(f.reporter), () => [{ id: 'OP', owner: String(f.reporter), reportId: String(saved.id), expectedRevision: saved.revision, expectedAttachmentRevision: 0, createdAt: 1, updatedAt: 1, state: 'SYNCING', retryCount: 5 }]);
+  const worker = new PublicationCoordinator(queue, String(f.reporter), async () => { sends++; return f.user('reporter').mutation(api.reporting.publish, args); }, () => true, () => {}, Date.now, undefined, async () => f.user('reporter').query(api.reporting.publicationReceipt, args));
+  if (committed) expect(await worker.sendEntry('OP')).toBe(saved.id);
+  else { await expect(worker.sendEntry('OP')).rejects.toThrow(/explicit bounded recovery/); expect(sends).toBe(0); expect(await worker.sendEntry('OP', true)).toBe(saved.id); }
+  expect(sends).toBe(committed ? 0 : 1);
+  expect(await f.t.run((ctx) => ctx.db.query('faultReports').collect())).toHaveLength(1);
+  expect((await f.t.run((ctx) => ctx.db.query('notifications').collect())).filter((n) => n.title === 'Fault report received')).toHaveLength(1);
+  expect((await queue.load(String(f.reporter)))[0]).toMatchObject({ state: 'SYNCED', retryCount: 5, reportId: saved.id, serverId: saved.id });
+  await expect(f.user('other').query(api.reporting.publicationReceipt, args)).rejects.toThrow();
+  await f.t.run((ctx) => ctx.db.patch(f.reporter, { status: 'revoked' }));
+  await expect(f.user('reporter').query(api.reporting.publicationReceipt, args)).rejects.toThrow();
+});
 
 test('an uncertain draft update retries the identical snapshot without another revision or report', async () => {
   const f = await setup();
@@ -266,7 +355,7 @@ test("independent ordered verification and authorized release are atomic, idempo
   await f.user("verifier").mutation(api.safety.verify, verification(task, "technical"));
   expect((await f.user("reporter").query(api.safety.releaseStatus, { equipmentId: f.equipment })).eligible).toBe(false);
   await f.user("reporter").mutation(api.safety.verify, verification(task, "clinical"));
-  const release = { equipmentId: f.equipment, expectedTaskRevision: 3, reason: "TEST approved release evidence" };
+  const release = { equipmentId: f.equipment, expectedTaskRevision: 3, expectedEvidence: (await f.user("supervisor").query(api.safety.releaseStatus, { equipmentId: f.equipment })).evidenceSnapshot, reason: "TEST approved release evidence" };
   await expect(f.user("reporter").mutation(api.safety.release, release)).rejects.toThrow(/authority/);
   const [a, b] = await Promise.all([f.user("supervisor").mutation(api.safety.release, release), f.user("supervisor").mutation(api.safety.release, release)]); expect(a).toBe(b);
   expect((await f.user("reporter").query(api.safety.releaseStatus, { equipmentId: f.equipment })).available).toBe(true);
@@ -275,7 +364,8 @@ test("independent ordered verification and authorized release are atomic, idempo
   await expect(f.user("reporter").mutation(api.safety.resolveHold, { id: hold, reason: "Test" })).rejects.toThrow();
   await f.user("supervisor").mutation(api.safety.resolveHold, { id: hold, reason: "TEST resolution evidence" });
   expect((await f.user("reporter").query(api.safety.releaseStatus, { equipmentId: f.equipment })).available).toBe(false); // Clearance is not release.
-  await f.user("supervisor").mutation(api.safety.release, release);
+  await expect(f.user("supervisor").mutation(api.safety.release, release)).rejects.toThrow(/changed|review/);
+  await f.user("supervisor").mutation(api.safety.release, { ...release, expectedEvidence: (await f.user("supervisor").query(api.safety.releaseStatus, { equipmentId: f.equipment })).evidenceSnapshot });
   expect((await f.user("reporter").query(api.safety.releaseStatus, { equipmentId: f.equipment })).available).toBe(true);
   const { emergency, ...newFault } = draftFields(f.equipment); void emergency;
   await f.user("reporter").mutation(api.operations.submitReport, { ...newFault, operationId: "TEST-NEW-FAULT" });

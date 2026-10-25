@@ -12,6 +12,7 @@ import { staffApi } from "@/services/staff-api";
 import { go } from "@/navigation/go";
 import { useStaffAccess } from "./provider";
 import { ConfirmAction } from "./ui";
+import { InventoryEdit, InventoryImport } from "./extensions-ui";
 import { ReportPhotos } from "./report-photos";
 import { ReleaseControls } from "./safety-screens";
 
@@ -88,7 +89,7 @@ export function ReportDetail({ id, triageOnly = false }: { id: string; triageOnl
 export function EquipmentRecord({ id }: { id: string }) {
   const { account } = useStaffAccess();
   const item = useQuery(staffApi.workflows.equipmentDetail, { id: id as GenericId<"equipment"> });
-  return <Screen title="Equipment Details">{item ? <><Card style={{ gap: 9 }}><Txt size={24} weight="800">{item.assetId}</Txt><Detail label="Equipment" value={item.name} /><Detail label="Model" value={item.model} /><Detail label="Location" value={item.location} /><Badge label={item.identityVerified ? "Verified inventory identity" : "Unverified identity"} tone="info" /></Card><ReleaseControls id={item._id} />{account?.capabilities.includes("report") && <Button label="Report fault" onPress={() => go("live-report", item._id)} />}{account?.capabilities.includes("assign") && <LinkRow title="Schedule preventive maintenance" onPress={() => go("preventive-create", item._id)} />}<LinkRow title="Maintenance timeline" onPress={() => go("equipment-history", item._id)} /><LinkRow title="Safety holds" onPress={() => go("holds", item._id)} /></> : <Notice>Loading authorized equipment…</Notice>}</Screen>;
+  return <Screen title="Equipment Details">{item ? <><Card style={{ gap: 9 }}><Txt size={24} weight="800">{item.assetId}</Txt><Detail label="Equipment" value={item.name} /><Detail label="Model" value={item.model} /><Detail label="Location" value={item.location} /><Badge label={item.identityVerified ? "Verified inventory identity" : "Unverified identity"} tone="info" /></Card><ReleaseControls id={item._id} /><InventoryEdit id={item._id} />{account?.capabilities.includes("report") && <Button label="Report fault" onPress={() => go("live-report", item._id)} />}{account?.capabilities.includes("assign") && <LinkRow title="Schedule preventive maintenance" onPress={() => go("preventive-create", item._id)} />}<LinkRow title="Maintenance timeline" onPress={() => go("equipment-history", item._id)} /><LinkRow title="Safety holds" onPress={() => go("holds", item._id)} /></> : <Notice>Loading authorized equipment…</Notice>}</Screen>;
 }
 export function WorkHistory({ id }: { id: string }) {
   const page = usePaginatedQuery(staffApi.workflows.workHistory, { id: id as GenericId<"maintenanceTasks"> }, { initialNumItems: 20 });
@@ -106,7 +107,7 @@ export function EquipmentRegistry() {
   const { account } = useStaffAccess(); const register = useMutation(staffApi.workflows.registerEquipment); const [department, setDepartment] = useState<GenericId<"departments"> | null>(account?.scope[0] ?? null);
   const [assetId, setAsset] = useState(""); const [name, setName] = useState(""); const [model, setModel] = useState(""); const [location, setLocation] = useState(""); const [reference, setReference] = useState(""); const [created, setCreated] = useState("");
   if (account?.role !== "Administrator" || !account.capabilities.includes("reconcile")) return <Screen title="Registry access restricted"><Notice>An authorized inventory administrator is required.</Notice></Screen>;
-  return <Screen title="Equipment Registry"><Notice>Register only independently verified institutional inventory. Never use this form to approve a provisional report without the required review.</Notice><ScopeSelect value={department} onChange={setDepartment} />
+  return <Screen title="Equipment Registry">{department && <InventoryImport key={department} departmentId={department} />}<Notice>Register only independently verified institutional inventory. Never use this form to approve a provisional report without the required review.</Notice><ScopeSelect value={department} onChange={setDepartment} />
     <Field label="Exact asset / QR identifier" value={assetId} onChangeText={setAsset} maxLength={200} /><Field label="Equipment name" value={name} onChangeText={setName} maxLength={120} /><Field label="Model" value={model} onChangeText={setModel} maxLength={120} /><Field label="Location" value={location} onChangeText={setLocation} maxLength={160} /><Field label="Inventory verification reference" value={reference} onChangeText={setReference} maxLength={500} />
     {!!created && <Notice>Equipment registered: {created}</Notice>}<ConfirmAction label="Register verified inventory" title="Confirm verified inventory?" detail="This creates a scoped inventory identity and an audit event. It does not release the equipment." disabled={!department || !assetId.trim() || !name.trim() || !model.trim() || !location.trim() || !reference.trim()} onConfirm={async () => { const id = await register({ assetId, name, model, location, departmentId: department!, evidenceReference: reference }); setCreated(id); }} />
   </Screen>;

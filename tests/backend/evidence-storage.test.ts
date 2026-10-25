@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { finishStoredEvidence } from "../../convex/lib/evidence-storage";
+import { finishStoredEvidence } from "../../convex/lib/evidence_storage";
 
 test('lost upload finalization responses preserve committed blobs and the original error', async () => {
   const failure = Error('Transport lost after commit');

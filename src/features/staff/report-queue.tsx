@@ -2,19 +2,20 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { AppState, Platform, View } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { randomUUID } from "expo-crypto";
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import type { GenericId } from "convex/values";
 import { EncryptedReportQueue, type PendingPublication } from "@/domain/report-queue";
-import { PublicationCoordinator, PublicationPaused, duePublication, MAX_PUBLICATION_ATTEMPTS } from "@/domain/publication-coordinator";
+import { PublicationCoordinator, PublicationPaused, duePublication, MAX_PUBLICATION_ATTEMPTS, MAX_RECEIPT_CHECKS } from "@/domain/publication-coordinator";
 import { useCurrentTime } from "@/hooks/use-current-time";
 import { staffApi } from "@/services/staff-api";
 import { Badge, Button, Card, Detail, Icon, LinkRow, Notice, Row, Screen, Txt } from "@/components/smart/ui";
 import { authErrorMessage } from "@/features/access/auth-policy";
 import { go } from "@/navigation/go";
 import { useStaffAccess } from "./provider";
+import { ConfirmAction } from "./ui";
 
 const queue = new EncryptedReportQueue({ get: (key) => SecureStore.getItemAsync(key), set: (key, value) => SecureStore.setItemAsync(key, value, { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY }), remove: (key) => SecureStore.deleteItemAsync(key) }, randomUUID);
-type QueueApi = { available: boolean; rows: PendingPublication[]; error: string; publish?: (id: GenericId<"faultReports">, revision: number, attachmentRevision?: number) => Promise<GenericId<"faultReports">>; retry?: (entry: PendingPublication) => Promise<void> };
+type QueueApi = { available: boolean; rows: PendingPublication[]; error: string; publish?: (id: GenericId<"faultReports">, revision: number, attachmentRevision?: number) => Promise<GenericId<"faultReports">>; retry?: (entry: PendingPublication, recover?: boolean) => Promise<void> };
 const Context = createContext<QueueApi>({ available: false, rows: [], error: "" });
 export const useReportQueue = () => useContext(Context);
 export function ReportQueueBoundary({ children }: { children: ReactNode }) {
@@ -23,6 +24,7 @@ export function ReportQueueBoundary({ children }: { children: ReactNode }) {
   return <NativeQueue key={access.account.id} owner={access.account.id}>{children}</NativeQueue>;
 }
 function NativeQueue({ children, owner }: { children: ReactNode; owner: string }) {
+  const client = useConvex();
   const publishMutation = useMutation(staffApi.reporting.publish);
   const [rows, setRows] = useState<PendingPublication[]>([]);
   const [error, setError] = useState("");
@@ -35,7 +37,8 @@ function NativeQueue({ children, owner }: { children: ReactNode; owner: string }
     const worker = new PublicationCoordinator(queue, owner,
       (entry) => publishMutation({ id: entry.reportId as GenericId<"faultReports">, expectedRevision: entry.expectedRevision, expectedAttachmentRevision: entry.expectedAttachmentRevision ?? 0 }),
       () => mounted && active,
-      (items) => { latest = items; if (mounted && active) setRows(items); }, Date.now, authErrorMessage);
+      (items) => { latest = items; if (mounted && active) setRows(items); }, Date.now, authErrorMessage,
+      (entry) => client.query(staffApi.reporting.publicationReceipt, { id: entry.reportId as GenericId<"faultReports">, expectedRevision: entry.expectedRevision, expectedAttachmentRevision: entry.expectedAttachmentRevision ?? 0 }));
     const subscription = AppState.addEventListener("change", (state) => { active = mounted && state === "active"; });
     let timer: ReturnType<typeof setTimeout>;
     const replay = async () => {
@@ -56,10 +59,10 @@ function NativeQueue({ children, owner }: { children: ReactNode; owner: string }
     };
     void replay();
     return () => { mounted = false; active = false; clearTimeout(timer); subscription.remove(); };
-  }, [owner, publishMutation]);
+  }, [owner, publishMutation, client]);
   return <Context.Provider value={{ available: controller !== null, rows, error,
     publish: async (reportId, revision, attachmentRevision = 0) => { setError(""); if (!controller) throw Error("The private submission queue is not ready."); return await controller.enqueue(reportId, revision, attachmentRevision, randomUUID()) as GenericId<"faultReports">; },
-    retry: async (entry) => { setError(""); if (!controller) throw Error("The private submission queue is not ready."); await controller.sendEntry(entry.id); },
+    retry: async (entry, recover = false) => { setError(""); if (!controller) throw Error("The private submission queue is not ready."); await controller.sendEntry(entry.id, recover); },
   }}>{children}</Context.Provider>;
 }
 
@@ -67,16 +70,24 @@ export function ReportQueueScreen({ view = 'sync' }: { view?: string }) {
   const now = useCurrentTime(1000);
   const service = useReportQueue(); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   const selected = service.rows.filter((row) => view === 'upload-failed' ? row.state === 'FAILED' : view === 'conflict' ? row.state === 'CONFLICT' : view === 'queue' ? row.state !== 'SYNCED' : true);
-  const states = [{ state: 'PENDING', title: 'Pending (saved locally)', route: 'queue', icon: 'document-text-outline' }, { state: 'SYNCING', title: 'Uploading', route: 'queue', icon: 'cloud-upload-outline' }, { state: 'FAILED', title: 'Failed', route: 'upload-failed', icon: 'alert-circle-outline' }, { state: 'CONFLICT', title: 'Conflicts', route: 'conflict', icon: 'sync-outline' }] as const;
+  const states = [{ state: 'PENDING', title: 'Pending (saved locally)', route: 'queue', icon: 'document-text-outline' }, { state: 'SYNCING', title: 'Sending / receipt unconfirmed', route: 'queue', icon: 'cloud-upload-outline' }, { state: 'FAILED', title: 'Failed', route: 'upload-failed', icon: 'alert-circle-outline' }, { state: 'CONFLICT', title: 'Conflicts', route: 'conflict', icon: 'sync-outline' }] as const;
   return <Screen title={view === 'upload-failed' ? 'Upload Failed' : view === 'conflict' ? 'Sync Conflict' : view === 'queue' ? 'Pending Sync Queue' : 'Sync Status'} subtitle={view === 'sync' ? 'View the current sync status and pending items.' : view === 'queue' ? 'Report submissions awaiting a server receipt.' : view === 'conflict' ? 'Review changed revisions before submitting again.' : 'Server receipt was not confirmed for these attempts.'}>
     <Notice tone={service.available ? 'success' : 'warning'}>{service.available ? 'Secure submission queue available for this approved account.' : 'Secure queue unavailable. Reconnect with an approved account on Android or iOS.'}</Notice>
     {!!(error || service.error) && <Notice tone="warning">{error || service.error}</Notice>}
     {view === 'sync' && <Card style={{ gap: 14 }}><Txt size={21} weight="700">Pending items</Txt>{states.map((item) => <LinkRow key={item.state} title={item.title} icon={item.icon} tail={<Badge label={String(service.rows.filter((r) => r.state === item.state).length)} tone={item.state === 'FAILED' ? 'danger' : 'info'} />} onPress={() => go(item.route)} />)}</Card>}
     {service.available && !selected.length && <Card><Txt muted>{view === 'conflict' ? 'No conflicting submissions.' : view === 'upload-failed' ? 'No failed submissions.' : 'No pending submissions in this selection.'}</Txt></Card>}
-    {selected.map((r) => view === 'conflict' ? <PublicationConflict key={r.id} entry={r} /> : <Card key={r.id} style={{ gap: 12 }}><Row><Icon name={r.state === 'SYNCED' ? 'checkmark-circle' : r.state === 'FAILED' ? 'alert-circle' : 'cloud-upload-outline'} size={34} color={r.state === 'FAILED' ? '#C92E40' : '#0866E8'} /><View style={{ flex: 1, gap: 5 }}><Txt weight="700" size={18}>Fault report</Txt><Badge label={r.state} tone={r.state === 'FAILED' ? 'danger' : r.state === 'SYNCED' ? 'success' : 'warning'} /></View></Row><Detail label="Report" value={r.reportId} /><Detail label="Attempts" value={`${r.retryCount} / ${MAX_PUBLICATION_ATTEMPTS}`} />{!!r.nextRetryAt && <Detail label="Next automatic retry" value={new Date(r.nextRetryAt).toLocaleString()} />}{r.state === "FAILED" && !r.retryable && <Notice tone="warning">Automatic retry stopped. Review the saved draft and current access before submitting again.</Notice>}<Detail label="Last updated" value={new Date(r.updatedAt).toLocaleString()} />{r.state !== 'SYNCED' && <Notice tone="warning">Server receipt not confirmed for this submission attempt.</Notice>}{!!r.lastError && <Notice tone="warning">{r.lastError}</Notice>}{r.state === 'SYNCED' && <Button label="View received report" onPress={() => go('report-detail', r.serverId)} />}{r.state === 'CONFLICT' ? <Button label="Review saved draft conflict" onPress={() => go('conflict')} /> : r.state === 'FAILED' && <Button label="Retry publication" icon="refresh-outline" loading={busy} disabled={!service.available || !service.retry || !duePublication(r, now)} onPress={() => { setBusy(true); void service.retry?.(r).catch((failure) => setError(authErrorMessage(failure))).finally(() => setBusy(false)); }} />}</Card>)}
+    {selected.map((r) => view === 'conflict' ? <PublicationConflict key={r.id} entry={r} /> : <Card key={r.id} style={{ gap: 12 }}><Row><Icon name={r.state === 'SYNCED' ? 'checkmark-circle' : r.state === 'FAILED' ? 'alert-circle' : 'cloud-upload-outline'} size={34} color={r.state === 'FAILED' ? '#C92E40' : '#0866E8'} /><View style={{ flex: 1, gap: 5 }}><Txt weight="700" size={18}>Fault report</Txt><Badge label={r.state === "SYNCING" && r.retryCount >= MAX_PUBLICATION_ATTEMPTS ? "Receipt unconfirmed" : r.state} tone={r.state === 'FAILED' ? 'danger' : r.state === 'SYNCED' ? 'success' : 'warning'} /></View></Row><Detail label="Report" value={r.reportId} /><Detail label="Attempts" value={`${r.retryCount} / ${MAX_PUBLICATION_ATTEMPTS}`} />{!!r.nextRetryAt && <Detail label="Next automatic retry" value={new Date(r.nextRetryAt).toLocaleString()} />}{r.state === "FAILED" && !r.retryable && <Notice tone="warning">Automatic retry stopped. Review the saved draft and current access; exhausted attempts require receipt reconciliation or explicit bounded recovery.</Notice>}<Detail label="Last updated" value={new Date(r.updatedAt).toLocaleString()} />{r.state !== 'SYNCED' && <Notice tone="warning">Server receipt not confirmed for this submission attempt.</Notice>}{!!r.lastError && <Notice tone="warning">{r.lastError}</Notice>}{r.state === 'SYNCED' && <Button label="View received report" onPress={() => go('report-detail', r.serverId)} />}{r.state === 'CONFLICT' ? <Button label="Review saved draft conflict" onPress={() => go('conflict')} /> : r.state === 'FAILED' && <Button label="Retry publication" icon="refresh-outline" loading={busy} disabled={!service.available || !service.retry || !duePublication(r, now)} onPress={() => { setBusy(true); void service.retry?.(r).catch((failure) => setError(authErrorMessage(failure))).finally(() => setBusy(false)); }} />}<ExhaustedPublication entry={r} /></Card>)}
     <LinkRow title="Recover device drafts and photos" icon="document-text-outline" onPress={() => go("device-drafts")} />
     <Txt size={12} muted>Only a matching server receipt confirms submission. Automatic foreground retries are bounded; conflicts and rejections require review. Safety decisions are never queued offline.</Txt>
   </Screen>;
+}
+function ExhaustedPublication({ entry }: { entry: PendingPublication }) {
+  const service = useReportQueue(); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  if (entry.state === "SYNCED" || entry.retryCount < MAX_PUBLICATION_ATTEMPTS) return null;
+  return <View style={{ gap: 10 }}><Notice tone="warning">Five submission attempts are exhausted. The server receipt remains unconfirmed. Receipt checks never submit a report or reset attempts.</Notice><Detail label="Receipt checks" value={`${entry.reconciliationCount ?? 0} / ${MAX_RECEIPT_CHECKS}`} /><Detail label="Explicit recovery attempts" value={`${entry.recoveryCount ?? 0} / 1`} /><Button label="Review saved server draft" variant="secondary" onPress={() => go("resume-report", entry.reportId)} /><Button label="Check server receipt" disabled={busy || !service.retry || (entry.reconciliationCount ?? 0) >= MAX_RECEIPT_CHECKS} loading={busy} onPress={() => { setBusy(true); setError(""); void service.retry?.(entry).catch((failure) => setError(authErrorMessage(failure))).finally(() => setBusy(false)); }} />
+    {entry.recoveryEligible && <ConfirmAction label="Confirm single recovery attempt" title="Publish the reviewed saved draft once?" detail="The server still has this draft. This authorizes one recovery send using the same report and reviewed revisions. The five original attempts remain recorded; no new report is created." disabled={busy || !service.retry} onConfirm={async () => { if (!service.retry) throw Error("Submission recovery is unavailable."); await service.retry(entry, true); }} />}
+    {(entry.reconciliationCount ?? 0) >= MAX_RECEIPT_CHECKS && <Notice>Receipt checks have stopped. Open the server report to inspect its current state; the queue will not create a new report or reset this limit.</Notice>}{!!error && <Notice tone="warning">{error}</Notice>}
+  </View>;
 }
 function PublicationConflict({ entry }: { entry: PendingPublication }) {
   const report = useQuery(staffApi.workflows.reportDetail, { id: entry.reportId as GenericId<'faultReports'> });

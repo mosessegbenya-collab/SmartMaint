@@ -7,6 +7,7 @@ import { priority, causeAssessment } from "./lib/validators";
 import { csvCell } from "../src/domain/policy";
 import type { Capability } from "../src/domain/models";
 import { equipmentNotice, reportNotice, taskNotice } from "./lib/notifications";
+import { repairContributors } from "./lib/repair_evidence";
 
 export async function equipmentAccess(ctx: QueryCtx, id: GenericId<"equipment">) {
   const actor = await requireAccount(ctx);
@@ -79,12 +80,16 @@ export const changeDue = mutation({ args: { id: v.id("maintenanceTasks"), expect
   const { actor, task } = await taskAccess(ctx, args.id, "assign");
   if (task.revision !== args.expectedRevision || ["Completed", "Cancelled"].includes(task.state) || !Number.isFinite(args.dueAt) || args.dueAt <= Date.now()) deny("Task changed, is terminal, or the due date is invalid.");
   await ctx.db.patch(task._id, { dueAt: args.dueAt, revision: task.revision + 1, updatedAt: Date.now() });
+  await taskNotice(ctx, task._id, "Maintenance due date changed", "The supervisor changed the due date. Open the task for the current date and justification.");
+  if (task.reportId) await reportNotice(ctx, task.reportId, "Maintenance due date changed", "The maintenance due date was updated by an authorized supervisor.");
   await audit(ctx, actor, "task.due", task._id, args.reason, task.departmentId, String(task.dueAt), String(args.dueAt));
 } });
 export const cancelTask = mutation({ args: { id: v.id("maintenanceTasks"), expectedRevision: v.number(), reason: v.string() }, handler: async (ctx, args) => {
   const { actor, task } = await taskAccess(ctx, args.id, "assign");
   if (task.revision !== args.expectedRevision || ["Completed", "Cancelled"].includes(task.state)) deny("Task changed or is terminal.");
   await ctx.db.patch(task._id, { state: "Cancelled", revision: task.revision + 1, updatedAt: Date.now() });
+  await taskNotice(ctx, task._id, "Maintenance cancelled", "An authorized supervisor cancelled this task. This does not clear failed verification or release equipment.");
+  if (task.reportId) await reportNotice(ctx, task.reportId, "Maintenance cancelled", "The maintenance task was cancelled. Equipment release remains subject to all safety checks.");
   await audit(ctx, actor, "task.cancel", task._id, args.reason, task.departmentId, task.state, "Cancelled");
 } });
 export const createTask = mutation({ args: { reportId: v.id("faultReports"), dueAt: v.number() }, handler: async (ctx, args) => {
@@ -106,12 +111,13 @@ export const assign = mutation({ args: { id: v.id("maintenanceTasks"), expectedR
   const assignee = await ctx.db.get(args.assigneeId);
   if (!assignee || assignee.status !== "approved" || assignee.role !== "Biomedical Technician" || !assignee.capabilities.includes("repair") || !assignee.scope.includes(task.departmentId)) deny("Choose an authorized technician in scope.");
   if (!Number.isFinite(args.dueAt) || args.dueAt <= Date.now()) deny("Choose a future due date.");
-  await ctx.db.patch(task._id, { assigneeId: assignee._id, dueAt: args.dueAt, state: task.state === "Unassigned" ? "Assigned" : task.state, revision: task.revision + 1, updatedAt: Date.now() });
+  await ctx.db.patch(task._id, { workflowPhase: undefined, workflowRevision: (task.workflowRevision ?? 0) + 1, assigneeId: assignee._id, dueAt: args.dueAt, state: task.state === "Unassigned" ? "Assigned" : task.state, revision: task.revision + 1, updatedAt: Date.now() });
   await taskNotice(ctx, task._id, "Maintenance assigned", "A maintenance task has been assigned to you.");
   await audit(ctx, actor, "task.assign", task._id, args.reason, task.departmentId, task.assigneeId, assignee._id);
 } });
 export const recordWork = mutation({ args: { id: v.id("maintenanceTasks"), expectedRevision: v.number(), diagnosis: v.string(), diagnosisEvidence: v.optional(v.string()), causeAssessment: v.optional(causeAssessment), notes: v.string(), parts: v.array(v.string()), complete: v.boolean(), preventiveResults: v.optional(v.array(v.object({ label: v.string(), passed: v.boolean() }))) }, handler: async (ctx, args) => {
   const { actor, task } = await taskAccess(ctx, args.id, "repair");
+  if (task.workflowPhase === "awaiting_parts") deny("Resume the assignment after parts are available before recording further work.");
   if (task.assigneeId !== actor._id || task.revision !== args.expectedRevision || !["Assigned", "In progress"].includes(task.state)) deny("Only the assigned technician can update active work.");
   if (args.diagnosis.length > 2000 || args.notes.length > 4000 || args.parts.length > 30 || args.parts.some((p) => !p.trim() || p.length > 120)) deny("Invalid maintenance details.");
   const diagnosisEvidence = args.diagnosisEvidence === undefined ? task.diagnosisEvidence : args.diagnosisEvidence.trim();
@@ -125,13 +131,13 @@ export const recordWork = mutation({ args: { id: v.id("maintenanceTasks"), expec
     await ctx.db.insert("workEntries", { taskId: task._id, departmentId: task.departmentId, baseline: true, revision: task.revision, diagnosis: task.diagnosis, diagnosisEvidence: task.diagnosisEvidence, causeAssessment: task.causeAssessment, notes: task.notes, parts: task.parts, state: task.state, at: task.updatedAt });
   }
   await ctx.db.insert("workEntries", { taskId: task._id, departmentId: task.departmentId, actorId: actor._id, revision: task.revision + 1, diagnosis: args.diagnosis, diagnosisEvidence, causeAssessment: cause, notes: args.notes, parts: args.parts, state: next, at: Date.now(), preventiveResults: args.preventiveResults });
-  await ctx.db.patch(task._id, { diagnosis: args.diagnosis, diagnosisEvidence, causeAssessment: cause, notes: args.notes, parts: args.parts, state: next, revision: task.revision + 1, updatedAt: Date.now(), preventiveResults: args.preventiveResults });
+  await ctx.db.patch(task._id, { workflowPhase: args.complete ? "awaiting_verification" : task.workflowPhase, workflowRevision: args.complete ? (task.workflowRevision ?? 0) + 1 : task.workflowRevision, diagnosis: args.diagnosis, diagnosisEvidence, causeAssessment: cause, notes: args.notes, parts: args.parts, state: next, revision: task.revision + 1, updatedAt: Date.now(), preventiveResults: args.preventiveResults });
   if (args.complete && task.reportId) await reportNotice(ctx, task.reportId, "Repair completed — verification pending", "Repair work was recorded as complete. Independent verification and authorized release are still required.");
   await audit(ctx, actor, "task.work", task._id, "Maintenance work recorded; no equipment release granted", task.departmentId, task.state, next);
 } });
 export const submitVerification = mutation({ args: { id: v.id("maintenanceTasks"), kind: v.union(v.literal("technical"), v.literal("clinical")) }, handler: async (ctx, args) => {
   const { actor, task } = await taskAccess(ctx, args.id, args.kind);
-  if (task.assigneeId === actor._id) deny("Independent verification is required.");
+  if ((await repairContributors(ctx, task)).has(actor._id)) deny("Independent verification is required.");
   deny("Production verification checklists and release policies are not approved. No verification has been recorded.");
 } });
 export const holds = query({ args: { equipmentId: v.id("equipment") }, handler: async (ctx, args) => {

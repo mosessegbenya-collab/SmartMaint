@@ -1,0 +1,852 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index be05e77..d28c9a9 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -39,3 +39,17 @@ Docs: https://docs.expo.dev/eas/index.md
+ - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
+ - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
+ - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
++
++<!-- convex-ai-start -->
++
++This project uses [Convex](https://convex.dev) as its backend.
++
++When working on Convex code, **always read
++`convex/_generated/ai/guidelines.md` first** for important guidelines on
++how to correctly use Convex APIs and patterns. The file contains rules that
++override what you may have learned about Convex from training data.
++
++Convex agent skills for common tasks can be installed by running
++`npx convex ai-files install`.
++
++<!-- convex-ai-end -->
+diff --git a/convex/attachments.ts b/convex/attachments.ts
+index 0c2134d..ed779d9 100644
+--- a/convex/attachments.ts
++++ b/convex/attachments.ts
+@@ -5,7 +5,7 @@ import { action, internalMutation, internalQuery, mutation, query } from "./lib/
+ import type { QueryCtx } from "./lib/server";
+ import { audit, deny, identity, requireAccount, requiredText } from "./lib/access";
+ import { photoDimensions } from "../src/domain/photo-validation";
+-import { finishStoredEvidence } from "./lib/evidence-storage";
++import { finishStoredEvidence } from "./lib/evidence_storage";
+ 
+ const MAX_BYTES = 2 * 1024 * 1024;
+ async function reportAccess(ctx: QueryCtx, id: GenericId<"faultReports">, write = false) {
+diff --git a/convex/lib/evidence-storage.ts b/convex/lib/evidence-storage.ts
+deleted file mode 100644
+index fdb4773..0000000
+--- a/convex/lib/evidence-storage.ts
++++ /dev/null
+@@ -1,9 +0,0 @@
+-/** Cleanup is safe only after a fresh read proves that the failed operation did not commit. */
+-export async function finishStoredEvidence<T>(finish: () => Promise<T>, isReferenced: () => Promise<boolean>, discard: () => Promise<void>): Promise<T> {
+-  try { return await finish(); }
+-  catch (failure) {
+-    try { if (!await isReferenced()) await discard(); }
+-    catch { /* Keep uncertain evidence and preserve the original finalization failure. */ }
+-    throw failure;
+-  }
+-}
+diff --git a/convex/operations.ts b/convex/operations.ts
+index d5757ba..fdce6dc 100644
+--- a/convex/operations.ts
++++ b/convex/operations.ts
+@@ -7,6 +7,7 @@ import { priority, causeAssessment } from "./lib/validators";
+ import { csvCell } from "../src/domain/policy";
+ import type { Capability } from "../src/domain/models";
+ import { equipmentNotice, reportNotice, taskNotice } from "./lib/notifications";
++import { repairContributors } from "./lib/repair_evidence";
+ 
+ export async function equipmentAccess(ctx: QueryCtx, id: GenericId<"equipment">) {
+   const actor = await requireAccount(ctx);
+@@ -131,7 +132,7 @@ export const recordWork = mutation({ args: { id: v.id("maintenanceTasks"), expec
+ } });
+ export const submitVerification = mutation({ args: { id: v.id("maintenanceTasks"), kind: v.union(v.literal("technical"), v.literal("clinical")) }, handler: async (ctx, args) => {
+   const { actor, task } = await taskAccess(ctx, args.id, args.kind);
+-  if (task.assigneeId === actor._id) deny("Independent verification is required.");
++  if ((await repairContributors(ctx, task)).has(actor._id)) deny("Independent verification is required.");
+   deny("Production verification checklists and release policies are not approved. No verification has been recorded.");
+ } });
+ export const holds = query({ args: { equipmentId: v.id("equipment") }, handler: async (ctx, args) => {
+diff --git a/convex/reporting.ts b/convex/reporting.ts
+index 7a5f789..b97475e 100644
+--- a/convex/reporting.ts
++++ b/convex/reporting.ts
+@@ -1,10 +1,18 @@
+ import { v } from "convex/values";
+-import { mutation } from "./lib/server";
++import { mutation, query } from "./lib/server";
+ import { audit, deny, requireAccount, requiredText } from "./lib/access";
+ import { equipmentAccess } from "./operations";
+ import { priority } from "./lib/validators";
+ 
+ const fields = { equipmentId: v.id("equipment"), operationId: v.string(), category: v.string(), symptoms: v.string(), description: v.string(), priority, condition: v.string(), inUse: v.boolean(), noticedAt: v.number(), emergency: v.boolean() };
++/** Read-only reconciliation never publishes or creates a report. */
++export const publicationReceipt = query({ args: { id: v.id("faultReports"), expectedRevision: v.number(), expectedAttachmentRevision: v.number() }, handler: async (ctx, args) => {
++  const actor = await requireAccount(ctx, "report"); const report = await ctx.db.get(args.id);
++  if (!report || report.reporterId !== actor._id || !actor.scope.includes(report.departmentId)) deny();
++  if (report.submissionState === "submitted") return report._id;
++  if (report.submissionState !== "draft" || report.revision !== args.expectedRevision || (report.attachmentRevision ?? 0) !== args.expectedAttachmentRevision) deny("Draft or photo revision conflict: review the current server report.");
++  return null;
++} });
+ export const saveDraft = mutation({ args: { ...fields, expectedRevision: v.optional(v.number()) }, handler: async (ctx, args) => {
+   const { item } = await equipmentAccess(ctx, args.equipmentId); const actor = await requireAccount(ctx, "report", item.departmentId);
+   const operationId = requiredText(args.operationId, "operation reference", 100);
+diff --git a/convex/safety.ts b/convex/safety.ts
+index 684929f..76afd92 100644
+--- a/convex/safety.ts
++++ b/convex/safety.ts
+@@ -6,6 +6,7 @@ import type { QueryCtx } from "./lib/server";
+ import { activeDepartment, audit, deny, requireAccount, requiredText, roleCapabilities } from "./lib/access";
+ import { role } from "./lib/validators";
+ import { equipmentNotice, reportNotice, taskNotice } from "./lib/notifications";
++import { byIdentity, evidenceDigest, repairChainBlockers, repairContributors } from "./lib/repair_evidence";
+ 
+ async function requestContext(ctx: QueryCtx, taskId: GenericId<"maintenanceTasks">) {
+   const actor = await requireAccount(ctx); const task = await ctx.db.get(taskId);
+@@ -23,14 +24,15 @@ export const verifierPage = query({ args: { taskId: v.id("maintenanceTasks"), ki
+   if (!policy || task.state !== "Completed" || superseded) deny("Approved policy and the current completed repair cycle are required.");
+   if (!Number.isInteger(args.paginationOpts.numItems) || args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 100) deny("Invalid page size.");
+   const page = await ctx.db.query("staffAccounts").withIndex("by_role_status", (q) => q.eq("role", args.kind === "technical" ? "Biomedical Technician" : "Clinician").eq("status", "approved")).paginate(args.paginationOpts);
++  const contributors = await repairContributors(ctx, task);
+   // Filter each bounded page before disclosure, including staff whose primary department differs.
+-  return { ...page, page: page.page.filter((candidate) => candidate._id !== task.assigneeId && candidate.scope.includes(task.departmentId) && candidate.capabilities.includes(args.kind)).map((candidate) => ({ id: candidate._id, name: candidate.fullName, staffId: candidate.verifiedStaffId })) };
++  return { ...page, page: page.page.filter((candidate) => !contributors.has(candidate._id) && candidate.scope.includes(task.departmentId) && candidate.capabilities.includes(args.kind)).map((candidate) => ({ id: candidate._id, name: candidate.fullName, staffId: candidate.verifiedStaffId })) };
+ } });
+ export const requestVerification = mutation({ args: { taskId: v.id("maintenanceTasks"), expectedRevision: v.number(), kind: v.union(v.literal("technical"), v.literal("clinical")), recipientId: v.id("staffAccounts") }, handler: async (ctx, args) => {
+   const { actor, task, policy, superseded } = await requestContext(ctx, args.taskId);
+   if (!policy || task.state !== "Completed" || superseded || task.revision !== args.expectedRevision || !(args.kind === "technical" ? policy.technicalChecks : policy.clinicalChecks).length) deny("Approved policy and current completed repair are required.");
+   const recipient = await ctx.db.get(args.recipientId);
+-  if (!recipient || recipient.status !== "approved" || recipient._id === task.assigneeId || !recipient.scope.includes(task.departmentId) || !recipient.capabilities.includes(args.kind)) deny("Choose an independent authorized verifier in scope.");
++  if (!recipient || recipient.status !== "approved" || (await repairContributors(ctx, task)).has(recipient._id) || !recipient.scope.includes(task.departmentId) || !recipient.capabilities.includes(args.kind)) deny("Choose an independent authorized verifier in scope.");
+   if (args.kind === "clinical") {
+     const technical = await ctx.db.query("safetyAttempts").withIndex("by_task", (q) => q.eq("taskId", task._id)).filter((q) => q.and(q.eq(q.field("kind"), "technical"), q.eq(q.field("policyId"), policy._id), q.eq(q.field("taskRevision"), task.revision))).order("desc").first();
+     if (!technical || technical.outcome !== "pass" || technical.actorId === recipient._id) deny("A technical pass and a distinct clinical verifier are required before requesting clinical checks.");
+@@ -63,17 +65,18 @@ export const verificationContext = query({ args: { taskId: v.id("maintenanceTask
+   const actor = await requireAccount(ctx, args.kind); const task = await ctx.db.get(args.taskId); if (!task || !actor.scope.includes(task.departmentId)) deny();
+   if (task.state !== "Completed" && task.assigneeId !== actor._id && !actor.capabilities.includes("assign")) deny("Only completed work is available for independent verification.");
+   const { policy } = await equipmentContext(ctx, task.equipmentId);
+-  return { task, policy: policy ? { id: policy._id, approvalReference: policy.approvalReference, checks: args.kind === "technical" ? policy.technicalChecks : policy.clinicalChecks, clinicalRequired: policy.clinicalRequired } : null,
++  return { task, independent: !(await repairContributors(ctx, task)).has(actor._id), policy: policy ? { id: policy._id, approvalReference: policy.approvalReference, checks: args.kind === "technical" ? policy.technicalChecks : policy.clinicalChecks, clinicalRequired: policy.clinicalRequired } : null,
+     attempts: await ctx.db.query("safetyAttempts").withIndex("by_task", (q) => q.eq("taskId", task._id)).order("desc").take(100) };
+ } });
+ export const verify = mutation({ args: { taskId: v.id("maintenanceTasks"), expectedRevision: v.number(), kind: v.union(v.literal("technical"), v.literal("clinical")), outcome: v.union(v.literal("pass"), v.literal("fail"), v.literal("unable")), checks: v.array(v.object({ label: v.string(), passed: v.boolean() })), notes: v.string(), evidenceReference: v.string(), operationId: v.string(), reworkDueAt: v.optional(v.number()) }, handler: async (ctx, args) => {
+   const actor = await requireAccount(ctx, args.kind); const task = await ctx.db.get(args.taskId);
+   if (!task || !actor.scope.includes(task.departmentId)) deny();
+   const { policy } = await equipmentContext(ctx, task.equipmentId); if (!policy) deny("Approved institutional safety policy is not configured.");
++  if ((await repairContributors(ctx, task)).has(actor._id)) deny("An independent verifier must not be a recorded repair contributor.");
+   const operationId = requiredText(args.operationId, "verification operation", 100);
+   const prior = await ctx.db.query("safetyAttempts").withIndex("by_actor_operation", (q) => q.eq("actorId", actor._id).eq("operationId", operationId)).unique();
+   if (prior) { if (prior.taskId !== task._id || prior.kind !== args.kind || prior.outcome !== args.outcome) deny("This verification operation cannot be reused."); return prior._id; }
+-  if (task.state !== "Completed" || task.revision !== args.expectedRevision || task.assigneeId === actor._id) deny("A current completed repair and an independent verifier are required.");
++  if (task.state !== "Completed" || task.revision !== args.expectedRevision || (await repairContributors(ctx, task)).has(actor._id)) deny("A current completed repair and an independent verifier are required.");
+   const linkedRework = await ctx.db.query("maintenanceTasks").withIndex("by_parent", (q) => q.eq("parentTaskId", task._id)).first();
+   if (linkedRework) deny("Verify the completed linked rework; the original failed repair cycle cannot be reopened.");
+   const labels = args.kind === "technical" ? policy.technicalChecks : policy.clinicalChecks;
+@@ -104,31 +107,33 @@ export async function eligibility(ctx: QueryCtx, equipmentId: GenericId<"equipme
+   if (tasks.some((t) => !["Completed", "Cancelled"].includes(t.state))) blockers.push("Maintenance or linked rework remains open.");
+   const reports = await ctx.db.query("faultReports").withIndex("by_equipment", (q) => q.eq("equipmentId", item._id)).filter((q) => q.neq(q.field("submissionState"), "draft")).collect();
+   if (reports.some((report) => !tasks.some((t) => t.reportId === report._id && t.state === "Completed"))) blockers.push("A submitted fault report has no completed maintenance record.");
+-  const task = tasks.filter((t) => t.state === "Completed").sort((a, b) => b.updatedAt - a.updatedAt)[0];
++  const task = tasks.filter((t) => t.state === "Completed" && !tasks.some((child) => child.parentTaskId === t._id)).sort((a, b) => b.updatedAt - a.updatedAt || (a._id < b._id ? -1 : a._id > b._id ? 1 : 0))[0];
+   if (!task) blockers.push("Completed maintenance evidence is missing.");
+   const holds = await ctx.db.query("safetyHolds").withIndex("by_equipment", (q) => q.eq("equipmentId", item._id)).collect();
+   if (holds.some((hold) => hold.active)) blockers.push("An active safety hold remains.");
+   const holdFingerprint = JSON.stringify(holds.map((h) => [h._id, h.active, h.resolvedAt ?? null]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+-  const attempts = task ? await ctx.db.query("safetyAttempts").withIndex("by_task", (q) => q.eq("taskId", task._id)).order("desc").collect() : [];
+-  const current = attempts.filter((a) => a.policyId === policy?._id && a.taskRevision === task?.revision);
++  const attempts = (await Promise.all(tasks.map((t) => ctx.db.query("safetyAttempts").withIndex("by_task", (q) => q.eq("taskId", t._id)).order("desc").collect()))).flat();
++  const work = (await Promise.all(tasks.map((t) => ctx.db.query("workEntries").withIndex("by_task", (q) => q.eq("taskId", t._id)).collect()))).flat();
++  blockers.push(...repairChainBlockers(tasks, attempts, work, policy));
++  const current = attempts.filter((a) => a.taskId === task?._id && a.policyId === policy?._id && a.taskRevision === task?.revision);
+   const technical = current.find((a) => a.kind === "technical"); const clinical = current.find((a) => a.kind === "clinical");
+-  if (!technical || technical.outcome !== "pass") blockers.push("Current technical verification has not passed.");
+-  if (policy?.clinicalRequired && (!clinical || clinical.outcome !== "pass" || clinical.actorId === technical?.actorId || !technical || clinical._creationTime < technical._creationTime)) blockers.push("Independent clinical verification has not passed after the current technical check.");
+-  return { actor, item, policy, task, technical, clinical, blockers, holdFingerprint };
++  const evidenceSnapshot = await evidenceDigest({ version: 1, equipment: item, policy, tasks: byIdentity(tasks), attempts: byIdentity(attempts), work: byIdentity(work), reports: byIdentity(reports), holds: byIdentity(holds) });
++  return { actor, item, policy, task, technical, clinical, blockers, holdFingerprint, evidenceSnapshot };
+ }
+ export const releaseStatus = query({ args: { equipmentId: v.id("equipment") }, handler: async (ctx, { equipmentId }) => {
+   const state = await eligibility(ctx, equipmentId);
+   const release = await ctx.db.query("releaseRecords").withIndex("by_equipment", (q) => q.eq("equipmentId", equipmentId)).order("desc").first();
+-  const currentRelease = !!release && release.holdFingerprint === state.holdFingerprint && release.policyId === state.policy?._id && release.taskId === state.task?._id && release.taskRevision === state.task?.revision && release.technicalAttemptId === state.technical?._id && (!state.policy?.clinicalRequired || release.clinicalAttemptId === state.clinical?._id);
+-  return { available: state.blockers.length === 0 && currentRelease, blockers: [...state.blockers, ...(state.blockers.length === 0 && !currentRelease ? ["An authorized return-to-service decision is required."] : [])], eligible: state.blockers.length === 0, expectedTaskRevision: state.task?.revision ?? null, canRelease: !!state.policy && state.actor.capabilities.includes("hold") && state.policy.releaseRoles.includes(state.actor.role), policyReference: state.policy?.approvalReference ?? null };
++  const currentRelease = !!release && release.evidenceSnapshot === state.evidenceSnapshot;
++  return { available: state.blockers.length === 0 && currentRelease, blockers: [...state.blockers, ...(state.blockers.length === 0 && !currentRelease ? ["An authorized return-to-service decision is required."] : [])], eligible: state.blockers.length === 0, expectedTaskRevision: state.task?.revision ?? null, evidenceSnapshot: state.evidenceSnapshot, canRelease: !!state.policy && state.actor.capabilities.includes("hold") && state.policy.releaseRoles.includes(state.actor.role), policyReference: state.policy?.approvalReference ?? null };
+ } });
+-export const release = mutation({ args: { equipmentId: v.id("equipment"), expectedTaskRevision: v.number(), reason: v.string() }, handler: async (ctx, args) => {
++export const release = mutation({ args: { equipmentId: v.id("equipment"), expectedTaskRevision: v.number(), expectedEvidence: v.optional(v.string()), reason: v.string() }, handler: async (ctx, args) => {
+   const state = await eligibility(ctx, args.equipmentId);
+   if (!state.policy || !state.actor.capabilities.includes("hold") || !state.policy.releaseRoles.includes(state.actor.role)) deny("Authorized institutional release authority is required.");
++  if (!args.expectedEvidence || args.expectedEvidence !== state.evidenceSnapshot) deny("Release evidence changed or was not reviewed; review again.");
+   if (state.blockers.length || !state.task || !state.technical || state.task.revision !== args.expectedTaskRevision) deny(state.blockers.join(" ") || "Maintenance evidence changed; review again.");
+   const prior = await ctx.db.query("releaseRecords").withIndex("by_equipment", (q) => q.eq("equipmentId", args.equipmentId)).order("desc").first();
+-  if (prior && prior.holdFingerprint === state.holdFingerprint && prior.policyId === state.policy._id && prior.taskId === state.task._id && prior.taskRevision === state.task.revision && prior.technicalAttemptId === state.technical._id && (!state.policy.clinicalRequired || prior.clinicalAttemptId === state.clinical?._id)) return prior._id;
+-  const id = await ctx.db.insert("releaseRecords", { equipmentId: state.item._id, departmentId: state.item.departmentId, policyId: state.policy._id, taskId: state.task._id, taskRevision: state.task.revision, technicalAttemptId: state.technical._id, clinicalAttemptId: state.policy.clinicalRequired ? state.clinical?._id : undefined, holdFingerprint: state.holdFingerprint, actorId: state.actor._id, reason: requiredText(args.reason, "release justification", 500), at: Date.now() });
++  if (prior && prior.evidenceSnapshot === state.evidenceSnapshot) return prior._id;
++  const id = await ctx.db.insert("releaseRecords", { equipmentId: state.item._id, departmentId: state.item.departmentId, policyId: state.policy._id, taskId: state.task._id, taskRevision: state.task.revision, technicalAttemptId: state.technical._id, clinicalAttemptId: state.policy.clinicalRequired ? state.clinical?._id : undefined, holdFingerprint: state.holdFingerprint, evidenceSnapshot: state.evidenceSnapshot, actorId: state.actor._id, reason: requiredText(args.reason, "release justification", 500), at: Date.now() });
+   await equipmentNotice(ctx, state.item._id, { departmentId: state.item.departmentId, title: "Return-to-service decision recorded", body: "An authorized release decision was recorded. Check current equipment status before use; later faults or holds can invalidate that decision." });
+   await audit(ctx, state.actor, "equipment.release", id, args.reason, state.item.departmentId, undefined, "return-to-service"); return id;
+ } });
+diff --git a/convex/schema.ts b/convex/schema.ts
+index 0b7339c..4dd4da0 100644
+--- a/convex/schema.ts
++++ b/convex/schema.ts
+@@ -54,7 +54,7 @@ export default defineSchema({
+   preventiveSchedules: defineTable({ operationId: v.optional(v.string()), equipmentId: v.id("equipment"), departmentId: v.id("departments"), title: v.string(), approvedReference: v.string(), intervalDays: v.number(), nextDueAt: v.number(), checklist: v.array(v.string()), active: v.boolean(), revision: v.number(), createdBy: v.id("staffAccounts"), createdAt: v.number() }).index("by_department", ["departmentId"]).index("by_creator_operation", ["createdBy", "operationId"]),
+   safetyPolicies: defineTable({ departmentId: v.id("departments"), active: v.boolean(), version: v.literal("smartmaint-safety-v1"), approvalReference: v.string(), technicalChecks: v.array(v.string()), clinicalChecks: v.array(v.string()), clinicalRequired: v.boolean(), releaseRoles: v.array(role), configuredAt: v.number() }).index("by_department_active", ["departmentId", "active"]),
+   safetyAttempts: defineTable({ taskId: v.id("maintenanceTasks"), equipmentId: v.id("equipment"), departmentId: v.id("departments"), policyId: v.id("safetyPolicies"), taskRevision: v.number(), kind: v.union(v.literal("technical"), v.literal("clinical")), outcome: v.union(v.literal("pass"), v.literal("fail"), v.literal("unable")), checks: v.array(v.object({ label: v.string(), passed: v.boolean() })), notes: v.string(), evidenceReference: v.string(), actorId: v.id("staffAccounts"), at: v.number(), operationId: v.string() }).index("by_task", ["taskId"]).index("by_actor_operation", ["actorId", "operationId"]),
+-  releaseRecords: defineTable({ equipmentId: v.id("equipment"), departmentId: v.id("departments"), policyId: v.id("safetyPolicies"), taskId: v.id("maintenanceTasks"), taskRevision: v.number(), technicalAttemptId: v.id("safetyAttempts"), clinicalAttemptId: v.optional(v.id("safetyAttempts")), holdFingerprint: v.optional(v.string()), actorId: v.id("staffAccounts"), reason: v.string(), at: v.number() }).index("by_equipment", ["equipmentId"]),
++  releaseRecords: defineTable({ equipmentId: v.id("equipment"), departmentId: v.id("departments"), policyId: v.id("safetyPolicies"), taskId: v.id("maintenanceTasks"), taskRevision: v.number(), technicalAttemptId: v.id("safetyAttempts"), clinicalAttemptId: v.optional(v.id("safetyAttempts")), holdFingerprint: v.optional(v.string()), evidenceSnapshot: v.optional(v.string()), actorId: v.id("staffAccounts"), reason: v.string(), at: v.number() }).index("by_equipment", ["equipmentId"]),
+   safetyHolds: defineTable({ equipmentId: v.id("equipment"), departmentId: v.id("departments"), active: v.boolean(), reason: v.string(), createdBy: v.id("staffAccounts"), createdAt: v.number(), resolvedAt: v.optional(v.number()), resolvedBy: v.optional(v.id("staffAccounts")), resolutionReason: v.optional(v.string()) })
+     .index("by_department", ["departmentId"]).index("by_equipment", ["equipmentId"]),
+ });
+diff --git a/convex/workflows.ts b/convex/workflows.ts
+index be4e1db..676e35a 100644
+--- a/convex/workflows.ts
++++ b/convex/workflows.ts
+@@ -6,6 +6,7 @@ import type { GenericId } from "convex/values";
+ import { activeDepartment, audit, deny, requireAccount, requiredText } from "./lib/access";
+ import { equipmentAccess } from "./operations";
+ import { priority, taskStatus } from "./lib/validators";
++import { repairContributors } from "./lib/repair_evidence";
+ 
+ function pageSize(n: number) { if (!Number.isInteger(n) || n < 1 || n > 100) deny("Choose a page size between 1 and 100."); }
+ function equipmentPermission(actor: AccountDoc) { if (!actor.capabilities.some((c) => ["report", "repair", "assign", "clinical", "technical", "analytics", "export", "reconcile", "hold"].includes(c))) deny(); }
+@@ -47,7 +48,8 @@ export const taskPage = query({ args: { departmentId: v.id("departments"), pagin
+   const byState = args.state ? selected.filter((q) => q.eq(q.field('state'), args.state!)) : selected;
+   const byDue = args.overdueBefore !== undefined ? byState.filter((q) => q.and(q.lt(q.field('dueAt'), args.overdueBefore!), q.neq(q.field('state'), 'Completed'), q.neq(q.field('state'), 'Cancelled'))) : byState;
+   const page = await byDue.order('desc').paginate({ ...args.paginationOpts, maximumRowsRead: 1000 });
+-  return { ...page, page: await Promise.all(page.page.map(async (task) => {
++  const candidates = args.verification ? (await Promise.all(page.page.map(async (task) => (await repairContributors(ctx, task)).has(actor._id) ? null : task))).filter((task) => task !== null) : page.page;
++  return { ...page, page: await Promise.all(candidates.map(async (task) => {
+     const item = await ctx.db.get(task.equipmentId);
+     return { ...task, equipment: item && item.departmentId === task.departmentId ? { assetId: item.assetId, name: item.name, location: item.location } : null };
+   })) };
+diff --git a/package-lock.json b/package-lock.json
+index c0b80e8..3e9d258 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -11,7 +11,7 @@
+         "@clerk/expo": "4.13.0",
+         "@expo/ui": "~57.0.26",
+         "@expo/vector-icons": "^15.0.2",
+-        "convex": "1.47.0",
++        "convex": "^1.47.0",
+         "eslint": "9.39.5",
+         "eslint-config-expo": "~57.0.2",
+         "expo": "~57.0.31",
+diff --git a/package.json b/package.json
+index 944d082..2f29c6f 100644
+--- a/package.json
++++ b/package.json
+@@ -6,7 +6,7 @@
+     "@clerk/expo": "4.13.0",
+     "@expo/ui": "~57.0.26",
+     "@expo/vector-icons": "^15.0.2",
+-    "convex": "1.47.0",
++    "convex": "^1.47.0",
+     "eslint": "9.39.5",
+     "eslint-config-expo": "~57.0.2",
+     "expo": "~57.0.31",
+diff --git a/src/domain/authenticated-file-store.ts b/src/domain/authenticated-file-store.ts
+index e832b16..d04c6e9 100644
+--- a/src/domain/authenticated-file-store.ts
++++ b/src/domain/authenticated-file-store.ts
+@@ -1,35 +1,87 @@
+ import type { PrivateStore } from "./report-queue";
++import { RecoveryVaultJournal, type RecoveryPointer, type JournalPointer } from "./recovery-vault-journal";
+ export type CipherFiles = { read: (name: string) => Promise<Uint8Array>; write: (name: string, bytes: Uint8Array) => Promise<void>; remove: (name: string) => Promise<void> };
+ export type AuthenticatedCipher = { createKey: () => Promise<string>; encrypt: (text: string, key: string, context: string) => Promise<Uint8Array>; decrypt: (bytes: Uint8Array, key: string, context: string) => Promise<string> };
+-/** Ciphertext is immutable. A small encrypted pointer is committed last in the native key vault. */
++/** Immutable ciphertext; a small vault pointer commits last. Legacy file pointers remain readable. */
+ export class AuthenticatedFileStore implements PrivateStore {
+   private serial: Promise<unknown> = Promise.resolve();
+-  constructor(private vault: PrivateStore, private files: CipherFiles, private cipher: AuthenticatedCipher, private generation: () => string) {}
++  private journal: RecoveryVaultJournal;
++  constructor(private vault: PrivateStore, private files: CipherFiles, private cipher: AuthenticatedCipher, private generation: () => string) { this.journal = new RecoveryVaultJournal(vault); }
+   private key(key: string) { if (!/^smartmaint\.recovery\.[A-Za-z0-9_.-]{1,500}$/.test(key)) throw Error("Invalid private file key."); return key; }
+-  private async pointer(key: string): Promise<{ file: string; key: string } | null> {
++  private validPointer(value: unknown): value is RecoveryPointer {
++    if (!value || typeof value !== "object") return false;
++    const p = value as Record<string, unknown>;
++    if (typeof p.key !== "string" || !/^[a-f0-9]{64}$/i.test(p.key)) return false;
++    return typeof p.file === "string" ? /^[A-Za-z0-9_-]+\.bin$/.test(p.file)
++      : typeof p.generation === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(p.generation) && Number.isSafeInteger(p.count) && (p.count as number) > 0 && (p.count as number) <= 256 && typeof p.cleanupComplete === "boolean";
++  }
++  private async pointer(key: string): Promise<RecoveryPointer | null> {
+     const raw = await this.vault.get(this.key(key)); if (raw === null) return null;
+-    const pointer = JSON.parse(raw);
+-    if (!pointer || typeof pointer.key !== 'string' || !/^[a-f0-9]{64}$/i.test(pointer.key) || typeof pointer.file !== 'string' || !/^[A-Za-z0-9_-]+\.bin$/.test(pointer.file)) throw Error("Private recovery metadata is invalid.");
++    const pointer: unknown = JSON.parse(raw);
++    if (!this.validPointer(pointer)) throw Error("Private recovery metadata is invalid.");
+     return pointer;
+   }
+-  get(key: string): Promise<string | null> { const work = this.serial.catch(() => {}).then(async () => { const pointer = await this.pointer(key); return pointer ? this.cipher.decrypt(await this.files.read(pointer.file), pointer.key, key) : null; }); this.serial = work; return work; }
++  private exclusive<T>(work: () => Promise<T>): Promise<T> { const operation = this.serial.catch(() => {}).then(work); this.serial = operation; return operation; }
++  private async removeGeneration(key: string, pointer: RecoveryPointer) {
++    if ("file" in pointer) await this.files.remove(pointer.file);
++    else await this.journal.remove(key, pointer);
++  }
++  private async removeRaw(key: string) {
++    const pointer = await this.pointer(key);
++    if (pointer) {
++      if (!("file" in pointer)) await this.readRaw(key, pointer);
++      await this.removeGeneration(key, pointer);
++    }
++    // Keep the pointer until unlink completes so interruption cannot orphan selected evidence.
++    await this.vault.remove(key);
++  }
++  private async readRaw(key: string, pointer: RecoveryPointer): Promise<string> {
++    if ("file" in pointer) return this.cipher.decrypt(await this.files.read(pointer.file), pointer.key, key);
++    const text = await this.cipher.decrypt(await this.journal.read(key, pointer), pointer.key, key);
++    const envelope = JSON.parse(text);
++    if (!envelope || typeof envelope.value !== "string" || !Array.isArray(envelope.removeKeys) || envelope.removeKeys.length > 5 || envelope.removeKeys.some((child: unknown) => typeof child !== "string" || !child.startsWith(`${key}.`)) || (envelope.prior !== null && !this.validPointer(envelope.prior))) throw Error("Invalid recovery deletion journal.");
++    if (!pointer.cleanupComplete) {
++      for (const child of envelope.removeKeys) await this.removeRaw(child);
++      if (envelope.prior) await this.removeGeneration(key, envelope.prior);
++      await this.vault.set(key, JSON.stringify({ ...pointer, cleanupComplete: true }));
++    }
++    return envelope.value;
++  }
++  get(key: string): Promise<string | null> { return this.exclusive(async () => { const pointer = await this.pointer(key); return pointer ? this.readRaw(key, pointer) : null; }); }
+   set(key: string, value: string) {
+-    const work = this.serial.catch(() => {}).then(async () => {
+-      this.key(key); const prior = await this.pointer(key); const generation = this.generation(); if (!/^[A-Za-z0-9_-]{1,160}$/.test(generation)) throw Error("Invalid recovery generation.");
+-      const file = `${generation}.bin`; if (prior?.file === file) throw Error("Recovery generation must be unique.");
++    return this.exclusive(async () => {
++      this.key(key); const prior = await this.pointer(key);
++      if (prior && !("file" in prior)) await this.readRaw(key, prior);
++      const generation = this.generation(); if (!/^[A-Za-z0-9_-]{1,160}$/.test(generation)) throw Error("Invalid recovery generation.");
++      const file = `${generation}.bin`; if (prior && ("file" in prior ? prior.file === file : prior.generation === generation)) throw Error("Recovery generation must be unique.");
+       const encryptionKey = await this.cipher.createKey();
+       const bytes = await this.cipher.encrypt(value, encryptionKey, key);
+       try { await this.files.write(file, bytes); await this.vault.set(key, JSON.stringify({ file, key: encryptionKey })); }
+       catch (error) {
+-        // A rejected write may have committed before its result was lost. Never remove a referenced generation.
+-        try { const committed = await this.pointer(key); if (committed?.file !== file) await this.files.remove(file); } catch { /* Preserve the uncertain ciphertext; report the original storage failure. */ }
++        try { const committed = await this.pointer(key); if (!committed || !("file" in committed) || committed.file !== file) await this.files.remove(file); } catch { /* Preserve uncertain writes and report the original failure. */ }
+         throw error;
+       }
+-      if (prior) await this.files.remove(prior.file).catch(() => {}); // Committed generation remains readable if orphan cleanup fails.
+-    }); this.serial = work; return work;
++      if (prior) await this.removeGeneration(key, prior).catch(() => {});
++    });
+   }
+-  remove(key: string) {
+-    const work = this.serial.catch(() => {}).then(async () => { const prior = await this.pointer(key); await this.vault.remove(key); if (prior) await this.files.remove(prior.file); });
+-    this.serial = work; return work;
++  /** Reduced index + deletion intent use bounded vault chunks, independent of ciphertext file quota. */
++  prune(key: string, value: string, removeKeys: string[]) {
++    return this.exclusive(async () => {
++      this.key(key);
++      if (removeKeys.length > 5 || new Set(removeKeys).size !== removeKeys.length || removeKeys.some((child) => !child.startsWith(`${key}.`))) throw Error("Invalid explicit recovery deletion.");
++      for (const child of removeKeys) this.key(child);
++      const prior = await this.pointer(key); if (prior) await this.readRaw(key, prior);
++      const generation = this.generation(); if (!/^[A-Za-z0-9_-]{1,160}$/.test(generation) || (prior && !("file" in prior) && generation === prior.generation)) throw Error("Invalid recovery generation.");
++      const encryptionKey = await this.cipher.createKey();
++      const bytes = await this.cipher.encrypt(JSON.stringify({ value, removeKeys, prior }), encryptionKey, key);
++      const pointer: JournalPointer = { generation, count: Math.ceil(bytes.length / 512), key: encryptionKey, cleanupComplete: false };
++      try { await this.journal.write(key, pointer, bytes); await this.vault.set(key, JSON.stringify(pointer)); }
++      catch (error) {
++        try { const committed = await this.pointer(key); if (!committed || "file" in committed || committed.generation !== generation) await this.journal.remove(key, pointer); } catch { /* Preserve uncertain committed intent. */ }
++        throw error;
++      }
++      await this.readRaw(key, pointer);
++    });
+   }
++  remove(key: string) { return this.exclusive(() => this.removeRaw(key)); }
+ }
+diff --git a/src/domain/publication-coordinator.ts b/src/domain/publication-coordinator.ts
+index e0fffac..21a5908 100644
+--- a/src/domain/publication-coordinator.ts
++++ b/src/domain/publication-coordinator.ts
+@@ -1,6 +1,8 @@
+ import { EncryptedReportQueue, publicationFailure, requireMatchingReceipt, type PendingPublication } from "./report-queue";
+ 
+ export const MAX_PUBLICATION_ATTEMPTS = 5;
++export const MAX_RECEIPT_CHECKS = 3;
++export const MAX_RECOVERY_ATTEMPTS = 1;
+ export const retryDelay = (attempt: number) => Math.min(60_000, 1000 * 2 ** Math.max(0, attempt - 1));
+ export class PublicationPaused extends Error { constructor() { super("Submission paused. Reconnect and restore approved staff access before retrying."); } }
+ export function transientPublicationFailure(error: unknown): boolean {
+@@ -19,7 +21,7 @@ export function duePublication(row: PendingPublication, now: number): boolean {
+ export class PublicationCoordinator {
+   private inFlight = new Map<string, Promise<string>>();
+   private serial: Promise<unknown> = Promise.resolve();
+-  constructor(private queue: EncryptedReportQueue, private owner: string, private send: (row: PendingPublication) => Promise<string>, private current: () => boolean, private changed: (rows: PendingPublication[]) => void, private now = Date.now, private message = (error: unknown) => error instanceof Error ? error.message : String(error)) {}
++  constructor(private queue: EncryptedReportQueue, private owner: string, private send: (row: PendingPublication) => Promise<string>, private current: () => boolean, private changed: (rows: PendingPublication[]) => void, private now = Date.now, private message = (error: unknown) => error instanceof Error ? error.message : String(error), private receipt?: (row: PendingPublication) => Promise<string | null>) {}
+   private assertCurrent() { if (!this.current()) throw new PublicationPaused(); }
+   private async update(change: (rows: PendingPublication[]) => PendingPublication[]) {
+     const rows = await this.queue.update(this.owner, change);
+@@ -27,7 +29,7 @@ export class PublicationCoordinator {
+     return rows;
+   }
+   async load() { this.assertCurrent(); const rows = await this.queue.load(this.owner); this.assertCurrent(); this.changed(rows); return rows; }
+-  sendEntry(id: string): Promise<string> {
++  sendEntry(id: string, recover = false): Promise<string> {
+     const existing = this.inFlight.get(id); if (existing) return existing;
+     const work = this.serial.catch(() => {}).then(async () => {
+       this.assertCurrent();
+@@ -35,8 +37,11 @@ export class PublicationCoordinator {
+       this.assertCurrent();
+       if (!row) throw Error("Saved submission is unavailable.");
+       if (row.state === "SYNCED" && row.serverId === row.reportId) return row.serverId;
+-      if (!duePublication(row, this.now())) throw Error(row.state === "CONFLICT" ? "Review the conflicting draft before resubmission." : "Retry is not due or the attempt limit has been reached. Review the saved draft.");
+-      const attempt = { ...row, state: "SYNCING" as const, retryCount: row.retryCount + 1, lastAttempt: this.now(), updatedAt: this.now(), nextRetryAt: undefined, retryable: undefined, serverId: undefined };
++      const exhausted = row.retryCount >= MAX_PUBLICATION_ATTEMPTS;
++      if (exhausted && !recover) return this.reconcile(row);
++      if (recover && (!exhausted || !row.recoveryEligible || (row.recoveryCount ?? 0) >= MAX_RECOVERY_ATTEMPTS)) throw Error("The bounded recovery attempt is unavailable. Check the server receipt and review the saved draft.");
++      if (!recover && !duePublication(row, this.now())) throw Error(row.state === "CONFLICT" ? "Review the conflicting draft before resubmission." : "Retry is not due or the attempt limit has been reached. Review the saved draft.");
++      const attempt = { ...row, state: "SYNCING" as const, retryCount: recover ? row.retryCount : row.retryCount + 1, recoveryCount: (row.recoveryCount ?? 0) + (recover ? 1 : 0), recoveryEligible: false, lastAttempt: this.now(), updatedAt: this.now(), nextRetryAt: undefined, retryable: undefined, serverId: undefined };
+       await this.update((items) => items.map((item) => item.id === id ? attempt : item));
+       this.assertCurrent();
+       try {
+@@ -56,12 +61,33 @@ export class PublicationCoordinator {
+     void work.finally(() => this.inFlight.delete(id)).catch(() => {}); // Caller receives the original rejection.
+     return work;
+   }
++  private async reconcile(row: PendingPublication): Promise<string> {
++    if (!this.receipt || (row.reconciliationCount ?? 0) >= MAX_RECEIPT_CHECKS) throw Error("Submission attempt limit reached; receipt check limit reached or reconciliation unavailable. Review the server report; attempts have not been reset.");
++    await this.update((items) => items.map((item) => item.id === row.id ? { ...item, reconciliationCount: (item.reconciliationCount ?? 0) + 1, recoveryEligible: false, updatedAt: this.now() } : item));
++    this.assertCurrent();
++    let receipt: string | null;
++    try { receipt = await this.receipt(row); }
++    catch (failure) {
++      const conflict = publicationFailure(failure) === "CONFLICT";
++      await this.update((items) => items.map((item) => item.id === row.id && item.state !== "SYNCED" ? { ...item, state: conflict ? "CONFLICT" : item.state, recoveryEligible: false, lastError: `Receipt check failed: ${this.message(failure)}`.slice(0, 4000), updatedAt: this.now() } : item));
++      throw failure;
++    }
++    if (receipt !== null) {
++      requireMatchingReceipt(row.reportId, receipt);
++      await this.update((items) => items.map((item) => item.id === row.id ? { ...item, state: "SYNCED", serverId: receipt!, lastError: undefined, retryable: false, recoveryEligible: false, nextRetryAt: undefined, updatedAt: this.now() } : item));
++      return receipt;
++    }
++    const recoveryEligible = (row.recoveryCount ?? 0) < MAX_RECOVERY_ATTEMPTS;
++    await this.update((items) => items.map((item) => item.id === row.id && item.state !== "SYNCED" ? { ...item, state: "FAILED", retryable: false, recoveryEligible, lastError: recoveryEligible ? "The server still has a draft. Five submission attempts are exhausted. Review it, then explicitly confirm the single recovery attempt; no new report will be created." : "The server still has a draft. Submission and explicit recovery attempts are exhausted. Review the server report; no further automatic send is authorized.", updatedAt: this.now() } : item));
++    throw Error(recoveryEligible ? "Attempt limit reached. Server draft reconciled; explicit bounded recovery is available after review." : "Attempt limit reached. Server draft reconciled; explicit bounded recovery is exhausted.");
++  }
+   async enqueue(reportId: string, revision: number, attachmentRevision: number, operationId: string) {
+     this.assertCurrent();
+     if (this.inFlight.size) throw Error("A submission is in progress. Wait for its result before reviewing another snapshot.");
+     const rows = await this.update((items) => {
+       const prior = items.find((item) => item.reportId === reportId);
+       if (prior?.state === "SYNCED") return items;
++      if (prior && prior.retryCount >= MAX_PUBLICATION_ATTEMPTS && prior.expectedRevision === revision && (prior.expectedAttachmentRevision ?? 0) === attachmentRevision) throw Error("Attempt limit reached. Reconcile the saved submission and explicitly confirm bounded recovery; do not reset its attempts.");
+       if (prior && ["PENDING", "SYNCING"].includes(prior.state)) {
+         if (prior.expectedRevision !== revision || (prior.expectedAttachmentRevision ?? 0) !== attachmentRevision) throw Error("A different snapshot is pending. Review the saved submission first.");
+         return items;
+diff --git a/src/domain/report-queue.ts b/src/domain/report-queue.ts
+index 44c20c5..43b4803 100644
+--- a/src/domain/report-queue.ts
++++ b/src/domain/report-queue.ts
+@@ -1,6 +1,6 @@
+ export type QueueState = "PENDING" | "SYNCING" | "SYNCED" | "FAILED" | "CONFLICT";
+-export type PendingPublication = { id: string; owner: string; reportId: string; expectedRevision: number; expectedAttachmentRevision?: number; createdAt: number; updatedAt: number; state: QueueState; retryCount: number; lastAttempt?: number; lastError?: string; serverId?: string; retryable?: boolean; nextRetryAt?: number };
+-export type PrivateStore = { get: (key: string) => Promise<string | null>; set: (key: string, value: string) => Promise<void>; remove: (key: string) => Promise<void> };
++export type PendingPublication = { id: string; owner: string; reportId: string; expectedRevision: number; expectedAttachmentRevision?: number; createdAt: number; updatedAt: number; state: QueueState; retryCount: number; lastAttempt?: number; lastError?: string; serverId?: string; retryable?: boolean; nextRetryAt?: number; reconciliationCount?: number; recoveryCount?: number; recoveryEligible?: boolean };
++export type PrivateStore = { get: (key: string) => Promise<string | null>; set: (key: string, value: string) => Promise<void>; remove: (key: string) => Promise<void>; prune?: (key: string, value: string, removeKeys: string[]) => Promise<void> };
+ export function requireMatchingReceipt(reportId: string, receipt: unknown): string {
+   if (receipt !== reportId) throw Error("The server returned an unexpected report receipt.");
+   return reportId;
+@@ -16,6 +16,9 @@ export function validatePublicationRows(rows: unknown, owner: string): asserts r
+       || (row.expectedAttachmentRevision !== undefined && (!Number.isSafeInteger(row.expectedAttachmentRevision) || row.expectedAttachmentRevision < 0))
+       || (row.state === "SYNCED" && row.serverId !== row.reportId)
+       || !Number.isSafeInteger(row.retryCount) || row.retryCount < 0
++      || (row.reconciliationCount !== undefined && (!Number.isSafeInteger(row.reconciliationCount) || row.reconciliationCount < 0 || row.reconciliationCount > 3))
++      || (row.recoveryCount !== undefined && (!Number.isSafeInteger(row.recoveryCount) || row.recoveryCount < 0 || row.recoveryCount > 1))
++      || (row.recoveryEligible !== undefined && typeof row.recoveryEligible !== "boolean")
+       || !Number.isFinite(row.createdAt) || !Number.isFinite(row.updatedAt)
+       || (row.lastAttempt !== undefined && !Number.isFinite(row.lastAttempt))
+       || (row.nextRetryAt !== undefined && (!Number.isFinite(row.nextRetryAt) || row.nextRetryAt < 0))
+diff --git a/src/domain/report-recovery.ts b/src/domain/report-recovery.ts
+index ca454e3..8220250 100644
+--- a/src/domain/report-recovery.ts
++++ b/src/domain/report-recovery.ts
+@@ -76,16 +76,21 @@ export class ReportRecoveryRepository {
+     return this.exclusive(async () => {
+       if (!id(operationId) || !id(photoId)) throw Error("Invalid recovery reference.");
+       const rows = await this.list(owner);
+-      await this.commit(owner, rows.map((row) => row.operationId === operationId ? { ...row, photos: row.photos.filter((photo) => photo.operationId !== photoId) } : row));
+-      await this.store.remove(`${this.root(owner)}.${operationId}.${photoId}`);
++      const updated = rows.map((row) => row.operationId === operationId ? { ...row, photos: row.photos.filter((photo) => photo.operationId !== photoId) } : row);
++      const keys = rows.some((row) => row.operationId === operationId && row.photos.some((p) => p.operationId === photoId)) ? [`${this.root(owner)}.${operationId}.${photoId}`] : [];
++      await this.prune(owner, updated, keys);
+     });
+   }
+   removeDraft(owner: string, operationId: string) {
+     return this.exclusive(async () => {
+       if (!id(operationId)) throw Error("Invalid recovery reference.");
+       const rows = await this.list(owner); const prior = rows.find((row) => row.operationId === operationId);
+-      await this.commit(owner, rows.filter((row) => row.operationId !== operationId));
+-      for (const photo of prior?.photos ?? []) await this.store.remove(`${this.root(owner)}.${operationId}.${photo.operationId}`);
++      await this.prune(owner, rows.filter((row) => row.operationId !== operationId), (prior?.photos ?? []).map((photo) => `${this.root(owner)}.${operationId}.${photo.operationId}`));
+     });
+   }
++  private async prune(owner: string, rows: RecoveryDraft[], removeKeys: string[]) {
++    this.validate(rows, owner);
++    if (this.store.prune) await this.store.prune(this.root(owner), JSON.stringify(rows), removeKeys);
++    else { await this.commit(owner, rows); for (const key of removeKeys) await this.store.remove(key); }
++  }
+ }
+diff --git a/src/features/staff/report-photos.tsx b/src/features/staff/report-photos.tsx
+index 3a175ba..a9f38f7 100644
+--- a/src/features/staff/report-photos.tsx
++++ b/src/features/staff/report-photos.tsx
+@@ -51,7 +51,12 @@ export function ReportPhotos({ reportId, editable = false, onSnapshot, recoveryO
+   const send = async () => { if (!photo || busy) return; setBusy(true); setMessage(""); try { await upload({ reportId, operationId: photo.operationId, contentType: photo.contentType, base64: photo.base64 }); if (reportRecovery && account && recoveryOperationId) { await reportRecovery.removePhoto(account.id, recoveryOperationId, photo.operationId); await refreshRecovery(); } setPhoto(null); setMessage("Photo stored securely for this report."); } catch (error) { setMessage(authErrorMessage(error)); } finally { setBusy(false); } };
+   return <Card style={{ gap: 10 }}><Txt size={20} weight="700">Equipment photos ({list?.length ?? 0}/5)</Txt><Txt size={12} muted>Photograph equipment only. Avoid patients, documents and identifying information. Up to five JPEG/PNG/WebP files, 2 MB each.</Txt>
+     {editable && <><Button label="Take a picture" loading={busy} disabled={(list?.length ?? 0) >= 5} onPress={() => void select(true)} /><Button label="Choose existing photo" variant="secondary" loading={busy} disabled={(list?.length ?? 0) >= 5} onPress={() => void select(false)} /></>}
+-    {editable && pendingPhotos.length > 0 && <><Notice tone="warning">{pendingPhotos.length} photo(s) saved on this device. A device copy does not confirm server receipt.</Notice>{pendingPhotos.map((pending, index) => <Button key={pending.operationId} label={"Restore pending photo " + (index + 1)} variant="secondary" disabled={busy} onPress={() => { if (!account || !recoveryOperationId || !reportRecovery) return; setBusy(true); void reportRecovery.readPhoto(account.id, recoveryOperationId, pending.operationId).then((saved) => setPhoto({ ...saved, uri: "data:" + saved.contentType + ";base64," + saved.base64 })).catch((error) => setMessage(authErrorMessage(error))).finally(() => setBusy(false)); }} />)}</>}
++    {editable && pendingPhotos.length > 0 && <><Notice tone="warning">{pendingPhotos.length} photo(s) saved on this device. A device copy does not confirm server receipt.</Notice>{pendingPhotos.map((pending, index) => <Card key={pending.operationId} style={{ gap: 8 }}><Button label={"Restore pending photo " + (index + 1)} variant="secondary" disabled={busy} onPress={() => { if (!account || !recoveryOperationId || !reportRecovery) return; setBusy(true); void reportRecovery.readPhoto(account.id, recoveryOperationId, pending.operationId).then((saved) => setPhoto({ ...saved, uri: "data:" + saved.contentType + ";base64," + saved.base64 })).catch((error) => setMessage(authErrorMessage(error))).finally(() => setBusy(false)); }} /><ConfirmAction label={"Remove pending photo " + (index + 1)} title="Remove this pending device photo?" detail="This explicitly discards only this pending device photo, including an unavailable or corrupt copy. Other photos and report details remain. A server attachment is not deleted." danger disabled={busy} onConfirm={async () => {
++      if (!account || !recoveryOperationId || !reportRecovery) throw Error("Device recovery is unavailable.");
++      setBusy(true);
++      try { await reportRecovery.removePhoto(account.id, recoveryOperationId, pending.operationId); await refreshRecovery(); if (photo?.operationId === pending.operationId) setPhoto(null); }
++      finally { setBusy(false); }
++    }} /></Card>)}</>}
+     {!editable && pendingPhotos.length > 0 && <Notice tone="warning">{pendingPhotos.length} device photo(s) still need upload or removal. Return to Edit photos before submitting.</Notice>}
+     {photo && <><Image source={{ uri: photo.uri }} style={{ height: 200, width: "100%", borderRadius: 16 }} accessibilityLabel="Selected equipment photo, not yet uploaded" /><Button label="Upload / retry photo" loading={busy} onPress={() => void send()} /><Button label="Remove selected photo" variant="secondary" disabled={busy} onPress={() => { if (reportRecovery && account && recoveryOperationId) { setBusy(true); void reportRecovery.removePhoto(account.id, recoveryOperationId, photo.operationId).then(async () => { await refreshRecovery(); setPhoto(null); }).catch((error) => setMessage(authErrorMessage(error))).finally(() => setBusy(false)); } else setPhoto(null); }} /></>}
+     {list?.map((r, index) => <Card key={r.id} style={{ gap: 8 }}><Detail label={`Photo ${index + 1}`} value={`${Math.ceil(r.size / 1024)} KB · ${r.contentType}`} /><Button label={`View photo ${index + 1}`} variant="secondary" disabled={busy} onPress={() => { setBusy(true); void read({ id: r.id }).then((data) => setViewed({ id: r.id, uri: data.dataUri })).catch((error) => setMessage(authErrorMessage(error))).finally(() => setBusy(false)); }} />{viewed?.id === r.id && <Image source={{ uri: viewed.uri }} style={{ height: 220, width: "100%", borderRadius: 16 }} accessibilityLabel={`Equipment attachment ${index + 1}`} />}{editable && <ConfirmAction label={`Remove photo ${index + 1}`} title="Remove this equipment photo?" detail="The stored image will be deleted; the removal is audited." danger onConfirm={() => remove({ id: r.id })} />}</Card>)}
+diff --git a/src/features/staff/report-queue.tsx b/src/features/staff/report-queue.tsx
+index 6114752..afc08a3 100644
+--- a/src/features/staff/report-queue.tsx
++++ b/src/features/staff/report-queue.tsx
+@@ -2,19 +2,20 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
+ import { AppState, Platform, View } from "react-native";
+ import * as SecureStore from "expo-secure-store";
+ import { randomUUID } from "expo-crypto";
+-import { useMutation, useQuery } from "convex/react";
++import { useConvex, useMutation, useQuery } from "convex/react";
+ import type { GenericId } from "convex/values";
+ import { EncryptedReportQueue, type PendingPublication } from "@/domain/report-queue";
+-import { PublicationCoordinator, PublicationPaused, duePublication, MAX_PUBLICATION_ATTEMPTS } from "@/domain/publication-coordinator";
++import { PublicationCoordinator, PublicationPaused, duePublication, MAX_PUBLICATION_ATTEMPTS, MAX_RECEIPT_CHECKS } from "@/domain/publication-coordinator";
+ import { useCurrentTime } from "@/hooks/use-current-time";
+ import { staffApi } from "@/services/staff-api";
+ import { Badge, Button, Card, Detail, Icon, LinkRow, Notice, Row, Screen, Txt } from "@/components/smart/ui";
+ import { authErrorMessage } from "@/features/access/auth-policy";
+ import { go } from "@/navigation/go";
+ import { useStaffAccess } from "./provider";
++import { ConfirmAction } from "./ui";
+ 
+ const queue = new EncryptedReportQueue({ get: (key) => SecureStore.getItemAsync(key), set: (key, value) => SecureStore.setItemAsync(key, value, { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY }), remove: (key) => SecureStore.deleteItemAsync(key) }, randomUUID);
+-type QueueApi = { available: boolean; rows: PendingPublication[]; error: string; publish?: (id: GenericId<"faultReports">, revision: number, attachmentRevision?: number) => Promise<GenericId<"faultReports">>; retry?: (entry: PendingPublication) => Promise<void> };
++type QueueApi = { available: boolean; rows: PendingPublication[]; error: string; publish?: (id: GenericId<"faultReports">, revision: number, attachmentRevision?: number) => Promise<GenericId<"faultReports">>; retry?: (entry: PendingPublication, recover?: boolean) => Promise<void> };
+ const Context = createContext<QueueApi>({ available: false, rows: [], error: "" });
+ export const useReportQueue = () => useContext(Context);
+ export function ReportQueueBoundary({ children }: { children: ReactNode }) {
+@@ -23,6 +24,7 @@ export function ReportQueueBoundary({ children }: { children: ReactNode }) {
+   return <NativeQueue key={access.account.id} owner={access.account.id}>{children}</NativeQueue>;
+ }
+ function NativeQueue({ children, owner }: { children: ReactNode; owner: string }) {
++  const client = useConvex();
+   const publishMutation = useMutation(staffApi.reporting.publish);
+   const [rows, setRows] = useState<PendingPublication[]>([]);
+   const [error, setError] = useState("");
+@@ -35,7 +37,8 @@ function NativeQueue({ children, owner }: { children: ReactNode; owner: string }
+     const worker = new PublicationCoordinator(queue, owner,
+       (entry) => publishMutation({ id: entry.reportId as GenericId<"faultReports">, expectedRevision: entry.expectedRevision, expectedAttachmentRevision: entry.expectedAttachmentRevision ?? 0 }),
+       () => mounted && active,
+-      (items) => { latest = items; if (mounted && active) setRows(items); }, Date.now, authErrorMessage);
++      (items) => { latest = items; if (mounted && active) setRows(items); }, Date.now, authErrorMessage,
++      (entry) => client.query(staffApi.reporting.publicationReceipt, { id: entry.reportId as GenericId<"faultReports">, expectedRevision: entry.expectedRevision, expectedAttachmentRevision: entry.expectedAttachmentRevision ?? 0 }));
+     const subscription = AppState.addEventListener("change", (state) => { active = mounted && state === "active"; });
+     let timer: ReturnType<typeof setTimeout>;
+     const replay = async () => {
+@@ -56,10 +59,10 @@ function NativeQueue({ children, owner }: { children: ReactNode; owner: string }
+     };
+     void replay();
+     return () => { mounted = false; active = false; clearTimeout(timer); subscription.remove(); };
+-  }, [owner, publishMutation]);
++  }, [owner, publishMutation, client]);
+   return <Context.Provider value={{ available: controller !== null, rows, error,
+     publish: async (reportId, revision, attachmentRevision = 0) => { setError(""); if (!controller) throw Error("The private submission queue is not ready."); return await controller.enqueue(reportId, revision, attachmentRevision, randomUUID()) as GenericId<"faultReports">; },
+-    retry: async (entry) => { setError(""); if (!controller) throw Error("The private submission queue is not ready."); await controller.sendEntry(entry.id); },
++    retry: async (entry, recover = false) => { setError(""); if (!controller) throw Error("The private submission queue is not ready."); await controller.sendEntry(entry.id, recover); },
+   }}>{children}</Context.Provider>;
+ }
+ 
+@@ -67,17 +70,25 @@ export function ReportQueueScreen({ view = 'sync' }: { view?: string }) {
+   const now = useCurrentTime(1000);
+   const service = useReportQueue(); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+   const selected = service.rows.filter((row) => view === 'upload-failed' ? row.state === 'FAILED' : view === 'conflict' ? row.state === 'CONFLICT' : view === 'queue' ? row.state !== 'SYNCED' : true);
+-  const states = [{ state: 'PENDING', title: 'Pending (saved locally)', route: 'queue', icon: 'document-text-outline' }, { state: 'SYNCING', title: 'Uploading', route: 'queue', icon: 'cloud-upload-outline' }, { state: 'FAILED', title: 'Failed', route: 'upload-failed', icon: 'alert-circle-outline' }, { state: 'CONFLICT', title: 'Conflicts', route: 'conflict', icon: 'sync-outline' }] as const;
++  const states = [{ state: 'PENDING', title: 'Pending (saved locally)', route: 'queue', icon: 'document-text-outline' }, { state: 'SYNCING', title: 'Sending / receipt unconfirmed', route: 'queue', icon: 'cloud-upload-outline' }, { state: 'FAILED', title: 'Failed', route: 'upload-failed', icon: 'alert-circle-outline' }, { state: 'CONFLICT', title: 'Conflicts', route: 'conflict', icon: 'sync-outline' }] as const;
+   return <Screen title={view === 'upload-failed' ? 'Upload Failed' : view === 'conflict' ? 'Sync Conflict' : view === 'queue' ? 'Pending Sync Queue' : 'Sync Status'} subtitle={view === 'sync' ? 'View the current sync status and pending items.' : view === 'queue' ? 'Report submissions awaiting a server receipt.' : view === 'conflict' ? 'Review changed revisions before submitting again.' : 'Server receipt was not confirmed for these attempts.'}>
+     <Notice tone={service.available ? 'success' : 'warning'}>{service.available ? 'Secure submission queue available for this approved account.' : 'Secure queue unavailable. Reconnect with an approved account on Android or iOS.'}</Notice>
+     {!!(error || service.error) && <Notice tone="warning">{error || service.error}</Notice>}
+     {view === 'sync' && <Card style={{ gap: 14 }}><Txt size={21} weight="700">Pending items</Txt>{states.map((item) => <LinkRow key={item.state} title={item.title} icon={item.icon} tail={<Badge label={String(service.rows.filter((r) => r.state === item.state).length)} tone={item.state === 'FAILED' ? 'danger' : 'info'} />} onPress={() => go(item.route)} />)}</Card>}
+     {service.available && !selected.length && <Card><Txt muted>{view === 'conflict' ? 'No conflicting submissions.' : view === 'upload-failed' ? 'No failed submissions.' : 'No pending submissions in this selection.'}</Txt></Card>}
+-    {selected.map((r) => view === 'conflict' ? <PublicationConflict key={r.id} entry={r} /> : <Card key={r.id} style={{ gap: 12 }}><Row><Icon name={r.state === 'SYNCED' ? 'checkmark-circle' : r.state === 'FAILED' ? 'alert-circle' : 'cloud-upload-outline'} size={34} color={r.state === 'FAILED' ? '#C92E40' : '#0866E8'} /><View style={{ flex: 1, gap: 5 }}><Txt weight="700" size={18}>Fault report</Txt><Badge label={r.state} tone={r.state === 'FAILED' ? 'danger' : r.state === 'SYNCED' ? 'success' : 'warning'} /></View></Row><Detail label="Report" value={r.reportId} /><Detail label="Attempts" value={`${r.retryCount} / ${MAX_PUBLICATION_ATTEMPTS}`} />{!!r.nextRetryAt && <Detail label="Next automatic retry" value={new Date(r.nextRetryAt).toLocaleString()} />}{r.state === "FAILED" && !r.retryable && <Notice tone="warning">Automatic retry stopped. Review the saved draft and current access before submitting again.</Notice>}<Detail label="Last updated" value={new Date(r.updatedAt).toLocaleString()} />{r.state !== 'SYNCED' && <Notice tone="warning">Server receipt not confirmed for this submission attempt.</Notice>}{!!r.lastError && <Notice tone="warning">{r.lastError}</Notice>}{r.state === 'SYNCED' && <Button label="View received report" onPress={() => go('report-detail', r.serverId)} />}{r.state === 'CONFLICT' ? <Button label="Review saved draft conflict" onPress={() => go('conflict')} /> : r.state === 'FAILED' && <Button label="Retry publication" icon="refresh-outline" loading={busy} disabled={!service.available || !service.retry || !duePublication(r, now)} onPress={() => { setBusy(true); void service.retry?.(r).catch((failure) => setError(authErrorMessage(failure))).finally(() => setBusy(false)); }} />}</Card>)}
++    {selected.map((r) => view === 'conflict' ? <PublicationConflict key={r.id} entry={r} /> : <Card key={r.id} style={{ gap: 12 }}><Row><Icon name={r.state === 'SYNCED' ? 'checkmark-circle' : r.state === 'FAILED' ? 'alert-circle' : 'cloud-upload-outline'} size={34} color={r.state === 'FAILED' ? '#C92E40' : '#0866E8'} /><View style={{ flex: 1, gap: 5 }}><Txt weight="700" size={18}>Fault report</Txt><Badge label={r.state === "SYNCING" && r.retryCount >= MAX_PUBLICATION_ATTEMPTS ? "Receipt unconfirmed" : r.state} tone={r.state === 'FAILED' ? 'danger' : r.state === 'SYNCED' ? 'success' : 'warning'} /></View></Row><Detail label="Report" value={r.reportId} /><Detail label="Attempts" value={`${r.retryCount} / ${MAX_PUBLICATION_ATTEMPTS}`} />{!!r.nextRetryAt && <Detail label="Next automatic retry" value={new Date(r.nextRetryAt).toLocaleString()} />}{r.state === "FAILED" && !r.retryable && <Notice tone="warning">Automatic retry stopped. Review the saved draft and current access; exhausted attempts require receipt reconciliation or explicit bounded recovery.</Notice>}<Detail label="Last updated" value={new Date(r.updatedAt).toLocaleString()} />{r.state !== 'SYNCED' && <Notice tone="warning">Server receipt not confirmed for this submission attempt.</Notice>}{!!r.lastError && <Notice tone="warning">{r.lastError}</Notice>}{r.state === 'SYNCED' && <Button label="View received report" onPress={() => go('report-detail', r.serverId)} />}{r.state === 'CONFLICT' ? <Button label="Review saved draft conflict" onPress={() => go('conflict')} /> : r.state === 'FAILED' && <Button label="Retry publication" icon="refresh-outline" loading={busy} disabled={!service.available || !service.retry || !duePublication(r, now)} onPress={() => { setBusy(true); void service.retry?.(r).catch((failure) => setError(authErrorMessage(failure))).finally(() => setBusy(false)); }} />}<ExhaustedPublication entry={r} /></Card>)}
+     <LinkRow title="Recover device drafts and photos" icon="document-text-outline" onPress={() => go("device-drafts")} />
+     <Txt size={12} muted>Only a matching server receipt confirms submission. Automatic foreground retries are bounded; conflicts and rejections require review. Safety decisions are never queued offline.</Txt>
+   </Screen>;
+ }
++function ExhaustedPublication({ entry }: { entry: PendingPublication }) {
++  const service = useReportQueue(); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
++  if (entry.state === "SYNCED" || entry.retryCount < MAX_PUBLICATION_ATTEMPTS) return null;
++  return <View style={{ gap: 10 }}><Notice tone="warning">Five submission attempts are exhausted. The server receipt remains unconfirmed. Receipt checks never submit a report or reset attempts.</Notice><Detail label="Receipt checks" value={`${entry.reconciliationCount ?? 0} / ${MAX_RECEIPT_CHECKS}`} /><Detail label="Explicit recovery attempts" value={`${entry.recoveryCount ?? 0} / 1`} /><Button label="Review saved server draft" variant="secondary" onPress={() => go("resume-report", entry.reportId)} /><Button label="Check server receipt" disabled={busy || !service.retry || (entry.reconciliationCount ?? 0) >= MAX_RECEIPT_CHECKS} loading={busy} onPress={() => { setBusy(true); setError(""); void service.retry?.(entry).catch((failure) => setError(authErrorMessage(failure))).finally(() => setBusy(false)); }} />
++    {entry.recoveryEligible && <ConfirmAction label="Confirm single recovery attempt" title="Publish the reviewed saved draft once?" detail="The server still has this draft. This authorizes one recovery send using the same report and reviewed revisions. The five original attempts remain recorded; no new report is created." disabled={busy || !service.retry} onConfirm={async () => { if (!service.retry) throw Error("Submission recovery is unavailable."); await service.retry(entry, true); }} />}
++    {(entry.reconciliationCount ?? 0) >= MAX_RECEIPT_CHECKS && <Notice>Receipt checks have stopped. Open the server report to inspect its current state; the queue will not create a new report or reset this limit.</Notice>}{!!error && <Notice tone="warning">{error}</Notice>}
++  </View>;
++}
+ function PublicationConflict({ entry }: { entry: PendingPublication }) {
+   const report = useQuery(staffApi.workflows.reportDetail, { id: entry.reportId as GenericId<'faultReports'> });
+   return <Card style={{ gap: 16 }}><Txt size={20} weight="700">{entry.reportId}</Txt><Row style={{ alignItems: 'flex-start' }}><View style={{ flex: 1, gap: 8 }}><Icon name="phone-portrait-outline" /><Txt weight="700">Local attempt</Txt><Txt muted>Draft revision {entry.expectedRevision}</Txt><Txt muted>Photo revision {entry.expectedAttachmentRevision ?? 0}</Txt><Txt size={12} muted>{new Date(entry.updatedAt).toLocaleString()}</Txt></View><View style={{ flex: 1, gap: 8 }}><Icon name="cloud-outline" /><Txt weight="700">Current server</Txt><Txt muted>{report ? `Draft revision ${report.revision ?? 1}` : 'Loading…'}</Txt><Txt muted>{report ? `Photo revision ${report.attachmentRevision ?? 0}` : 'Loading…'}</Txt><Txt muted>{report?.submissionState === 'draft' ? 'Saved draft' : report ? 'Submitted' : ''}</Txt></View></Row><Notice tone="warning">The saved draft or its photos changed. Review the latest server content before submitting again. This queue does not retain a separate copy of the draft fields.</Notice>{!!entry.lastError && <Txt size={12} muted>{entry.lastError}</Txt>}<Button label="Review latest saved draft" disabled={!report} onPress={() => go('resume-report', entry.reportId)} /></Card>;
+diff --git a/src/features/staff/safety-screens.tsx b/src/features/staff/safety-screens.tsx
+index f890663..ac17452 100644
+--- a/src/features/staff/safety-screens.tsx
++++ b/src/features/staff/safety-screens.tsx
+@@ -32,8 +32,8 @@ function VerificationDecisions({ context, kind, history }: { context: FunctionRe
+   </Screen>;
+ }
+ function VerificationForm({ context, kind }: { context: FunctionReturnType<typeof staffApi.safety.verificationContext>; kind: "technical" | "clinical" }) {
+-  const { account } = useStaffAccess(); const verify = useMutation(staffApi.safety.verify); const [checks, setChecks] = useState<Record<string, "Not checked" | "Pass" | "Fail">>({}); const [outcome, setOutcome] = useState<"pass" | "fail" | "unable">("pass"); const [notes, setNotes] = useState(""); const [reference, setReference] = useState(""); const [due, setDue] = useState(""); const [operationId, setOperationId] = useState(randomUUID); const [received, setReceived] = useState("");
+-  const policy = context.policy; const self = context.task.assigneeId === account?.id;
++  const verify = useMutation(staffApi.safety.verify); const [checks, setChecks] = useState<Record<string, "Not checked" | "Pass" | "Fail">>({}); const [outcome, setOutcome] = useState<"pass" | "fail" | "unable">("pass"); const [notes, setNotes] = useState(""); const [reference, setReference] = useState(""); const [due, setDue] = useState(""); const [operationId, setOperationId] = useState(randomUUID); const [received, setReceived] = useState("");
++  const policy = context.policy; const self = !context.independent;
+   return <Screen title={kind === "technical" ? "Technical Safety Checklist" : "Clinical Safety Checklist"} subtitle="Record an independent decision against the approved institutional policy.">
+     <Card style={{ gap: 9 }}><Detail label="Linked repair" value={context.task._id} /><Detail label="Repair status" value={context.task.state} /><Detail label="Repair diagnosis" value={context.task.diagnosis || "Not recorded"} /><Detail label="Maintenance cycle" value={String(context.task.cycle)} /></Card>
+     {!policy ? <Notice tone="warning">Institutional safety policy is not approved/configured. Verification is disabled. No illustrative checklist is used for a live safety decision.</Notice> : <>
+@@ -85,7 +85,7 @@ export function ReleaseControls({ id }: { id: string }) {
+     <Card style={{ gap: 14 }}><Txt size={20} weight="800">Return-to-service prerequisites</Txt><Detail label="Approved policy" value={result.policyReference ?? "Not approved/configured"} />
+       {result.blockers.map((blocker, index) => <Row key={blocker} style={{ alignItems: "flex-start" }}><Icon name="close-circle-outline" color="#C92E40" /><View style={{ flex: 1, gap: 3 }}><Txt size={12} muted>Restriction {index + 1}</Txt><Txt>{blocker}</Txt></View></Row>)}
+       {result.available && <Notice tone="success">Current release confirmed by the staff service.</Notice>}
+-      {result.canRelease && !result.available && <><Field label="Return-to-service justification" value={reason} onChangeText={setReason} maxLength={500} multiline /><ConfirmAction label="Authorize Return to Service" title="Release equipment for service?" detail="All current repairs, verifications, identity and holds are checked atomically by the server." disabled={!result.eligible || !reason.trim() || result.expectedTaskRevision === null} onConfirm={() => release({ equipmentId, expectedTaskRevision: result.expectedTaskRevision!, reason })} /></>}
++      {result.canRelease && !result.available && <><Field label="Return-to-service justification" value={reason} onChangeText={setReason} maxLength={500} multiline /><ConfirmAction key={result.evidenceSnapshot} label="Authorize Return to Service" title="Release equipment for service?" detail="All current repairs, verifications, identity and holds are checked atomically by the server." disabled={!result.eligible || !reason.trim() || result.expectedTaskRevision === null} onConfirm={() => release({ equipmentId, expectedTaskRevision: result.expectedTaskRevision!, expectedEvidence: result.evidenceSnapshot, reason })} /></>}
+     </Card>
+   </View> : <Notice>Checking current release prerequisites?</Notice>;
+ }
+diff --git a/tests/backend/corrective.test.ts b/tests/backend/corrective.test.ts
+index 4e7930f..2f6bfbd 100644
+--- a/tests/backend/corrective.test.ts
++++ b/tests/backend/corrective.test.ts
+@@ -5,6 +5,8 @@ import { staffApi as api } from "../../src/services/staff-api";
+ import { POLICY_VERSION, roleCapabilities } from "../../src/domain/role-policy";
+ import type { Role } from "../../src/domain/models";
+ import type { FunctionReturnType } from "convex/server";
++import { EncryptedReportQueue } from "../../src/domain/report-queue";
++import { PublicationCoordinator } from "../../src/domain/publication-coordinator";
+ 
+ const modules = { "./staff.ts": () => import("../../convex/staff"), "./administration.ts": () => import("../../convex/administration"), "./operations.ts": () => import("../../convex/operations"), "./workflows.ts": () => import("../../convex/workflows"), "./reporting.ts": () => import("../../convex/reporting"), "./attachments.ts": () => import("../../convex/attachments"), "./safety.ts": () => import("../../convex/safety"), "./preventive.ts": () => import("../../convex/preventive"), "./_generated/loader-marker.js": async () => ({}) };
+ const identity = (subject: string) => ({ subject, tokenIdentifier: `https://test.invalid|${subject}`, email: `${subject}@example.invalid`, emailVerified: true });
+@@ -21,6 +23,26 @@ async function setup() {
+   return { t, ...records, user: (name: string) => t.withIdentity(identity(name)) };
+ }
+ 
++test.each([false, true])('review 4: interrupted fifth publication reconciles a real saved report (server committed: %s)', async (committed) => {
++  const f = await setup();
++  const saved = await f.user('reporter').mutation(api.reporting.saveDraft, draftFields(f.equipment));
++  const args = { id: saved.id, expectedRevision: saved.revision, expectedAttachmentRevision: 0 };
++  if (committed) await f.user('reporter').mutation(api.reporting.publish, args);
++  const values = new Map<string, string>(); let generation = 0, sends = 0;
++  const queue = new EncryptedReportQueue({ get: async (key) => values.get(key) ?? null, set: async (key, value) => { values.set(key, value); }, remove: async (key) => { values.delete(key); } }, () => `g${++generation}`);
++  await queue.update(String(f.reporter), () => [{ id: 'OP', owner: String(f.reporter), reportId: String(saved.id), expectedRevision: saved.revision, expectedAttachmentRevision: 0, createdAt: 1, updatedAt: 1, state: 'SYNCING', retryCount: 5 }]);
++  const worker = new PublicationCoordinator(queue, String(f.reporter), async () => { sends++; return f.user('reporter').mutation(api.reporting.publish, args); }, () => true, () => {}, Date.now, undefined, async () => f.user('reporter').query(api.reporting.publicationReceipt, args));
++  if (committed) expect(await worker.sendEntry('OP')).toBe(saved.id);
++  else { await expect(worker.sendEntry('OP')).rejects.toThrow(/explicit bounded recovery/); expect(sends).toBe(0); expect(await worker.sendEntry('OP', true)).toBe(saved.id); }
++  expect(sends).toBe(committed ? 0 : 1);
++  expect(await f.t.run((ctx) => ctx.db.query('faultReports').collect())).toHaveLength(1);
++  expect((await f.t.run((ctx) => ctx.db.query('notifications').collect())).filter((n) => n.title === 'Fault report received')).toHaveLength(1);
++  expect((await queue.load(String(f.reporter)))[0]).toMatchObject({ state: 'SYNCED', retryCount: 5, reportId: saved.id, serverId: saved.id });
++  await expect(f.user('other').query(api.reporting.publicationReceipt, args)).rejects.toThrow();
++  await f.t.run((ctx) => ctx.db.patch(f.reporter, { status: 'revoked' }));
++  await expect(f.user('reporter').query(api.reporting.publicationReceipt, args)).rejects.toThrow();
++});
++
+ test('an uncertain draft update retries the identical snapshot without another revision or report', async () => {
+   const f = await setup();
+   const fields = { equipmentId: f.equipment, operationId: 'UNCERTAIN-DRAFT', category: 'Other/Unknown', symptoms: 'Initial symptoms', description: '', priority: 'High' as const, condition: 'Unknown', inUse: false, noticedAt: 1, emergency: false };
+@@ -266,7 +288,7 @@ test("independent ordered verification and authorized release are atomic, idempo
+   await f.user("verifier").mutation(api.safety.verify, verification(task, "technical"));
+   expect((await f.user("reporter").query(api.safety.releaseStatus, { equipmentId: f.equipment })).eligible).toBe(false);
+   await f.user("reporter").mutation(api.safety.verify, verification(task, "clinical"));
+-  const release = { equipmentId: f.equipment, expectedTaskRevision: 3, reason: "TEST approved release evidence" };
++  const release = { equipmentId: f.equipment, expectedTaskRevision: 3, expectedEvidence: (await f.user("supervisor").query(api.safety.releaseStatus, { equipmentId: f.equipment })).evidenceSnapshot, reason: "TEST approved release evidence" };
+   await expect(f.user("reporter").mutation(api.safety.release, release)).rejects.toThrow(/authority/);
+   const [a, b] = await Promise.all([f.user("supervisor").mutation(api.safety.release, release), f.user("supervisor").mutation(api.safety.release, release)]); expect(a).toBe(b);
+   expect((await f.user("reporter").query(api.safety.releaseStatus, { equipmentId: f.equipment })).available).toBe(true);
+@@ -275,7 +297,8 @@ test("independent ordered verification and authorized release are atomic, idempo
+   await expect(f.user("reporter").mutation(api.safety.resolveHold, { id: hold, reason: "Test" })).rejects.toThrow();
+   await f.user("supervisor").mutation(api.safety.resolveHold, { id: hold, reason: "TEST resolution evidence" });
+   expect((await f.user("reporter").query(api.safety.releaseStatus, { equipmentId: f.equipment })).available).toBe(false); // Clearance is not release.
+-  await f.user("supervisor").mutation(api.safety.release, release);
++  await expect(f.user("supervisor").mutation(api.safety.release, release)).rejects.toThrow(/changed|review/);
++  await f.user("supervisor").mutation(api.safety.release, { ...release, expectedEvidence: (await f.user("supervisor").query(api.safety.releaseStatus, { equipmentId: f.equipment })).evidenceSnapshot });
+   expect((await f.user("reporter").query(api.safety.releaseStatus, { equipmentId: f.equipment })).available).toBe(true);
+   const { emergency, ...newFault } = draftFields(f.equipment); void emergency;
+   await f.user("reporter").mutation(api.operations.submitReport, { ...newFault, operationId: "TEST-NEW-FAULT" });
+diff --git a/tests/backend/evidence-storage.test.ts b/tests/backend/evidence-storage.test.ts
+index cf44290..d74199e 100644
+--- a/tests/backend/evidence-storage.test.ts
++++ b/tests/backend/evidence-storage.test.ts
+@@ -1,5 +1,5 @@
+ import { expect, test, vi } from "vitest";
+-import { finishStoredEvidence } from "../../convex/lib/evidence-storage";
++import { finishStoredEvidence } from "../../convex/lib/evidence_storage";
+ 
+ test('lost upload finalization responses preserve committed blobs and the original error', async () => {
+   const failure = Error('Transport lost after commit');
+diff --git a/tests/backend/publication-coordinator.test.ts b/tests/backend/publication-coordinator.test.ts
+index 27a062d..47152d4 100644
+--- a/tests/backend/publication-coordinator.test.ts
++++ b/tests/backend/publication-coordinator.test.ts
+@@ -10,6 +10,68 @@ function setup() {
+   return {values,store,queue,send,worker,time:(value:number)=>{now=value;},active:(value:boolean)=>{active=value;}};
+ }
+ const row:PendingPublication={id:'OP',owner:'OWNER',reportId:'REPORT',expectedRevision:1,expectedAttachmentRevision:2,createdAt:1,updatedAt:1,state:'PENDING',retryCount:0};
++
++test('review 4: an exhausted uncertain attempt can reconcile a committed receipt without a sixth send', async () => {
++  const f = setup();
++  await f.queue.update('OWNER', () => [{ ...row, state: 'SYNCING', retryCount: 5, lastAttempt: 1 }]);
++  // The optional final constructor argument is a read-only receipt lookup.
++  const args = [f.queue, 'OWNER', f.send, () => true, () => {}, () => 100000, undefined, async () => 'REPORT'] as const;
++  const worker = new PublicationCoordinator(...args);
++  expect(await worker.sendEntry('OP')).toBe('REPORT');
++  expect(f.send).not.toHaveBeenCalled();
++  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ reportId: 'REPORT', state: 'SYNCED', retryCount: 5 });
++});
++
++test('review 4: reviewing an exhausted unchanged snapshot cannot silently reset its attempt budget', async () => {
++  const f = setup();
++  await f.queue.update('OWNER', () => [{ ...row, state: 'FAILED', retryCount: 5, retryable: false }]);
++  await expect(f.worker.enqueue('REPORT', 1, 2, 'NEW_OPERATION')).rejects.toThrow(/limit|reconcil|recovery/i);
++  expect(f.send).not.toHaveBeenCalled();
++  expect((await f.queue.load('OWNER'))[0].retryCount).toBe(5);
++});
++
++test('review 4: interruption before sending attempt five requires reconciliation and one explicitly confirmed recovery', async () => {
++  const f = setup(); await f.queue.update('OWNER', () => [{ ...row, retryCount: 4 }]);
++  const original = f.store.set;
++  f.store.set = async (key, value) => { await original(key, value); if (key === 'smartmaint.queue.OWNER') f.active(false); };
++  await expect(f.worker.sendEntry('OP')).rejects.toThrow(/paused/);
++  expect(f.send).not.toHaveBeenCalled();
++  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ state: 'SYNCING', retryCount: 5 });
++  f.store.set = original;
++  const restarted = new PublicationCoordinator(f.queue, 'OWNER', f.send, () => true, () => {}, () => 100000, undefined, async () => null);
++  await expect(restarted.sendEntry('OP')).rejects.toThrow(/explicit bounded recovery/);
++  expect(f.send).not.toHaveBeenCalled();
++  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ retryCount: 5, recoveryEligible: true, reconciliationCount: 1 });
++  expect(await restarted.sendEntry('OP', true)).toBe('REPORT');
++  expect(f.send).toHaveBeenCalledOnce();
++  expect(f.send.mock.calls[0][0]).toMatchObject({ reportId: 'REPORT', retryCount: 5, recoveryCount: 1 });
++  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ state: 'SYNCED', retryCount: 5, recoveryCount: 1 });
++});
++
++test('review 4: receipt checks and explicit recovery remain bounded across restarts and uncertain failures', async () => {
++  const f = setup(); await f.queue.update('OWNER', () => [{ ...row, state: 'SYNCING', retryCount: 5 }]);
++  const lookup = vi.fn(async () => null);
++  const worker = () => new PublicationCoordinator(f.queue, 'OWNER', f.send, () => true, () => {}, () => 100000, undefined, lookup);
++  await expect(worker().sendEntry('OP')).rejects.toThrow(/explicit bounded recovery/);
++  f.send.mockRejectedValue(Error('Network timeout during recovery'));
++  await expect(worker().sendEntry('OP', true)).rejects.toThrow(/Network timeout/);
++  await expect(worker().sendEntry('OP', true)).rejects.toThrow(/unavailable/);
++  for (let i = 0; i < 2; i++) await expect(worker().sendEntry('OP')).rejects.toThrow(/explicit bounded recovery/);
++  await expect(worker().sendEntry('OP')).rejects.toThrow(/limit/);
++  expect(lookup).toHaveBeenCalledTimes(3); expect(f.send).toHaveBeenCalledOnce();
++  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ retryCount: 5, recoveryCount: 1, reconciliationCount: 3, recoveryEligible: false });
++});
++
++test('review 4: receipt reconciliation reports a changed draft as a conflict and permits review of its new snapshot', async () => {
++  const f = setup(); await f.queue.update('OWNER', () => [{ ...row, state: 'SYNCING', retryCount: 5 }]);
++  const worker = new PublicationCoordinator(f.queue, 'OWNER', f.send, () => true, () => {}, () => 100000, undefined, async () => { throw Error('Draft revision conflict: review the current report'); });
++  await expect(worker.sendEntry('OP')).rejects.toThrow(/revision conflict/);
++  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ state: 'CONFLICT', retryCount: 5, reconciliationCount: 1, recoveryEligible: false });
++  await expect(worker.enqueue('REPORT', 1, 2, 'UNCHANGED')).rejects.toThrow(/limit/);
++  expect(await worker.enqueue('REPORT', 2, 3, 'REVIEWED')).toBe('REPORT');
++  expect(f.send).toHaveBeenCalledOnce();
++  expect(f.send.mock.calls[0][0]).toMatchObject({ reportId: 'REPORT', expectedRevision: 2, expectedAttachmentRevision: 3 });
++});
+ test('parallel sends share one operation and preserve the reviewed revisions',async()=>{
+   const f=setup();await f.queue.update('OWNER',()=>[row]);
+   const [a,b]=await Promise.all([f.worker.sendEntry('OP'),f.worker.sendEntry('OP')]);expect(a).toBe('REPORT');expect(b).toBe('REPORT');expect(f.send).toHaveBeenCalledOnce();expect(f.send.mock.calls[0][0]).toMatchObject({expectedRevision:1,expectedAttachmentRevision:2});expect((await f.queue.load('OWNER'))[0]).toMatchObject({state:'SYNCED',serverId:'REPORT'});
+diff --git a/tests/backend/report-recovery.test.ts b/tests/backend/report-recovery.test.ts
+index 82791b2..f3d7944 100644
+--- a/tests/backend/report-recovery.test.ts
++++ b/tests/backend/report-recovery.test.ts
+@@ -15,6 +15,83 @@ function setup() {
+ }
+ const draft:Omit<RecoveryDraft,'photos'>={owner:'OWNER',operationId:'OP',equipmentId:'DEVICE',departmentId:'DEPARTMENT',updatedAt:1,fields:{category:'',symptoms:'Private TEST draft',description:'',priority:'High',condition:'',inUse:'',noticedAt:'2026-10-24T10:00:00Z',emergency:false}};
+ const photo={operationId:'PHOTO',contentType:'image/png' as const,base64:Buffer.from('TEST PHOTOGRAPH').toString('base64')};
++
++test('review 5: explicit discard frees space at ciphertext allocation quota and preserves other drafts and owners', async () => {
++  const f = setup(); await f.repo.saveDraft(draft); await f.repo.savePhoto('OWNER', 'OP', photo);
++  await f.repo.saveDraft({ ...draft, operationId: 'KEEP' });
++  await f.repo.savePhoto('OWNER', 'KEEP', { ...photo, operationId: 'INTACT' });
++  await f.repo.saveDraft({ ...draft, owner: 'OTHER' });
++  const before = [...f.files.values()].reduce((n, bytes) => n + bytes.length, 0);
++  const originalWrite = f.fileAdapter.write;
++  f.fileAdapter.write = async () => { throw Error('Physical ciphertext allocation quota'); };
++  await expect(f.repo.removeDraft('OWNER', 'OP')).resolves.toBeUndefined();
++  const restarted = new ReportRecoveryRepository(new AuthenticatedFileStore(f.vault, f.fileAdapter, f.cipher, f.next));
++  expect((await restarted.list('OWNER')).map((d) => d.operationId)).toEqual(['KEEP']);
++  expect(await restarted.readPhoto('OWNER', 'KEEP', 'INTACT')).toEqual({ ...photo, operationId: 'INTACT' });
++  expect(await restarted.list('OTHER')).toHaveLength(1);
++  expect([...f.files.values()].reduce((n, bytes) => n + bytes.length, 0)).toBeLessThan(before);
++  f.fileAdapter.write = originalWrite;
++  await restarted.saveDraft({ ...draft, operationId: 'NEW' });
++  expect(await restarted.list('OWNER')).toHaveLength(2);
++});
++
++test('review 5: interruption during explicit cleanup is resumed after restart without losing its deletion intent', async () => {
++  const f = setup(); await f.repo.saveDraft(draft); await f.repo.savePhoto('OWNER', 'OP', photo);
++  await f.repo.saveDraft({ ...draft, operationId: 'KEEP' });
++  const originalRemove = f.fileAdapter.remove;
++  let interrupted = false;
++  f.fileAdapter.remove = async (name) => { if (!interrupted) { interrupted = true; throw Error('Cleanup interrupted'); } await originalRemove(name); };
++  await expect(f.repo.removeDraft('OWNER', 'OP')).rejects.toThrow(/Cleanup interrupted/);
++  const restarted = new ReportRecoveryRepository(new AuthenticatedFileStore(f.vault, f.fileAdapter, f.cipher, f.next));
++  expect((await restarted.list('OWNER')).map((d) => d.operationId)).toEqual(['KEEP']);
++  expect(f.files.size).toBe(0); // Remaining index lives in the bounded encrypted deletion journal.
++});
++
++test('review 5: failing to commit deletion intent preserves every draft and photo', async () => {
++  const f = setup(); await f.repo.saveDraft(draft); await f.repo.savePhoto('OWNER', 'OP', photo);
++  const original = f.vault.set;
++  f.vault.set = async () => { throw Error('Vault allocation failed'); };
++  await expect(f.repo.removeDraft('OWNER', 'OP')).rejects.toThrow(/Vault allocation failed/);
++  f.vault.set = original;
++  expect(await f.repo.readPhoto('OWNER', 'OP', 'PHOTO')).toEqual(photo);
++  expect(await f.repo.list('OWNER')).toHaveLength(1);
++});
++
++test.each(['missing', 'corrupt'])('review 6: remove only the %s pending photo without decrypting it, even at quota', async (damage) => {
++  const f = setup(); await f.repo.saveDraft(draft);
++  await f.repo.savePhoto('OWNER', 'OP', { ...photo, operationId: 'INTACT' });
++  await f.repo.savePhoto('OWNER', 'OP', { ...photo, operationId: 'UNAVAILABLE' });
++  const pointer = JSON.parse(f.metadata.get('smartmaint.recovery.OWNER.OP.UNAVAILABLE')!);
++  if (damage === 'missing') f.files.delete(pointer.file);
++  else f.files.get(pointer.file)![0] ^= 1;
++  await expect(f.repo.readPhoto('OWNER', 'OP', 'UNAVAILABLE')).rejects.toThrow();
++  f.fileAdapter.write = async () => { throw Error('Physical ciphertext allocation quota'); };
++  await f.repo.removePhoto('OWNER', 'OP', 'UNAVAILABLE');
++  const restarted = new ReportRecoveryRepository(new AuthenticatedFileStore(f.vault, f.fileAdapter, f.cipher, f.next));
++  expect((await restarted.list('OWNER'))[0].photos.map((p) => p.operationId)).toEqual(['INTACT']);
++  expect(await restarted.readPhoto('OWNER', 'OP', 'INTACT')).toEqual({ ...photo, operationId: 'INTACT' });
++  await restarted.removePhoto('OWNER', 'OP', 'INTACT');
++  expect((await restarted.list('OWNER'))[0].photos).toEqual([]);
++  expect((await restarted.list('OWNER'))[0].fields).toEqual(draft.fields);
++});
++
++test('review 5: a lost deletion commit resumes only explicitly selected cleanup and preserves uncertain orphans', async () => {
++  const f = setup(); await f.repo.saveDraft(draft); await f.repo.savePhoto('OWNER', 'OP', photo);
++  f.files.set('UNCERTAIN.bin', Uint8Array.of(1, 2, 3));
++  const original = f.vault.set;
++  let lost = false;
++  f.vault.set = async (key, value) => {
++    expect(new TextEncoder().encode(value).length).toBeLessThanOrEqual(1536);
++    await original(key, value);
++    if (key === 'smartmaint.recovery.OWNER' && !lost) { lost = true; throw Error('Lost deletion completion'); }
++  };
++  await expect(f.repo.removeDraft('OWNER', 'OP')).rejects.toThrow(/Lost deletion/);
++  f.vault.set = original;
++  const restarted = new ReportRecoveryRepository(new AuthenticatedFileStore(f.vault, f.fileAdapter, f.cipher, f.next));
++  expect(await restarted.list('OWNER')).toEqual([]);
++  expect([...f.files.keys()]).toEqual(['UNCERTAIN.bin']);
++  expect([...f.metadata.values()].some((v) => v.includes('Private TEST draft'))).toBe(false);
++});
+ test('encrypted draft and photo survive adapter recreation, isolate accounts and never leave plaintext in ciphertext files',async()=>{
+   const f=setup();await f.repo.saveDraft(draft);await f.repo.savePhoto('OWNER','OP',photo);
+   const restarted=new ReportRecoveryRepository(new AuthenticatedFileStore(f.vault,f.fileAdapter,f.cipher,f.next));

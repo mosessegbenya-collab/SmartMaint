@@ -6,6 +6,7 @@ import type { GenericId } from "convex/values";
 import { activeDepartment, audit, deny, requireAccount, requiredText } from "./lib/access";
 import { equipmentAccess } from "./operations";
 import { priority, taskStatus } from "./lib/validators";
+import { repairContributors } from "./lib/repair_evidence";
 
 function pageSize(n: number) { if (!Number.isInteger(n) || n < 1 || n > 100) deny("Choose a page size between 1 and 100."); }
 function equipmentPermission(actor: AccountDoc) { if (!actor.capabilities.some((c) => ["report", "repair", "assign", "clinical", "technical", "analytics", "export", "reconcile", "hold"].includes(c))) deny(); }
@@ -47,7 +48,8 @@ export const taskPage = query({ args: { departmentId: v.id("departments"), pagin
   const byState = args.state ? selected.filter((q) => q.eq(q.field('state'), args.state!)) : selected;
   const byDue = args.overdueBefore !== undefined ? byState.filter((q) => q.and(q.lt(q.field('dueAt'), args.overdueBefore!), q.neq(q.field('state'), 'Completed'), q.neq(q.field('state'), 'Cancelled'))) : byState;
   const page = await byDue.order('desc').paginate({ ...args.paginationOpts, maximumRowsRead: 1000 });
-  return { ...page, page: await Promise.all(page.page.map(async (task) => {
+  const candidates = args.verification ? (await Promise.all(page.page.map(async (task) => (await repairContributors(ctx, task)).has(actor._id) ? null : task))).filter((task) => task !== null) : page.page;
+  return { ...page, page: await Promise.all(candidates.map(async (task) => {
     const item = await ctx.db.get(task.equipmentId);
     return { ...task, equipment: item && item.departmentId === task.departmentId ? { assetId: item.assetId, name: item.name, location: item.location } : null };
   })) };

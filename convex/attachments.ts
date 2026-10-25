@@ -5,7 +5,7 @@ import { action, internalMutation, internalQuery, mutation, query } from "./lib/
 import type { QueryCtx } from "./lib/server";
 import { audit, deny, identity, requireAccount, requiredText } from "./lib/access";
 import { photoDimensions } from "../src/domain/photo-validation";
-import { finishStoredEvidence } from "./lib/evidence-storage";
+import { finishStoredEvidence } from "./lib/evidence_storage";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 async function reportAccess(ctx: QueryCtx, id: GenericId<"faultReports">, write = false) {
