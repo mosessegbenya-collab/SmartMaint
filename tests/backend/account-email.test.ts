@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, vi } from 'vitest';
-import { accountEmailError, refreshIdentityClaims, sendAccountEmailCode, verifyAccountEmail } from '../../src/features/access/account-email-service';
+import { accountEmailError, convexTokenOptions, refreshIdentityClaims, sendAccountEmailCode, verifyAccountEmail } from '../../src/features/access/account-email-service';
 import { canUseTrustedAccount, resolveAccessState } from '../../src/domain/staff-access';
 
 test('signed-in unverified accounts expose email verification instead of a dead end', () => {
@@ -79,6 +79,28 @@ test('refresh orders user, session, token-cache invalidation and uncached claims
   expect(claims).not.toHaveBeenCalled();
 });
 
+test('activated Convex integration refreshes the session token without requesting a missing legacy template', async () => {
+  const refreshToken = vi.fn(async (_options?: unknown) => {});
+  await refreshIdentityClaims({ reloadUser: async () => {}, reloadSession: async () => ({ audience: 'convex' }), clearCache: () => {}, refreshToken });
+  expect(refreshToken).toHaveBeenCalledExactlyOnceWith({ skipCache: true });
+});
+
+test('legacy token selection remains explicit and has no unsigned or unaudienced fallback', async () => {
+  expect(convexTokenOptions('convex')).toEqual({ skipCache: true });
+  for (const audience of [undefined, null, 'other']) expect(convexTokenOptions(audience)).toEqual({ template: 'convex', skipCache: true });
+  const refreshToken = vi.fn(async (_options?: unknown) => {});
+  await refreshIdentityClaims({ reloadUser: async () => {}, reloadSession: async () => ({}), clearCache: () => {}, refreshToken });
+  expect(refreshToken).toHaveBeenCalledExactlyOnceWith({ template: 'convex', skipCache: true });
+});
+
+test('missing legacy template reports connection configuration rather than failed email verification', async () => {
+  const refreshToken = vi.fn(async () => { throw { errors: [{ code: 'resource_not_found', longMessage: '[REDACTED]' }] }; });
+  await expect(refreshIdentityClaims({ reloadUser: async () => {}, reloadSession: async () => ({}), clearCache: () => {}, refreshToken })).rejects.toEqual({ code: 'backend_auth_unconfigured' });
+  expect(refreshToken).toHaveBeenCalledTimes(1);
+  expect(accountEmailError({ code: 'backend_auth_unconfigured' })).toMatch(/connection needs configuration/);
+  expect(accountEmailError({ code: 'backend_auth_unconfigured' })).not.toMatch(/Email verification could not finish|\[REDACTED\]/);
+});
+
 test('fixed error messages cover expiry, rate limits and revoked sessions without echoing provider material', () => {
   expect(accountEmailError({ code: 'verification_expired' })).toMatch(/expired.*new code/);
   expect(accountEmailError({ errors: [{ code: 'form_code_incorrect' }] })).toMatch(/incorrect/);
@@ -91,5 +113,6 @@ test('fixed error messages cover expiry, rate limits and revoked sessions withou
   expect(component).toContain('identity.sessionId');
   expect(component).not.toMatch(/console\.|localStorage|sessionStorage|unsafeMetadata/);
   const identity = readFileSync('src/features/access/identity.tsx', 'utf8');
-  expect(identity).toContain('template: "convex", skipCache: true');
+  expect(identity).toContain('session.getToken(options)');
+  expect(identity).toContain('freshSession.lastActiveToken?.jwt?.claims.aud');
 });

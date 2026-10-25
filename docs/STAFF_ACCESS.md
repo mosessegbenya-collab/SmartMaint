@@ -10,7 +10,7 @@ Clerk 4.13 email-code authentication and secure token storage remain. Registrati
 
 `ConvexProviderWithClerk` supplies Clerk tokens. Backend helpers first require `ctx.auth.getUserIdentity()`, verified email, tokenIdentifier and subject; approved accounts bind both identity and Clerk subject. Every protected operation then checks current account status, policy, capability and department scope. Navigation derives from the same approved grants but is not an authorization boundary.
 
-`convex/auth.config.ts` reads deployment-side `CLERK_JWT_ISSUER_DOMAIN` with applicationID `convex`. Configure the existing Clerk application's Convex JWT template (audience convex), including standard email and boolean email_verified claims. Confirm these claims reach Convex as email/emailVerified in a live integration before enabling staff access. No provider is configured when the issuer is absent.
+`convex/auth.config.ts` reads deployment-side `CLERK_JWT_ISSUER_DOMAIN` with applicationID `convex`. The installed Convex client supports the activated Clerk Convex integration (session audience `convex`, no named template required), or the legacy JWT template named `convex`. Include standard email and boolean email_verified claims in whichever token path is configured. Confirm these claims reach Convex as email/emailVerified in a live integration before enabling staff access. No provider is configured when the issuer is absent.
 
 Mobile configuration contains only the existing public Clerk key and `EXPO_PUBLIC_CONVEX_URL`. No secret/admin key belongs in the app. Existing keys were preserved and environment files were not inspected for this implementation.
 

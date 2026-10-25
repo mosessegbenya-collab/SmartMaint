@@ -22,19 +22,35 @@ export async function verifyAccountEmail(email: Email, code: string, refresh: ()
 
 export async function refreshIdentityClaims(port: {
   reloadUser: () => Promise<unknown>;
-  reloadSession: () => Promise<unknown>;
+  reloadSession: () => Promise<{ audience?: unknown } | void>;
   clearCache: () => void;
-  refreshToken: () => Promise<unknown>;
+  refreshToken: (options: { skipCache: true; template?: 'convex' }) => Promise<unknown>;
 }) {
   await port.reloadUser();
-  await port.reloadSession();
+  const session = await port.reloadSession();
   port.clearCache();
-  await port.refreshToken(); // The caller discards the result; never log or persist it.
+  // Match the installed ConvexProviderWithClerk: activated integration uses the
+  // session token; only legacy configurations request a named JWT template.
+  try {
+    await port.refreshToken(convexTokenOptions(session?.audience));
+  } catch (error) {
+    if (errorCode(error) === 'resource_not_found') throw { code: 'backend_auth_unconfigured' };
+    throw error;
+  } // The caller discards token results; never log or persist them.
+}
+
+export function convexTokenOptions(audience: unknown): { skipCache: true; template?: 'convex' } {
+  return audience === 'convex' ? { skipCache: true } : { template: 'convex', skipCache: true };
+}
+
+function errorCode(error: unknown) {
+  const object = error && typeof error === 'object' ? error as { code?: string; errors?: { code?: string }[] } : {};
+  return object.errors?.[0]?.code ?? object.code;
 }
 
 export function accountEmailError(error: unknown) {
-  const object = error && typeof error === 'object' ? error as { code?: string; errors?: { code?: string }[] } : {};
-  const code = object.errors?.[0]?.code ?? object.code;
+  const code = errorCode(error);
+  if (code === 'backend_auth_unconfigured') return 'The Clerk–Convex connection needs configuration. Activate the Convex integration in this Clerk development instance, or configure its legacy convex JWT template. Then refresh account status. Staff access remains locked.';
   if (code === 'code_required') return 'Enter the verification code.';
   if (code === 'verification_expired' || code === 'form_code_expired') return 'This code expired. Request a new code.';
   if (code === 'form_code_incorrect') return 'The code is incorrect. Try again or request a new code.';

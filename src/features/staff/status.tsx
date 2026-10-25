@@ -8,6 +8,7 @@ import { roles, type Role } from "@/domain/models";
 import { useIdentity } from "@/features/access/identity";
 import { authErrorMessage } from "@/features/access/auth-policy";
 import { AccountEmailVerification } from "@/features/access/account-email";
+import { accountEmailError } from "@/features/access/account-email-service";
 import { staffApi } from "@/services/staff-api";
 import { useStaffAccess } from "./provider";
 
@@ -25,7 +26,7 @@ export function StaffAccountStatus() {
   const [busy, setBusy] = useState(false);
   const refresh = async () => {
     setBusy(true); setMessage("");
-    try { await identity.refresh(); access.retry(); } catch (error) { setMessage(authErrorMessage(error)); }
+    try { await identity.refresh(); access.retry(); } catch (error) { setMessage(accountEmailError(error)); }
     finally { setBusy(false); }
   };
   const signOut = async () => {

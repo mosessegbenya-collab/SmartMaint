@@ -1,5 +1,7 @@
 # Signed-in email verification
 
+Follow-up: the initial refresh unconditionally requested a legacy JWT template. The current implementation supports the activated Convex integration session token as well; see [the correction and current validation](CLERK_TOKEN_SELECTION.md). Current token-selection checks supersede the initial API description below.
+
 The user confirmed the SSO flow reaches Account access. Actual email delivery and verification in that session remain pending; no browser session, email address, callback URL, cookie, code or token was captured or logged for this check.
 
 Installed versions inspected: Expo 57.0.31, Expo Router 57.0.29, @clerk/expo 4.13.0. The installed Clerk EmailAddressResource types support `prepareVerification({ strategy: 'email_code' })` and `attemptVerification({ code })`. Session types support `clearCache()` and `getToken({ template: 'convex', skipCache: true })`.

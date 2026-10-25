@@ -51,9 +51,12 @@ function ClerkIdentity({ children, retry }: { children: ReactNode; retry: () => 
     signOut: async () => { logoutIntent.current = true; try { await clerk.signOut(); setExpired(false); } finally { logoutIntent.current = false; } },
     refresh: async () => {
       if (!session || !user) throw { code: "unauthenticated" };
-      await refreshIdentityClaims({ reloadUser: () => user.reload(), reloadSession: () => session.reload(),
-        clearCache: () => session.clearCache(), refreshToken: async () => {
-          if (!await session.getToken({ template: "convex", skipCache: true })) throw { code: "unauthenticated" };
+      await refreshIdentityClaims({ reloadUser: () => user.reload(), reloadSession: async () => {
+        const freshSession = await session.reload();
+        return { audience: freshSession.lastActiveToken?.jwt?.claims.aud };
+      },
+        clearCache: () => session.clearCache(), refreshToken: async (options) => {
+          if (!await session.getToken(options)) throw { code: "unauthenticated" };
         } });
     },
   }}>{children}</IdentityContext.Provider>;

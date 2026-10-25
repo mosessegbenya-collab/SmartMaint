@@ -42,7 +42,7 @@ function EmailVerification({ retry }: { retry: () => void }) {
   if (!email) return <Notice tone="warning">Your Clerk account has no primary email. Add and verify a primary email in your identity account settings, then refresh account status. Staff access remains locked.</Notice>;
   if (email.verification.status === 'verified') return <Card style={{ gap: 12 }}>
     <Notice>Your email is verified in Clerk. Refresh account status to update the staff service.</Notice>
-    <Txt muted>If identity remains unverified after refreshing, an administrator must check that the Clerk convex JWT template supplies the primary email and its email_verified claim. Email verification alone does not approve staff access.</Txt>
+    <Txt muted>If identity remains unverified after refreshing, an administrator must check that the Clerk Convex integration session claims, or the legacy convex JWT template, supply the primary email and its email_verified claim. Email verification alone does not approve staff access.</Txt>
     {!!message && <Notice tone="warning">{message}</Notice>}
     <Button label="Refresh verified identity" loading={busy} onPress={() => void run(refresh)} />
   </Card>;
