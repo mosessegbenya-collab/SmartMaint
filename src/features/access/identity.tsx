@@ -9,6 +9,7 @@ type Identity = {
   loaded: boolean;
   signedIn: boolean;
   sessionId: string | null;
+  refreshRevision: number;
   email: string | null;
   task: string | null;
   expired: boolean;
@@ -18,7 +19,7 @@ type Identity = {
   refresh: () => Promise<void>;
 };
 const unavailable: Identity = {
-  configured: false, loaded: true, signedIn: false, sessionId: null,
+  configured: false, loaded: true, signedIn: false, sessionId: null, refreshRevision: 0,
   email: null, task: null,
   expired: false, restoreTimedOut: false, retry: () => {},
   signOut: async () => {}, refresh: async () => {},
@@ -30,6 +31,7 @@ function ClerkIdentity({ children, retry }: { children: ReactNode; retry: () => 
   const { session } = useSession();
   const clerk = useClerk();
   const [expired, setExpired] = useState(false);
+  const [refreshRevision, setRefreshRevision] = useState(0);
   const [restoreTimedOut, setRestoreTimedOut] = useState(false);
   const previousSession = useRef<string | null>(null);
   const logoutIntent = useRef(false);
@@ -45,6 +47,7 @@ function ClerkIdentity({ children, retry }: { children: ReactNode; retry: () => 
   return <IdentityContext.Provider value={{
     configured: true, loaded: isLoaded, signedIn: !!isSignedIn,
     sessionId: sessionId ?? null,
+    refreshRevision,
     email: user?.primaryEmailAddress?.emailAddress ?? null,
     task: session?.currentTask?.key ?? null,
     expired: expired && !isSignedIn, restoreTimedOut: restoreTimedOut && !isLoaded, retry,
@@ -57,7 +60,7 @@ function ClerkIdentity({ children, retry }: { children: ReactNode; retry: () => 
       },
         clearCache: () => session.clearCache(), refreshToken: async (options) => {
           if (!await session.getToken(options)) throw { code: "unauthenticated" };
-        } });
+        }, reconnect: () => setRefreshRevision((revision) => revision + 1) });
     },
   }}>{children}</IdentityContext.Provider>;
 }

@@ -25,6 +25,7 @@ export async function refreshIdentityClaims(port: {
   reloadSession: () => Promise<{ audience?: unknown } | void>;
   clearCache: () => void;
   refreshToken: (options: { skipCache: true; template?: 'convex' }) => Promise<unknown>;
+  reconnect: () => void;
 }) {
   await port.reloadUser();
   const session = await port.reloadSession();
@@ -37,10 +38,27 @@ export async function refreshIdentityClaims(port: {
     if (errorCode(error) === 'resource_not_found') throw { code: 'backend_auth_unconfigured' };
     throw error;
   } // The caller discards token results; never log or persist them.
+  // Owned above authorization-keyed screens: those screens can unmount while
+  // reload is pending and must not be responsible for committing this handoff.
+  port.reconnect();
 }
 
-export function convexTokenOptions(audience: unknown): { skipCache: true; template?: 'convex' } {
-  return audience === 'convex' ? { skipCache: true } : { template: 'convex', skipCache: true };
+export function convexTokenOptions(audience: unknown): { skipCache: true; template?: 'convex' };
+export function convexTokenOptions(audience: unknown, skipCache: boolean): { skipCache: boolean; template?: 'convex' };
+export function convexTokenOptions(audience: unknown, skipCache = true): { skipCache: boolean; template?: 'convex' } {
+  return audience === 'convex' ? { skipCache } : { template: 'convex', skipCache };
+}
+
+export async function fetchConvexSessionToken(port: {
+  signedIn: boolean;
+  sessionReady: boolean;
+  pendingTask: boolean;
+  audience: unknown;
+  getToken: (options: { skipCache: boolean; template?: 'convex' }) => Promise<string | null>;
+}, forceRefreshToken: boolean) {
+  if (!port.signedIn || !port.sessionReady || port.pendingTask) return null;
+  try { return await port.getToken(convexTokenOptions(port.audience, forceRefreshToken)); }
+  catch { return null; }
 }
 
 function errorCode(error: unknown) {

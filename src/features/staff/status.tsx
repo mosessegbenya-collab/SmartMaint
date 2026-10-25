@@ -9,6 +9,7 @@ import { useIdentity } from "@/features/access/identity";
 import { authErrorMessage } from "@/features/access/auth-policy";
 import { AccountEmailVerification } from "@/features/access/account-email";
 import { accountEmailError } from "@/features/access/account-email-service";
+import { IdentityConnectionDiagnostics } from "@/features/access/identity-diagnostics";
 import { staffApi } from "@/services/staff-api";
 import { useStaffAccess } from "./provider";
 
@@ -26,7 +27,7 @@ export function StaffAccountStatus() {
   const [busy, setBusy] = useState(false);
   const refresh = async () => {
     setBusy(true); setMessage("");
-    try { await identity.refresh(); access.retry(); } catch (error) { setMessage(accountEmailError(error)); }
+    try { await identity.refresh(); } catch (error) { setMessage(accountEmailError(error)); }
     finally { setBusy(false); }
   };
   const signOut = async () => {
@@ -39,7 +40,8 @@ export function StaffAccountStatus() {
     <Txt size={26} weight="800">{titles[access.status]}</Txt>
     {!!identity.email && <Detail label="Clerk email" value={identity.email} />}
     <Badge label={access.status.replaceAll("_", " ")} tone={access.status === "approved" ? "success" : "warning"} />
-    {identity.configured && identity.signedIn && access.status === "identity_unverified" && <AccountEmailVerification retry={access.retry} />}
+    {identity.configured && identity.signedIn && <IdentityConnectionDiagnostics key={identity.sessionId} />}
+    {identity.configured && identity.signedIn && access.status === "identity_unverified" && <AccountEmailVerification />}
     {access.status === "approved" && access.account ? <>
       <Detail label="Verified staff" value={access.account.name} />
       <Detail label="Verified Staff ID" value={access.account.staffId} />

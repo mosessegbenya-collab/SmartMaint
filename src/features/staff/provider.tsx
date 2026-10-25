@@ -1,10 +1,10 @@
 import { Component, createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { useAuth } from "@clerk/expo";
-import { ConvexReactClient, useConvex, useConvexAuth, useQuery } from "convex/react";
-import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { useAuth, useSession } from "@clerk/expo";
+import { ConvexProviderWithAuth, ConvexReactClient, useConvex, useConvexAuth, useQuery } from "convex/react";
 import { useIdentity } from "@/features/access/identity";
 import { staffApi } from "@/services/staff-api";
 import { accessCacheKey, nextConnection, observeAuthorization, resolveAccessState, type ObservedAuthorization, type StaffResolution } from "@/domain/staff-access";
+import { fetchConvexSessionToken } from "@/features/access/account-email-service";
 
 type StaffAccess = StaffResolution & { configured: boolean; connected: boolean; retry: () => void };
 const defaultValue: StaffAccess = { status: "unconfigured", account: null, configured: false, connected: false, retry: () => {} };
@@ -27,11 +27,25 @@ function LiveClient({ url, children, retry, observe }: { url: string; children: 
       if (lifecycle.current === generation) return client.close();
     }); };
   }, [client]);
-  return <ConvexProviderWithClerk client={client} useAuth={useAuth}>
+  return <ConvexProviderWithAuth client={client} useAuth={useClerkSessionAuth}>
     <LookupBoundary fallback={<Context.Provider value={{ status: "authorization_error", account: null, configured: true, connected: false, retry }}>{children}</Context.Provider>}>
       <ConnectionGate retry={retry} observe={observe}>{children}</ConnectionGate>
     </LookupBoundary>
-  </ConvexProviderWithClerk>;
+  </ConvexProviderWithAuth>;
+}
+function useClerkSessionAuth() {
+  const clerk = useAuth({ treatPendingAsSignedOut: false });
+  const { session, isLoaded: sessionLoaded } = useSession();
+  const audience = session?.lastActiveToken?.jwt?.claims.aud ?? clerk.sessionClaims?.aud;
+  const pendingTask = !!session?.currentTask;
+  const fetchAccessToken = useCallback(({ forceRefreshToken }: { forceRefreshToken: boolean }) => fetchConvexSessionToken({
+    signedIn: !!clerk.isSignedIn,
+    sessionReady: sessionLoaded && !!session,
+    pendingTask,
+    audience,
+    getToken: (options) => session!.getToken(options),
+  }, forceRefreshToken), [clerk.isSignedIn, session, sessionLoaded, pendingTask, audience]);
+  return { isLoading: !clerk.isLoaded || !sessionLoaded, isAuthenticated: clerk.isSignedIn ?? false, fetchAccessToken };
 }
 let clientSequence = 0;
 function ConnectionGate({ children, retry, observe }: { children: ReactNode; retry: () => void; observe: Observation }) {
@@ -88,5 +102,5 @@ export function StaffAccessProvider({ children }: { children: ReactNode }) {
   let valid = false;
   try { const parsed = new URL(url); valid = parsed.protocol === "https:" && !parsed.username && !parsed.password && !parsed.search && !parsed.hash; } catch { /* Fail closed on invalid public configuration. */ }
   if (!valid) return <Context.Provider value={{ ...defaultValue, status: "authorization_error", retry }}>{children}</Context.Provider>;
-  return <LiveClient key={`${identity.sessionId ?? "signed-out"}:${retryCount}`} url={url} retry={retry} observe={observe}>{children}</LiveClient>;
+  return <LiveClient key={`${identity.sessionId ?? "signed-out"}:${identity.refreshRevision}:${retryCount}`} url={url} retry={retry} observe={observe}>{children}</LiveClient>;
 }

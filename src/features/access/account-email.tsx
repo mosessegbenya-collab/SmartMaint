@@ -4,15 +4,15 @@ import { Card, Button, Field, Notice, Txt } from '@/components/smart/ui';
 import { useIdentity } from './identity';
 import { accountEmailError, sendAccountEmailCode, verifyAccountEmail } from './account-email-service';
 
-export function AccountEmailVerification({ retry }: { retry: () => void }) {
+export function AccountEmailVerification() {
   const { user, isLoaded } = useUser();
   const identity = useIdentity();
   if (!isLoaded) return <Notice>Loading email verification…</Notice>;
   if (!user || !identity.signedIn) return <Notice tone="warning">Sign in again to verify your email.</Notice>;
-  return <EmailVerification key={`${identity.sessionId}:${user.id}:${user.primaryEmailAddress?.id}`} retry={retry} />;
+  return <EmailVerification key={`${identity.sessionId}:${user.id}:${user.primaryEmailAddress?.id}`} />;
 }
 
-function EmailVerification({ retry }: { retry: () => void }) {
+function EmailVerification() {
   const { user } = useUser();
   const identity = useIdentity();
   const email = user?.primaryEmailAddress;
@@ -31,7 +31,7 @@ function EmailVerification({ retry }: { retry: () => void }) {
     return () => clearInterval(timer);
   }, [retryAt]);
   const cooldown = Math.max(0, Math.ceil((retryAt - now) / 1000));
-  const refresh = async () => { await identity.refresh(); if (active.current) retry(); };
+  const refresh = async () => { await identity.refresh(); };
   const run = async (action: () => Promise<void>) => {
     if (lock.current) return;
     lock.current = true; setBusy(true); setMessage('');

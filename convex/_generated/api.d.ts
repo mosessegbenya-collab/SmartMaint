@@ -10,6 +10,7 @@
 
 import type * as administration from "../administration.js";
 import type * as attachments from "../attachments.js";
+import type * as auth_diagnostics from "../auth_diagnostics.js";
 import type * as extensions from "../extensions.js";
 import type * as lib_access from "../lib/access.js";
 import type * as lib_evidence_storage from "../lib/evidence_storage.js";
@@ -34,6 +35,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   administration: typeof administration;
   attachments: typeof attachments;
+  auth_diagnostics: typeof auth_diagnostics;
   extensions: typeof extensions;
   "lib/access": typeof lib_access;
   "lib/evidence_storage": typeof lib_evidence_storage;

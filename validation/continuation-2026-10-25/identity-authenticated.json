@@ -1,0 +1,27 @@
+{
+  "client": {
+    "issuer": "issuer_expected",
+    "audience": "audience_expected",
+    "expiry": "token_current",
+    "primaryEmail": "primary_email_matches",
+    "verification": "email_verified",
+    "claims": {
+      "iss": "string",
+      "aud": "string",
+      "exp": "number",
+      "email": "string",
+      "email_verified": "boolean",
+      "emailVerified": "missing"
+    }
+  },
+  "backend": {
+    "claims": {
+      "email": "string",
+      "emailVerified": "boolean",
+      "email_verified": "missing"
+    },
+    "issuer": "issuer_expected",
+    "status": "verified_identity"
+  },
+  "staff": "no_application"
+}
