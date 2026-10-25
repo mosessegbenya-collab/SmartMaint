@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-25T00:31:36.790Z",
+  "at": "2026-10-25T00:42:35.691Z",
   "target": {
     "kind": "dev",
     "name": "greedy-bat-971",
@@ -48,13 +48,6 @@
       "staffVerifications",
       "workEntries"
     ],
-    "schemaInspection": "Read-only Convex command failed (run, exit 1, function unavailable); no credential-bearing output was emitted.",
-    "dataPresence": {
-      "accessPolicy": [],
-      "activeSafetyPolicy": false,
-      "applications": false,
-      "departments": false,
-      "staffAccounts": false
-    }
+    "emptyIssuerCorrected": true
   }
 }

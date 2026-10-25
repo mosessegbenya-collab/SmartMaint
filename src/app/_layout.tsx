@@ -2,7 +2,7 @@ import "@/global.css";
 import { Stack, ThemeProvider, DarkTheme, DefaultTheme, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { IdentityProvider, useIdentity } from "@/features/access/identity";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import { useFonts } from "expo-font";
 import { Txt, Button } from "@/components/smart/ui";
 import { canOpenPreviewWorkspace } from "@/features/access/auth-policy";
@@ -30,6 +30,8 @@ function Navigation() {
         <Stack.Screen name="index" />
         <Stack.Screen name="access/[view]" />
         <Stack.Screen name="flow/[view]" />
+        <Stack.Screen name="sso-callback" />
+        <Stack.Screen name="sso-continue/[flow]" />
         <Stack.Protected guard={canOpenPreviewWorkspace(account, identity) || canUseTrustedAccount(access, access.connected, identity.signedIn)}>
           <Stack.Screen name="workspace" />
         </Stack.Protected>
@@ -42,9 +44,16 @@ export default function Root() {
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator accessibilityLabel="Loading SmartMaint typography" /></View>;
   return (
     <IdentityProvider>
-      <StaffAccessProvider><ReportQueueBoundary><SessionBoundary /></ReportQueueBoundary></StaffAccessProvider>
+      <IdentityNavigation />
     </IdentityProvider>
   );
+}
+function IdentityNavigation() {
+  const pathname = usePathname();
+  // Keep the browser callback mounted while Clerk activates/replaces sessions.
+  // Operational providers remount for authorization changes; they must not replay this handshake.
+  if (Platform.OS === "web" && (pathname === "/sso-callback" || pathname.startsWith("/sso-continue/"))) return <AppProvider><Navigation /></AppProvider>;
+  return <StaffAccessProvider><ReportQueueBoundary><SessionBoundary /></ReportQueueBoundary></StaffAccessProvider>;
 }
 function SessionBoundary() {
   const identity = useIdentity();

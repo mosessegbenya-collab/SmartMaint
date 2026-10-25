@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Platform, Share, View } from "react-native";
 import { useConvex, useQuery } from "convex/react";
 import type { GenericId } from "convex/values";
+import type { FunctionReturnType } from "convex/server";
 import { Badge, Button, Card, Detail, Field, LinkRow, Notice, Row, Screen, Select, Txt, usePalette } from "@/components/smart/ui";
 import { StatGrid } from "@/components/smart/status-ui";
 import { DateTimeField } from "@/components/smart/date-time-field";
@@ -48,11 +49,11 @@ function CompleteMetrics() {
         let cursor: string | null = null; const seen = new Set<string>();
         do {
           if (!active.current) return;
-          const page = await client.query(staffApi.extensions.metricsPage, { departmentId, source, paginationOpts: { cursor, numItems: 100 } });
+          const page: FunctionReturnType<typeof staffApi.extensions.metricsPage> = await client.query(staffApi.extensions.metricsPage, { departmentId, source, paginationOpts: { cursor, numItems: 100 } });
           for (const [key, value] of Object.entries(page.counts)) totals[key] = (totals[key] ?? 0) + value;
           if (page.isDone) break;
           if (!page.continueCursor || seen.has(page.continueCursor)) throw Error("Metrics pagination stopped progressing. Recalculate before using these totals.");
-          cursor = page.continueCursor; seen.add(cursor);
+          cursor = page.continueCursor; seen.add(page.continueCursor);
         } while (true);
       }
       if (active.current) setCounts(totals);
@@ -71,13 +72,13 @@ export function ReportsExport() {
   const [to, setTo] = useState("");
   const [selection, setSelection] = useState<ExportSelection | null>(null);
   const [result, setResult] = useState<{ count: number; csv: string } | null>(null);
+  const [message, setMessage] = useState("");
   useEffect(() => {
     if (!selection) return;
     let current = true;
     void collectReportExport((cursor) => client.query(staffApi.extensions.exportPage, { ...selection, paginationOpts: { cursor, numItems: 100 } }), () => current && active.current).then((value) => { if (current) setResult(value); }).catch((failure) => { if (current) { setMessage(authErrorMessage(failure)); setSelection(null); } });
     return () => { current = false; };
   }, [selection, client]);
-  const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const valid = !!department && (!from || Number.isFinite(Date.parse(from))) && (!to || Number.isFinite(Date.parse(to))) && (!from || !to || Date.parse(from) <= Date.parse(to));

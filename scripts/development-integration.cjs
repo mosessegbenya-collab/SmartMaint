@@ -61,6 +61,11 @@ async function inspect(remote = false) {
       }
     } catch { /* Only booleans are recorded. A failed discovery is never acceptance. */ }
     result.remote = { issuerPresent, issuerValid, issuerMatchesKey, discoveryMatches, jwksAvailable, expectedIssuerReachable, issuerShape: { length: issuer.length, startsHttps: issuer.startsWith('https://'), containsEquals: issuer.includes('='), containsQuotes: /['"]/.test(issuer), lines: issuer.split(/\r?\n/).length }, tableNames: cli(['data', '--deployment', target], env).split(/\r?\n/).filter(Boolean) };
+    if (process.argv.includes('--repair-empty-issuer')) {
+      if (issuer.length !== 0 || !expectedIssuerReachable || env.CONVEX_DEPLOY_KEY) throw Error('Issuer correction requires an empty development setting and verified existing Clerk public discovery.');
+      cli(['env', 'set', 'CLERK_JWT_ISSUER_DOMAIN', `https://${keyHost}`, '--deployment', target], env);
+      result.remote.emptyIssuerCorrected = true;
+    }
     if (process.argv.includes('--compatibility')) {
       try { const schema = JSON.parse(cli(['run', '_system/frontend/getSchemas', '{}', '--deployment', target], env)); fs.writeFileSync('validation/continuation-2026-10-25/deployed-schema.json', JSON.stringify(schema, null, 2)); }
       catch (failure) { result.remote.schemaInspection = failure.message; }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import { useUser } from "@clerk/expo";
 import { useMutation, useQuery } from "convex/react";
 import { router } from "expo-router";
@@ -7,6 +7,7 @@ import { Badge, Button, Card, Detail, Field, Notice, Select, Txt } from "@/compo
 import { roles, type Role } from "@/domain/models";
 import { useIdentity } from "@/features/access/identity";
 import { authErrorMessage } from "@/features/access/auth-policy";
+import { AccountEmailVerification } from "@/features/access/account-email";
 import { staffApi } from "@/services/staff-api";
 import { useStaffAccess } from "./provider";
 
@@ -37,6 +38,7 @@ export function StaffAccountStatus() {
     <Txt size={26} weight="800">{titles[access.status]}</Txt>
     {!!identity.email && <Detail label="Clerk email" value={identity.email} />}
     <Badge label={access.status.replaceAll("_", " ")} tone={access.status === "approved" ? "success" : "warning"} />
+    {identity.configured && identity.signedIn && access.status === "identity_unverified" && <AccountEmailVerification retry={access.retry} />}
     {access.status === "approved" && access.account ? <>
       <Detail label="Verified staff" value={access.account.name} />
       <Detail label="Verified Staff ID" value={access.account.staffId} />
@@ -51,7 +53,7 @@ export function StaffAccountStatus() {
       {access.status === "pending" && <Txt muted>An authorized reviewer must verify your institutional identity and approve staff access.</Txt>}
       {access.status === "rejected" && <Notice tone="warning">{application.rejectionReason ?? "Your application was not approved. Review your staff details or contact an authorized administrator."}</Notice>}
     </Card>}
-    {access.status === "session_task" && <Notice tone="warning">Your identity provider requires another account setup step. Contact your account administrator. Staff access remains locked.</Notice>}
+    {access.status === "session_task" && <><Notice tone="warning">Your identity provider requires another account setup step. Staff access remains locked until identity setup and institutional approval are complete.</Notice>{Platform.OS === "web" && <Button label="Complete identity setup" onPress={() => router.push("/sso-continue/task")} />}</>}
     {access.status === "suspended" && <Notice tone="warning">Your staff account is suspended. Contact an authorized administrator for review.</Notice>}
     {access.status === "revoked" && <Notice tone="warning">Your staff access has been revoked. Contact an authorized administrator. Signing in again does not restore access.</Notice>}
     {["unconfigured", "authorization_error", "backend_unavailable", "timeout"].includes(access.status) && <Notice tone="warning">The staff access service could not confirm your authorization. Staff records remain locked. Try again or contact your administrator.</Notice>}

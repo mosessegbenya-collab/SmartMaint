@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ClerkProvider, useAuth, useClerk, useSession, useUser } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
+import { sessionTaskUrls } from "./sso-flow";
+import { refreshIdentityClaims } from "./account-email-service";
 
 type Identity = {
   configured: boolean;
@@ -47,14 +49,20 @@ function ClerkIdentity({ children, retry }: { children: ReactNode; retry: () => 
     task: session?.currentTask?.key ?? null,
     expired: expired && !isSignedIn, restoreTimedOut: restoreTimedOut && !isLoaded, retry,
     signOut: async () => { logoutIntent.current = true; try { await clerk.signOut(); setExpired(false); } finally { logoutIntent.current = false; } },
-    refresh: async () => { await session?.reload(); await user?.reload(); },
+    refresh: async () => {
+      if (!session || !user) throw { code: "unauthenticated" };
+      await refreshIdentityClaims({ reloadUser: () => user.reload(), reloadSession: () => session.reload(),
+        clearCache: () => session.clearCache(), refreshToken: async () => {
+          if (!await session.getToken({ template: "convex", skipCache: true })) throw { code: "unauthenticated" };
+        } });
+    },
   }}>{children}</IdentityContext.Provider>;
 }
 export function IdentityProvider({ children }: { children: ReactNode }) {
   const [attempt, setAttempt] = useState(0);
   const key = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
   if (!key) return <IdentityContext.Provider value={unavailable}>{children}</IdentityContext.Provider>;
-  return <ClerkProvider key={attempt} publishableKey={key} tokenCache={tokenCache}>
+  return <ClerkProvider key={attempt} publishableKey={key} tokenCache={tokenCache} signInUrl="/access/sign-in" signUpUrl="/access/register" signInForceRedirectUrl="/access/pending" signUpForceRedirectUrl="/access/pending" taskUrls={sessionTaskUrls}>
     <ClerkIdentity retry={() => setAttempt((n) => n + 1)}>{children}</ClerkIdentity>
   </ClerkProvider>;
 }
