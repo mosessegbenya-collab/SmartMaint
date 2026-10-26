@@ -1,0 +1,58 @@
+{
+  "at": "2026-10-26T18:06:52.631Z",
+  "target": {
+    "kind": "dev",
+    "name": "greedy-bat-971"
+  },
+  "readOnly": true,
+  "clerkAdminAccessAvailable": false,
+  "operatorClerkDashboardAccess": "user_confirmed_not_independently_observed",
+  "snapshot": {
+    "accessPolicies": [],
+    "counts": {
+      "authorizationAudit": {
+        "count": 0,
+        "truncated": false
+      },
+      "departments": {
+        "count": 0,
+        "truncated": false
+      },
+      "equipment": {
+        "count": 0,
+        "truncated": false
+      },
+      "faultReports": {
+        "count": 0,
+        "truncated": false
+      },
+      "maintenanceTasks": {
+        "count": 0,
+        "truncated": false
+      },
+      "registrationRequests": {
+        "count": 0,
+        "truncated": false
+      },
+      "releaseRecords": {
+        "count": 0,
+        "truncated": false
+      },
+      "safetyPolicies": {
+        "count": 0,
+        "truncated": false
+      },
+      "staffAccounts": {
+        "count": 0,
+        "truncated": false
+      },
+      "staffVerifications": {
+        "count": 0,
+        "truncated": false
+      }
+    },
+    "intendedAccounts": [],
+    "intendedApplications": [],
+    "matchingDepartment": []
+  }
+}

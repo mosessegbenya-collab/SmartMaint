@@ -11,3 +11,10 @@ export const roleCapabilities: Record<Role, Capability[]> = {
   Administrator: ["accounts", "roles", "suspend", "reconcile", "audit", "analytics", "export"],
   "Registration Approver": ["accounts"],
 };
+
+/** Server must independently validate the deployment and demo record markers. */
+export function allowedRoleCapabilities(role: Role, classification?: "development-demo"): Capability[] {
+  return classification === "development-demo" && role === "Administrator"
+    ? [...roleCapabilities.Administrator, "report", "assign", "repair", "triage"]
+    : roleCapabilities[role];
+}

@@ -1,0 +1,27 @@
+[
+    {
+        "path":  "android/app/build.gradle",
+        "unchanged":  true,
+        "sha256":  "7627E76BE0977A57C4618C0E276D09BAE7FB842AF9AE60F0E22B061C0F370643"
+    },
+    {
+        "path":  "android/gradle/wrapper/gradle-wrapper.properties",
+        "unchanged":  true,
+        "sha256":  "A180163249C7252412DDAEE1C7ADCF59F6494B1183136F690FBD9A3B8AAED00E"
+    },
+    {
+        "path":  "android/gradle.properties",
+        "unchanged":  true,
+        "sha256":  "AF4CEC6E4C4A2EA27793BCE7346CCADBB969B07304138F4CBAA313064E627C4C"
+    },
+    {
+        "path":  "android/settings.gradle",
+        "unchanged":  true,
+        "sha256":  "E47BE248DF403F02AB186F7A8EF3F352EB93397AE9128E0439CFB91481A4A33A"
+    },
+    {
+        "path":  "android/build.gradle",
+        "unchanged":  true,
+        "sha256":  "382A69F2B8BB13EA2B4547A98B539821CCD9E3CE12D53E0961DAE52701A2D440"
+    }
+]

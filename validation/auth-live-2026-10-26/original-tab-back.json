@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-26",
+  "source": "actual_edge_tab_windows_accessibility",
+  "origin": "http://localhost:8081",
+  "initial": {
+    "path": "/access/sign-in",
+    "knownPageLabels": ["Verify your email", "Identity connection", "Sign out"]
+  },
+  "signOut": {
+    "action": "invoked_page_sign_out_button",
+    "observedPath": "/",
+    "knownPageLabels": ["Staff Sign In"]
+  },
+  "back": {
+    "action": "invoked_browser_toolbar_back",
+    "observedPath": "/access/sign-in",
+    "knownPageLabels": ["Staff Sign In"],
+    "authenticatedAccountMarkersObserved": false,
+    "workspaceLinkObserved": false
+  },
+  "signedOutBackNavigation": "PASS",
+  "credentialsEnteredOrRead": false,
+  "previousTokenReplayTested": false
+}

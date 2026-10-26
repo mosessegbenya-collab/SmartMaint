@@ -1,5 +1,11 @@
 # SmartMaint live authentication acceptance
 
+## Physical Android runtime mismatch — 26 October 2026
+
+BLOCKED: User confirmed their physical Android phone reports Expo Go SDK58 against this SDK57 project. The separately connected emulator still reports Expo Go57.0.9; it is not the phone producing this error. Expo's official SDK57 Android download page currently lists Expo Go57.0.9. No project upgrade or runtime downgrade was performed on either device.
+
+Started a separate Expo Go/LAN Metro server on port8083, preserving the existing listeners on8081 and8082. GET `http://10.138.111.229:8083` with Android manifest headers returned HTTP200, SDK57.0.0 and hostUri10.138.111.229:8083. Phone URL: `exp://10.138.111.229:8083`. This confirms host-side readiness only; phone network reachability, installation and native authentication remain NOT TESTED. User must install the compatible Expo Go version on the physical phone before proceeding. The previously built x86_64 development APK is for an emulator and is not offered as an ARM phone build.
+
 Started 25 October 2026. Continues [the implementation audit](AUTH_SECURITY_AUDIT_2026-10-25.md). This record is separate from mocked tests and bundle exports. No live account outcome is inferred from either.
 
 ## Preserved starting state
@@ -18,11 +24,11 @@ The user selected Android for the first scenario. PASS requires an observed live
 
 | Scenario | Android native | Web | Evidence / next step |
 | --- | --- | --- | --- |
-| 1. Authorized development account email/password sign-in | NOT TESTED | NOT TESTED | Sign-in deep link prepared; awaiting the user's interactive sign-in and non-secret outcome. |
+| 1. Authorized development account email/password sign-in | NOT TESTED | PASS (user-confirmed live password entry) | User explicitly confirmed entering email/password and signing in; subsequent real token accepted by Convex as verified_identity, staff no_application. |
 | 2. Email verification and authenticated Convex identity | NOT TESTED | PASS for existing verified identity recognition; email challenge NOT TESTED | User-provided live diagnostic: current token, matching issuer/audience/email, server verified_identity and staff no_application. |
 | 3. Verified/unapproved denial: equipment, reports, tasks, preferences, administration | NOT TESTED | PASS under current unconfigured-policy gate | Real verified session, no_application, all five read requests denied with policy_unconfigured. Approval-specific denial with configured policy is NOT TESTED live. |
-| 4. Sign-out and subsequent protected request denial | NOT TESTED | PASS for UI sign-out and fresh unsigned backend requests; browser Back NOT TESTED | User clicked Sign out and saw Staff Sign In; new unsigned client received explicit sign_in_required for all five reads. Browser history behavior awaits interactive confirmation. |
-| 5. App restart and supported session restoration | NOT TESTED | NOT TESTED | Distinguish signed-out restart from a separate signed-in restoration check. |
+| 4. Sign-out and subsequent protected request denial | NOT TESTED | PASS for UI sign-out, fresh unsigned requests and actual-tab Back navigation | Explicit sign_in_required for all five reads. Agent clicked Sign out in the identified app tab, then browser-toolbar Back; /access/sign-in showed Staff Sign In without the authenticated account screen or workspace link. |
+| 5. App restart and supported session restoration | NOT TESTED | PASS for tab-reopen UI restoration; post-reopen backend check pending | User closed/reopened the web app without signing out and reported signed-in diagnostic controls appeared automatically. Full browser-process restart remains NOT TESTED. |
 | 6. Controlled-email password reset, invalid/expired codes and session behavior | NOT TESTED | NOT TESTED | User enters all email codes/passwords directly in the app; no values retained here. |
 
 iOS: NOT TESTED for every scenario. No web server response or native bundle export counts as web acceptance.
@@ -118,3 +124,48 @@ Inspected the current Git state and ledger; prior implementation and acceptance 
 - PASS (readiness): Existing web server responded HTTP 200 with running status at `http://localhost:8081`.
 - NOT TESTED: Browser Back behavior after sign-out. The user must press Back and report whether the page stays signed out/locked or restores protected access. Do not sign in again until this observation is recorded. Subsequent fresh password sign-in and restart/restoration acceptance remain NOT TESTED.
 - Android and iOS remain NOT TESTED. No application change, deployment, policy setting, staff approval or bootstrap was performed for these checks.
+
+## Agent-executed browser navigation check — 26 October 2026
+
+The user asked the agent to perform the Back check directly. No connected browser/document-control session was available. Windows accessibility could inspect Edge, but the SmartMaint-labelled existing tabs did not expose the localhost app origin; the selected one was a ChatGPT conversation. No Back action was issued against those unverified tabs. Attempts to open a normal local-app tab did not yield an observable loaded app page, so they were not counted as passes. No passwords, cookies, session tokens, account identifiers or unrelated page text were printed or copied.
+
+PASS (live browser, executed): A separate headless Edge instance used a new isolated profile under ignored `.expo/`, with no copied browser data and no entered credentials. Through the browser's DevTools protocol it:
+
+1. Loaded `/access/sign-in`: Clerk loaded, `signedIn: false`, Staff Sign In present, workspace link absent.
+2. Navigated directly to `/workspace/home`: app redirected to `/`, remained signed out and had no workspace link.
+3. Performed browser history Back: returned to `/access/sign-in`, Clerk loaded, `signedIn: false`, Staff Sign In present and no workspace link.
+
+Evidence: [isolated browser Back result](../validation/auth-live-2026-10-26/isolated-browser-back.json). This is an executed browser test, not a mocked route test, HTML-only probe or export. The isolated browser was closed after the check; the user's real browser profile and credentials were not used.
+
+Scope: PASS for fresh signed-out browser route/history protection in that isolated profile. **NOT TESTED** for the exact Back history of the user's original post-sign-out tab or restoration of its previous in-memory state. To finish that exact check automatically, the original localhost app tab must be accessible/foregrounded. No fresh password sign-in or session-restoration pass is inferred. Android and iOS remain NOT TESTED. No application source change, backend deployment or provisioning occurred.
+
+Original-tab follow-up: The user replied Ready. A fresh accessibility scan still found no active Edge tab matching the localhost:8081 app; the foreground-window check did not identify Edge, and connected document sessions remained empty. No Back command was issued to an unidentified window. The exact original-tab test is **BLOCKED** on identifying/attaching to that browser tab, not PASS. Ask only for its browser name and URL origin/path (omit query/fragment and any credentials) to resolve the mismatch; do not repeat the isolated-profile test or infer original-tab behavior from it.
+
+## Actual-tab sign-out and Back check: PASS
+
+After the user again replied Ready, Windows accessibility identified the actual app tab at `http://localhost:8081/access/sign-in`. Its page content initially showed `Verify your email`, `Identity connection` and `Sign out`, so it was displaying an authenticated account state at that moment. This does not establish why that state existed or invalidate the earlier user-reported sign-out; no intervening authentication action is inferred.
+
+The agent performed a fresh, directly observed test in that same tab:
+
+1. Confirmed the local app origin and invoked the page's **Sign out** button (within the page document, not Edge account controls).
+2. Observed the origin root path and `Staff Sign In`; the previous account-state markers were absent.
+3. Identified the enabled **Back** button specifically in Edge's browser toolbar and invoked it. An initial attempt matching an unavailable alternate accessibility name made no navigation; the actual toolbar control was then verified by its ToolBar parent before use.
+4. Observed `/access/sign-in` with `Staff Sign In`; no `Sign out`, verification/account-state marker or `Continue to workspace` link appeared.
+
+PASS: The actual identified app tab remained signed out after browser Back in this executed test. This clears the earlier original-tab automation blocker. Evidence: [actual-tab Back result](../validation/auth-live-2026-10-26/original-tab-back.json). The earlier five fresh unsigned backend queries separately established `sign_in_required` for all five requested areas. No prior JWT was captured/replayed, and this does not claim full JWT revocation semantics or every possible browser-history path.
+
+Next: the user enters their authorized development account's email/password directly in the sign-in form. Record the resulting identity/task/account status before any browser restart. Fresh password entry and session restoration remain NOT TESTED until performed. Android and iOS remain NOT TESTED. No application source, package, deployment, staff policy or authorization grants changed for this check.
+
+## Fresh web email/password sign-in: PASS
+
+On 26 October the user explicitly confirmed: they entered the email and password and signed in. This followed the agent-observed sign-out/Back test. The user also provided fresh live diagnostics showing a current token, expected issuer/audience, verified matching primary email, server `verified_identity`, staff `no_application` and all five protected reads denied at the unconfigured-policy gate. Credentials and codes were entered only by the user in the app and were not requested or recorded.
+
+PASS: Live email/password sign-in for the authorized development test account. An email-verification challenge, password recovery/reset and native authentication are not inferred from this pass.
+
+Next scenario: close only the SmartMaint tab and reopen `http://localhost:8081/identity-connection`, keeping the browser running and without signing out or clearing site data. Wait for Clerk initialization, then report whether the signed-in diagnostic controls return automatically or the app requires sign-in. This first restoration check covers a web tab/app reload with existing browser cookies; it does not cover a full browser-process restart or a native cold start. Session restoration remains NOT TESTED pending the observation and a fresh backend identity check after reopening.
+
+## Web tab-reopen session restoration: UI PASS
+
+The user reported that `Check identity connection` appeared automatically after following the close/reopen instructions, without another sign-in. PASS (live, user-reported) for restoration of the signed-in web UI after reopening the app tab. No browser cookies/site data were deliberately cleared and the browser process stayed running.
+
+The next single step is to run `Check identity connection` once in the reopened tab and return its redacted result. Authenticated backend access after restoration remains pending until that fresh check confirms server identity. This observation alone does not prove a full browser-process restart, native cold start or password-reset session behavior. Android and iOS remain NOT TESTED. No implementation or deployment changes were made.

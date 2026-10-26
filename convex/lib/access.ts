@@ -4,7 +4,8 @@ import type { Role, Capability } from "../../src/domain/models";
 import type { QueryCtx, MutationCtx, AccountDoc } from "./server";
 import { roles } from "../../src/domain/models";
 
-import { POLICY_VERSION, roleCapabilities } from "../../src/domain/role-policy";
+import { POLICY_VERSION, roleCapabilities, allowedRoleCapabilities } from "../../src/domain/role-policy";
+import { DEMO, requireDemoDeployment } from "./development";
 export { POLICY_VERSION, roleCapabilities } from "../../src/domain/role-policy";
 export function deny(message = "Access is not authorized."): never { throw new ConvexError(message); }
 export function requiredText(value: string, label: string, max = 160) {
@@ -26,23 +27,34 @@ export async function identity(ctx: Pick<QueryCtx, "auth">) {
 export async function policy(ctx: QueryCtx) {
   const value = await ctx.db.query("accessPolicy").withIndex("by_key", (q) => q.eq("key", "staff-access")).unique();
   if (!value || value.version !== POLICY_VERSION) deny("Institutional access policy is not configured.");
+  if (value.classification === DEMO.classification) {
+    requireDemoDeployment();
+    if (value.developmentPolicyReference !== DEMO.policyReference || value.manualVerificationEnabled) deny("Development policy is invalid.");
+  }
   return value;
 }
 export async function activeDepartment(ctx: QueryCtx, id: GenericId<"departments">) {
   const dept = await ctx.db.get(id);
   if (!dept?.active) deny("Department is not authorized.");
+  if (dept.classification === DEMO.classification) {
+    requireDemoDeployment();
+    if (dept.code !== DEMO.departmentCode) deny("Development department is invalid.");
+  }
   return dept;
 }
 export async function currentAccount(ctx: QueryCtx) {
   const user = await identity(ctx);
-  await policy(ctx);
+  const currentPolicy = await policy(ctx);
   const account = await ctx.db.query("staffAccounts").withIndex("by_identity", (q) => q.eq("identity", user.tokenIdentifier)).unique();
   if (!account || account.status !== "approved") deny("An active approved staff account is required.");
+  if (account.classification !== currentPolicy.classification) deny("Account policy classification does not match.");
   if (account.clerkUserId !== user.subject || !roleCapabilities[account.role] || !account.scope.length || account.scope.length > 20 || !account.scope.includes(account.departmentId)
     || new Set(account.scope).size !== account.scope.length || new Set(account.capabilities).size !== account.capabilities.length
-    || account.capabilities.some((c) => !roleCapabilities[account.role].includes(c))) deny("Account authorization is invalid.");
+    || account.capabilities.some((c) => !allowedRoleCapabilities(account.role, currentPolicy.classification).includes(c))) deny("Account authorization is invalid.");
   await activeDepartment(ctx, account.departmentId);
-  for (const department of account.scope) await activeDepartment(ctx, department);
+  for (const department of account.scope) {
+    if ((await activeDepartment(ctx, department)).classification !== currentPolicy.classification) deny("Department policy classification does not match.");
+  }
   return account;
 }
 export async function requireAccount(ctx: QueryCtx, capability?: Capability, departmentId?: GenericId<"departments">) {
@@ -55,11 +67,12 @@ export function inScope(actor: AccountDoc, departments: GenericId<"departments">
   if (!departments.length || departments.some((d) => !actor.scope.includes(d))) deny("Scope exceeds your authorized departments.");
 }
 export async function validGrant(ctx: QueryCtx, actor: AccountDoc, primaryRole: Role, capabilities: Capability[], scope: GenericId<"departments">[], grantableRoles: Role[]) {
+  const currentPolicy = await policy(ctx);
   if (scope.length > 20 || new Set(grantableRoles).size !== grantableRoles.length) deny("Invalid grant size.");
   if (!actor.grantableRoles.includes(primaryRole)) deny("You cannot grant this role.");
   inScope(actor, scope);
-  for (const id of scope) await activeDepartment(ctx, id);
-  if (new Set(scope).size !== scope.length || new Set(capabilities).size !== capabilities.length || capabilities.some((c) => !roleCapabilities[primaryRole].includes(c))) deny("Invalid capability or scope grant.");
+  for (const id of scope) if ((await activeDepartment(ctx, id)).classification !== currentPolicy.classification) deny("Department policy classification does not match.");
+  if (new Set(scope).size !== scope.length || new Set(capabilities).size !== capabilities.length || capabilities.some((c) => !allowedRoleCapabilities(primaryRole, currentPolicy.classification).includes(c))) deny("Invalid capability or scope grant.");
   if (grantableRoles.length && (!capabilities.includes("accounts") || !actor.capabilities.includes("roles") || grantableRoles.some((r) => !actor.grantableRoles.includes(r)))) deny("Invalid approval delegation.");
   if (primaryRole === "Administrator" && (roleCapabilities.Administrator.some((c) => !capabilities.includes(c)) || roles.some((r) => !grantableRoles.includes(r)))) deny("Administrator must retain the approved administrator capability and delegation set.");
 }

@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-26T16:33:21.829Z",
+  "source": "isolated_edge_profile_no_credentials",
+  "before": {
+    "path": "/access/sign-in",
+    "clerkLoaded": true,
+    "signedIn": false,
+    "signInForm": true,
+    "workspaceLink": false
+  },
+  "protectedAttempt": {
+    "path": "/",
+    "clerkLoaded": true,
+    "signedIn": false,
+    "signInForm": true,
+    "workspaceLink": false
+  },
+  "afterBack": {
+    "path": "/access/sign-in",
+    "clerkLoaded": true,
+    "signedIn": false,
+    "signInForm": true,
+    "workspaceLink": false
+  },
+  "signedOutNavigationPassed": true,
+  "originalUserTabHistoryTested": false
+}

@@ -1,0 +1,16 @@
+{
+    "path":  "android/app/build/outputs/apk/debug/app-debug.apk",
+    "bytes":  97570348,
+    "lastWriteTimeUtc":  "2026-10-26T17:36:46.4027697Z",
+    "sha256":  "F05503F887E7D5457160E846AEDEE880EB8F2758ACFFBFAA595EB9D33F2387E8",
+    "architectures":  [
+                          "x86_64"
+                      ],
+    "nativeLibraries":  [
+                            "lib/x86_64/libappmodules.so",
+                            "lib/x86_64/libc++_shared.so",
+                            "lib/x86_64/libreanimated.so",
+                            "lib/x86_64/librnscreens.so",
+                            "lib/x86_64/libworklets.so"
+                        ]
+}

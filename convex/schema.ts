@@ -5,13 +5,15 @@ import { role, capability, accountStatus, requestStatus, priority, verificationS
 export default defineSchema({
   inventoryImports: defineTable({ ownerId: v.id("staffAccounts"), departmentId: v.id("departments"), operationId: v.string(), snapshot: v.string(), equipmentIds: v.array(v.id("equipment")) }).index("by_owner_operation", ["ownerId", "operationId"]),
   notificationPreferences: defineTable({ ownerId: v.id("staffAccounts"), revision: v.number(), reportUpdates: v.boolean(), maintenanceUpdates: v.boolean(), verificationUpdates: v.boolean(), syncNotices: v.boolean() }).index("by_owner", ["ownerId"]),
-  departments: defineTable({ name: v.string(), code: v.string(), active: v.boolean() }).index("by_code", ["code"]),
+  departments: defineTable({ name: v.string(), code: v.string(), active: v.boolean(), classification: v.optional(v.literal("development-demo")) }).index("by_code", ["code"]),
   accessPolicy: defineTable({
+    classification: v.optional(v.literal("development-demo")), developmentPolicyReference: v.optional(v.string()), developmentSetupReference: v.optional(v.string()), developmentReviewEnabled: v.optional(v.boolean()),
     key: v.literal("staff-access"), version: v.string(), manualVerificationEnabled: v.boolean(),
     institutionalPolicyReference: v.string(), configuredAt: v.number(), bootstrapCompletedAt: v.optional(v.number()),
     bootstrapApplicationId: v.optional(v.id("registrationRequests")), bootstrapAccountId: v.optional(v.id("staffAccounts")),
   }).index("by_key", ["key"]),
   staffAccounts: defineTable({
+    classification: v.optional(v.literal("development-demo")),
     identity: v.string(), clerkUserId: v.string(), email: v.string(), verifiedStaffId: v.string(), fullName: v.string(),
     departmentId: v.id("departments"), role, systemRole: v.optional(v.literal("SYSTEM_ADMINISTRATOR")), capabilities: v.array(capability), scope: v.array(v.id("departments")),
     grantableRoles: v.array(role), status: accountStatus,
@@ -21,15 +23,17 @@ export default defineSchema({
   }).index("by_identity", ["identity"]).index("by_clerk_user", ["clerkUserId"]).index("by_staff_id", ["verifiedStaffId"])
     .index("by_department", ["departmentId"]).index("by_role_status", ["role", "status"]),
   registrationRequests: defineTable({
+    classification: v.optional(v.literal("development-demo")),
     identity: v.string(), clerkUserId: v.string(), email: v.string(), emailVerified: v.boolean(),
     requestedStaffId: v.string(), fullName: v.string(), departmentId: v.id("departments"), requestedRole: role,
     status: requestStatus, verificationStatus, submittedAt: v.number(), revision: v.number(),
     reviewedAt: v.optional(v.number()), reviewedBy: v.optional(v.id("staffAccounts")),
     rejectionReason: v.optional(v.string()), accountId: v.optional(v.id("staffAccounts")),
-  }).index("by_identity", ["identity"]).index("by_status_department", ["status", "departmentId"])
+  }).index("by_identity", ["identity"]).index("by_email", ["email"]).index("by_status_department", ["status", "departmentId"])
     .index("by_status_department_submitted", ["status", "departmentId", "submittedAt"])
     .index("by_staff_id", ["requestedStaffId"]).index("by_department", ["departmentId"]),
   staffVerifications: defineTable({
+    classification: v.optional(v.literal("development-demo")),
     requestId: v.id("registrationRequests"), outcome: v.union(v.literal("verified"), v.literal("failed")),
     verifiedStaffId: v.optional(v.string()), verifiedFullName: v.optional(v.string()), departmentId: v.id("departments"),
     evidenceReference: v.string(), policyReference: v.string(), reviewerId: v.optional(v.id("staffAccounts")),
