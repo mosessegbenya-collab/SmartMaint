@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-26T18:33:54.994Z",
+  "target": {
+    "kind": "dev",
+    "name": "greedy-bat-971"
+  },
+  "action": "--bootstrap",
+  "status": "development_administrator_provisioned_bootstrap_closed",
+  "authenticatedApplicationPresent": true,
+  "clerkSubjectRecorded": true,
+  "accountId": "m177k2n32a49jqeb1p0vk60am58h1pmt"
+}

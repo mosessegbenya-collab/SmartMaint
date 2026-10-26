@@ -32,6 +32,12 @@ export function StaffHome() {
     add(has('report'), 'Sync Status', 'Review report synchronization', 'sync-outline', 'sync');
     add(has('audit'), 'Audit History', 'View administrative activity logs', 'document-text-outline', 'staff-audit');
     add(has('export'), 'Exports', 'Generate authorized reports', 'bar-chart-outline', 'live-export');
+    if (account.classification === 'development-demo') {
+      add(has('report'), 'Report a demo fault', 'Fictional training equipment only', 'warning-outline', 'live-report');
+      add(has('report'), 'Demo reports', 'Review IT-DEMO fault reports', 'document-text-outline', 'live-reports');
+      add(has('repair') || has('assign'), 'Maintenance tasks', 'Exercise the development repair workflow', 'clipboard-outline', 'live-tasks');
+      add(true, 'Browse equipment', 'View fictional IT-DEMO equipment', 'cube-outline', 'equipment-list');
+    }
   } else {
     add(has('repair') || has('assign'), technician ? 'My Tasks' : 'Open Tasks', 'Review maintenance work', 'clipboard-outline', 'live-tasks');
     add(has('technical'), 'Technical Verification', 'Review completed repairs', 'checkmark-circle-outline', 'technical-queue');

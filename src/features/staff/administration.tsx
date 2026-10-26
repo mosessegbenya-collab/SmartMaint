@@ -6,7 +6,7 @@ import { Badge, Button, Card, Choices, Detail, Field, LinkRow, Notice, Screen, S
 import { ProfileIdentity } from "@/components/smart/settings-ui";
 import { TimelineItem } from "@/components/smart/status-ui";
 import { roles, type Capability, type Role } from "@/domain/models";
-import { roleCapabilities } from "@/domain/role-policy";
+import { allowedRoleCapabilities } from "@/domain/role-policy";
 import { staffApi } from "@/services/staff-api";
 import { go } from "@/navigation/go";
 import { useStaffAccess } from "./provider";
@@ -63,9 +63,9 @@ function ReviewForm({ request }: { request: Review }) {
   const [verifiedName, setVerifiedName] = useState("");
   const [evidence, setEvidence] = useState("");
   const [reason, setReason] = useState("");
-  const [grant, setGrant] = useState<Grant>({ role: request.requestedRole, capabilities: [...roleCapabilities[request.requestedRole]], scope: [request.departmentId], grantableRoles: request.requestedRole === "Administrator" ? [...roles] : [] });
+  const [grant, setGrant] = useState<Grant>({ role: request.requestedRole, capabilities: [...allowedRoleCapabilities(request.requestedRole, request.classification)], scope: [request.departmentId], grantableRoles: request.requestedRole === "Administrator" ? [...roles] : [] });
   const self = account?.id === request.accountId;
-  return <Screen title="Application Review" subtitle="Review the applicant against authoritative institutional records.">
+  return <Screen title="Application Review" subtitle={request.classification === "development-demo" ? "Development declaration review only; not institutional verification." : "Review the applicant against authoritative institutional records."}>
     <Card style={{ gap: 10 }}>
       <Txt size={22} weight="800">{request.fullName}</Txt><Badge label={request.status} tone="warning" />
       <Detail label="Verified Clerk email" value={request.email} />
@@ -77,13 +77,14 @@ function ReviewForm({ request }: { request: Review }) {
     </Card>
     {request.conflict && <Notice tone="warning">A Staff ID conflict needs institutional review. Conflicting identities are not disclosed here. An existing verified Staff ID cannot be approved again.</Notice>}
     {request.status === "pending" && <>
-      <Section title="Institutional identity verification">
+      <Section title={request.classification === "development-demo" ? "Development identity review" : "Institutional identity verification"}>
+        {request.classification === "development-demo" && <Notice>Demo declarations only. This review does not verify institutional employment or authorize clinical use.</Notice>}
         {!request.verificationEnabled && <Notice tone="warning">Verification is disabled until an authorized operator configures an approved institutional verification policy.</Notice>}
-        <Field label="Staff ID confirmed in institutional records" value={verifiedStaffId} onChangeText={setVerifiedStaffId} maxLength={64} />
-        <Field label="Full name confirmed in institutional records" value={verifiedName} onChangeText={setVerifiedName} maxLength={120} />
-        <Field label="Institutional evidence reference" value={evidence} onChangeText={setEvidence} maxLength={160} />
+        <Field label={request.classification === "development-demo" ? "Demo Staff ID" : "Staff ID confirmed in institutional records"} value={verifiedStaffId} onChangeText={setVerifiedStaffId} maxLength={64} />
+        <Field label={request.classification === "development-demo" ? "Demo full name" : "Full name confirmed in institutional records"} value={verifiedName} onChangeText={setVerifiedName} maxLength={120} />
+        <Field label={request.classification === "development-demo" ? "Development review reference" : "Institutional evidence reference"} value={evidence} onChangeText={setEvidence} maxLength={160} />
         <Txt size={11} muted>Record an approved reference only. Do not paste personnel documents or confidential evidence.</Txt>
-        <ConfirmAction label="Verify Staff ID" title="Confirm institutional identity?" detail="Confirm that an authoritative institutional record matches this applicant. This action is audited."
+        <ConfirmAction label={request.classification === "development-demo" ? "Review demo Staff ID" : "Verify Staff ID"} title={request.classification === "development-demo" ? "Confirm development declaration?" : "Confirm institutional identity?"} detail={request.classification === "development-demo" ? "Record a development-only review. No institutional evidence is asserted. This action is audited." : "Confirm that an authoritative institutional record matches this applicant. This action is audited."}
           disabled={!request.verificationEnabled || !verifiedName.trim() || !evidence.trim() || self}
           onConfirm={() => verify({ id: request._id, expectedRevision: request.revision, outcome: "verified", verifiedStaffId, verifiedFullName: verifiedName, evidenceReference: evidence })} />
         <ConfirmAction label="Record verification failure" title="Record unsuccessful identity check?" detail="This does not approve or reject the application. The evidence outcome will be retained." danger
@@ -116,8 +117,8 @@ function GrantFields({ value, onChange }: { value: Grant; onChange: (grant: Gran
   const departments = useQuery(staffApi.staff.departments);
   const available = departments?.filter((d) => account?.scope.includes(d.id)) ?? [];
   return <>
-    <Select label="Approved primary role" values={account?.grantableRoles ?? []} value={value.role} onChange={(role) => onChange({ ...value, role, capabilities: [...roleCapabilities[role]], grantableRoles: role === "Administrator" ? [...roles] : [] })} />
-    <MultiChoice label="Granted capabilities" values={roleCapabilities[value.role]} selected={value.capabilities} onChange={(capabilities) => onChange({ ...value, capabilities })} />
+    <Select label="Approved primary role" values={account?.grantableRoles ?? []} value={value.role} onChange={(role) => onChange({ ...value, role, capabilities: [...allowedRoleCapabilities(role, account?.classification)], grantableRoles: role === "Administrator" ? [...roles] : [] })} />
+    <MultiChoice label="Granted capabilities" values={allowedRoleCapabilities(value.role, account?.classification)} selected={value.capabilities} onChange={(capabilities) => onChange({ ...value, capabilities })} />
     <MultiChoice label="Authorized department scope" values={available.map((d) => d.label)} selected={available.filter((d) => value.scope.includes(d.id)).map((d) => d.label)}
       onChange={(labels) => onChange({ ...value, scope: available.filter((d) => labels.includes(d.label)).map((d) => d.id) })} />
     {value.role === "Registration Approver" && account?.capabilities.includes("roles") && <MultiChoice label="Roles this approver may grant" values={account.grantableRoles} selected={value.grantableRoles} onChange={(grantableRoles) => onChange({ ...value, grantableRoles })} />}

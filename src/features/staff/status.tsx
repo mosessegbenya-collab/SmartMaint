@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Platform, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import { useUser } from "@clerk/expo";
 import { useMutation, useQuery } from "convex/react";
 import { router } from "expo-router";
@@ -40,11 +40,13 @@ export function StaffAccountStatus() {
     <Txt size={26} weight="800">{titles[access.status]}</Txt>
     {!!identity.email && <Detail label="Clerk email" value={identity.email} />}
     <Badge label={access.status.replaceAll("_", " ")} tone={access.status === "approved" ? "success" : "warning"} />
+    {__DEV__ && access.reactiveDiagnostics && access.status === "identity_unverified" && <Card><Txt weight="700">Reactive identity connection (redacted)</Txt><Text selectable accessibilityLiveRegion="polite">{JSON.stringify(access.reactiveDiagnostics, null, 2)}</Text></Card>}
     {identity.configured && identity.signedIn && <IdentityConnectionDiagnostics key={identity.sessionId} />}
     {identity.configured && identity.signedIn && access.status === "identity_unverified" && <AccountEmailVerification />}
     {access.status === "approved" && access.account ? <>
-      <Detail label="Verified staff" value={access.account.name} />
-      <Detail label="Verified Staff ID" value={access.account.staffId} />
+      {access.account.classification === "development-demo" && <Notice>Development demo access only. Staff details are demo declarations, not institutional verification. Clinical safety and release remain disabled.</Notice>}
+      <Detail label={access.account.classification === "development-demo" ? "Demo staff name" : "Verified staff"} value={access.account.name} />
+      <Detail label={access.account.classification === "development-demo" ? "Demo Staff ID" : "Verified Staff ID"} value={access.account.staffId} />
       <Detail label="Approved role" value={access.account.role} />
       <Button label="Continue to workspace" onPress={() => router.replace("/workspace/home")} />
     </> : null}
@@ -52,8 +54,8 @@ export function StaffAccountStatus() {
       <Detail label="Staff ID requested" value={application.staffId} />
       <Detail label="Department" value={application.department} />
       <Detail label="Requested role" value={application.requestedRole} />
-      <Detail label="Institutional verification" value={application.verificationStatus} />
-      {access.status === "pending" && <Txt muted>An authorized reviewer must verify your institutional identity and approve staff access.</Txt>}
+      <Detail label={application.classification === "development-demo" ? "Development review" : "Institutional verification"} value={application.verificationStatus} />
+      {access.status === "pending" && <Txt muted>{application.classification === "development-demo" ? "Awaiting an authorized development reviewer. This is not institutional verification." : "An authorized reviewer must verify your institutional identity and approve staff access."}</Txt>}
       {access.status === "rejected" && <Notice tone="warning">{application.rejectionReason ?? "Your application was not approved. Review your staff details or contact an authorized administrator."}</Notice>}
     </Card>}
     {access.status === "session_task" && <><Notice tone="warning">Your identity provider requires another account setup step. Staff access remains locked until identity setup and institutional approval are complete.</Notice>{Platform.OS === "web" && <Button label="Complete identity setup" onPress={() => router.push("/sso-continue/task")} />}</>}
@@ -101,7 +103,7 @@ function ApplicationForm({ hint }: { hint: Record<string, unknown> }) {
     <Field label="Staff ID" value={staffId} onChangeText={setStaffId} maxLength={64} editable={!busy} autoCapitalize="characters" />
     <Select label="Department" values={departments?.map((d) => d.label) ?? []} value={departments?.find((d) => d.id === department)?.label ?? ""} onChange={(label) => setDepartment(departments?.find((d) => d.label === label)?.id ?? "")} />
     <Select label="Requested role" values={roles} value={role} onChange={setRole} />
-    <Notice>Your details will be checked against institutional records. Requested roles do not grant permissions.</Notice>
+    <Notice>{departments?.some(d => d.classification === "development-demo") ? "Development demo declarations only. An authorized reviewer must approve access; requested roles do not grant permissions." : "Your details will be checked against institutional records. Requested roles do not grant permissions."}</Notice>
     {departments?.length === 0 && <Notice tone="warning">Approved departments are not available yet. Contact your administrator.</Notice>}
     {!!message && <Notice tone="warning">{message}</Notice>}
     <Button label="Submit staff application" loading={busy} disabled={!departments?.length} onPress={() => void save()} />

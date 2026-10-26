@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-26T18:33:52.455Z",
+  "target": {
+    "kind": "dev",
+    "name": "greedy-bat-971"
+  },
+  "action": "--prepare",
+  "departmentId": "jd7crgvpz11w36jvec33h4mgn98h0ddz",
+  "status": "development_configuration_prepared"
+}

@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-26",
+  "source": "user-supplied live normal-app reactive diagnostic, not mocked",
+  "status": "identity_unverified",
+  "token": {
+    "mode": "session",
+    "fresh": true,
+    "issuer": "issuer_expected",
+    "audience": "audience_expected",
+    "expiry": "token_current",
+    "email": "missing",
+    "email_verified": "missing",
+    "emailVerified": "missing"
+  },
+  "backend": {
+    "status": "email_missing",
+    "issuer": "issuer_expected",
+    "email": "missing",
+    "emailVerified": "missing",
+    "email_verified": "missing"
+  },
+  "socketConnected": true,
+  "convexAuthenticated": true,
+  "finding": "Fresh session JWT accepted by Convex but lacks required custom email claims; freshness alone did not repair the normal app."
+}

@@ -11,8 +11,10 @@
 import type * as administration from "../administration.js";
 import type * as attachments from "../attachments.js";
 import type * as auth_diagnostics from "../auth_diagnostics.js";
+import type * as development_demo from "../development_demo.js";
 import type * as extensions from "../extensions.js";
 import type * as lib_access from "../lib/access.js";
+import type * as lib_development from "../lib/development.js";
 import type * as lib_evidence_storage from "../lib/evidence_storage.js";
 import type * as lib_notifications from "../lib/notifications.js";
 import type * as lib_repair_evidence from "../lib/repair_evidence.js";
@@ -36,8 +38,10 @@ declare const fullApi: ApiFromModules<{
   administration: typeof administration;
   attachments: typeof attachments;
   auth_diagnostics: typeof auth_diagnostics;
+  development_demo: typeof development_demo;
   extensions: typeof extensions;
   "lib/access": typeof lib_access;
+  "lib/development": typeof lib_development;
   "lib/evidence_storage": typeof lib_evidence_storage;
   "lib/notifications": typeof lib_notifications;
   "lib/repair_evidence": typeof lib_repair_evidence;

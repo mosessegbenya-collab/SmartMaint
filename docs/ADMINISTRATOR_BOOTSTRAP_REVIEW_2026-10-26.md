@@ -1,5 +1,7 @@
 # Administrator bootstrap proposal — REVIEW ONLY
 
+**Historical proposal:** the user subsequently authorized the working development demo with the existing Administrator model. See [the implemented demo and executed acceptance report](DEVELOPMENT_DEMO_2026-10-26.md). Its demo-only records are not institutional approval; the isolated-component alternative below was not implemented.
+
 Prepared 26 October 2026 for **development `greedy-bat-971`**. **Execution authorized: false.** This document is not an executable seed, approval record or permission grant. No deployment, mutation, environment update, staff verification or safety/release configuration was performed.
 
 ## Supplied facts and their evidence status

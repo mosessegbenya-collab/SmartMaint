@@ -1,0 +1,102 @@
+{
+  "at": "2026-10-26T18:33:59.038Z",
+  "target": {
+    "kind": "dev",
+    "name": "greedy-bat-971"
+  },
+  "action": "--inspect",
+  "snapshot": {
+    "activeSafetyPolicyCount": 0,
+    "administrator": {
+      "capabilities": [
+        "accounts",
+        "roles",
+        "suspend",
+        "reconcile",
+        "audit",
+        "analytics",
+        "export",
+        "report",
+        "assign",
+        "repair",
+        "triage"
+      ],
+      "classification": "development-demo",
+      "clerkIdentityLinked": true,
+      "id": "m177k2n32a49jqeb1p0vk60am58h1pmt",
+      "name": "Moses Segbenya",
+      "role": "Administrator",
+      "scope": [
+        "jd7crgvpz11w36jvec33h4mgn98h0ddz"
+      ],
+      "staffId": "CCT-DEMO-0002",
+      "status": "approved",
+      "systemRole": "SYSTEM_ADMINISTRATOR"
+    },
+    "department": {
+      "active": true,
+      "classification": "development-demo",
+      "code": "IT-DEMO",
+      "id": "jd7crgvpz11w36jvec33h4mgn98h0ddz",
+      "name": "IT department"
+    },
+    "equipment": [
+      {
+        "assetId": "IT-DEMO-FICTIONAL-001",
+        "id": "jh7e1enrcdka2w97vbrmykwy8s8h1s6q",
+        "name": "Fictional training monitor — DEMO ONLY"
+      }
+    ],
+    "policy": {
+      "bootstrapClosed": true,
+      "classification": "development-demo",
+      "developmentReviewEnabled": true,
+      "institutionalPolicyReference": "",
+      "manualVerificationEnabled": false,
+      "reference": "DEMO-ACCESS-v1",
+      "setupReference": "DEMO-ADMIN-20261026-001"
+    },
+    "releaseRecordCount": 0,
+    "reports": [
+      {
+        "id": "jn75bbgcf6xkp5xtmz9xpdpwe58h0ttp",
+        "symptoms": "FICTIONAL DEMO: training monitor will not power on"
+      }
+    ],
+    "setupAudit": [
+      {
+        "action": "demo.department",
+        "reason": "DEMO-ADMIN-20261026-001: synthetic development department",
+        "target": "jd7crgvpz11w36jvec33h4mgn98h0ddz"
+      },
+      {
+        "action": "demo.policy",
+        "reason": "DEMO-ADMIN-20261026-001: DEMO-ACCESS-v1; development review only, no institutional approval",
+        "target": "staff-access"
+      },
+      {
+        "action": "demo.equipment",
+        "reason": "DEMO-ADMIN-20261026-001: fictional device, not clinical equipment or release evidence",
+        "target": "jh7e1enrcdka2w97vbrmykwy8s8h1s6q"
+      },
+      {
+        "action": "demo.bootstrap",
+        "reason": "DEMO-ADMIN-20261026-001: verified Clerk identity; demo staff declaration, not institutional approval",
+        "target": "m177k2n32a49jqeb1p0vk60am58h1pmt"
+      },
+      {
+        "action": "demo.workflows",
+        "reason": "DEMO-ADMIN-20261026-001: fictional report and assigned maintenance training task",
+        "target": "js702nad7afah67v86vqtyk8rs8h062d"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "js702nad7afah67v86vqtyk8rs8h062d",
+        "notes": "FICTIONAL DEMO training task; clinical verification and release disabled.",
+        "state": "Assigned"
+      }
+    ]
+  },
+  "status": "read_only_snapshot"
+}

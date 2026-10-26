@@ -57,8 +57,40 @@ export async function fetchConvexSessionToken(port: {
   getToken: (options: { skipCache: boolean; template?: 'convex' }) => Promise<string | null>;
 }, forceRefreshToken: boolean) {
   if (!port.signedIn || !port.sessionReady || port.pendingTask) return null;
-  try { return await port.getToken(convexTokenOptions(port.audience, forceRefreshToken)); }
+  try {
+    const options = convexTokenOptions(port.audience, forceRefreshToken);
+    const token = await port.getToken(options);
+    // An integration audience alone does not establish that the custom primary
+    // email claims were configured on session tokens. Use the existing supported
+    // legacy template when those claims are absent, without inventing any claim.
+    if (token && !options.template && needsLegacyClaimsToken(token)) {
+      return await port.getToken({ template: 'convex', skipCache: true });
+    }
+    return token;
+  }
   catch { return null; }
+}
+
+function needsLegacyClaimsToken(token: string): boolean {
+  try {
+    const value: unknown = JSON.parse(atob(token.split('.')[1].replaceAll('-', '+').replaceAll('_', '/')));
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return true;
+    const claims = value as Record<string, unknown>;
+    // A real false stays false: do not search for a more permissive token.
+    if (claims.email_verified === false || claims.emailVerified === false) return false;
+    return !(typeof claims.email === 'string' && claims.email.length > 0
+      && (typeof claims.email_verified === 'boolean' || typeof claims.emailVerified === 'boolean'));
+  } catch { return true; }
+}
+
+/** A new reactive connection must not begin with pre-verification cached claims. */
+export function createFreshConvexTokenFetcher(port: () => Parameters<typeof fetchConvexSessionToken>[0]) {
+  let initialized = false;
+  return async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
+    const token = await fetchConvexSessionToken(port(), forceRefreshToken || !initialized);
+    if (token) initialized = true;
+    return token;
+  };
 }
 
 function errorCode(error: unknown) {

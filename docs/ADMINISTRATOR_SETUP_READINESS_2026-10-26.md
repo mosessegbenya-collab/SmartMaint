@@ -1,5 +1,7 @@
 # First administrator setup readiness
 
+**Current outcome:** the user later explicitly authorized demo setup, supplied a real authenticated application, and the development-only administrator was provisioned. The normal web workspace is user-confirmed working. See [the implemented demo report](DEVELOPMENT_DEMO_2026-10-26.md); the prerequisite findings below are historical and are not current demo blockers.
+
 Follow-up: the user supplied explicitly synthetic department/staff labels and draft references. See the [review-only bootstrap proposal](ADMINISTRATOR_BOOTSTRAP_REVIEW_2026-10-26.md) for the newer live snapshot, exact current grant, remaining institutional evidence gaps and isolated development alternative. No provisioning was executed.
 
 Read-only live check: 26 October 2026, 17:59 UTC. Target: existing development deployment `greedy-bat-971`. No production operations, deployment, policy configuration, department provisioning, application submission or account grants were performed.

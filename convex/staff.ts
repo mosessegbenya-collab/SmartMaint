@@ -5,7 +5,7 @@ import { role } from "./lib/validators";
 
 export const departments = query({ args: {}, handler: async (ctx) => {
   await identity(ctx);
-  return (await ctx.db.query("departments").collect()).filter((d) => d.active).map((d) => ({ id: d._id, name: d.name, label: `${d.name} · ${d.code}` }));
+  return (await ctx.db.query("departments").collect()).filter((d) => d.active).map((d) => ({ id: d._id, name: d.name, classification: d.classification, label: `${d.name} · ${d.code}` }));
 } });
 
 export const resolve = query({ args: { cacheKey: v.optional(v.string()) }, handler: async (ctx, args) => {

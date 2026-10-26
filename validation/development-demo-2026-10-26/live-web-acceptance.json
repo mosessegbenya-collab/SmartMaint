@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-26",
+  "source": "user-supplied live web diagnostics; real Clerk session, not mocked",
+  "beforeBootstrap": {
+    "stage": "complete",
+    "backendIdentity": "verified_identity",
+    "staff": "pending",
+    "demoApplication": "authenticated_application_recorded_no_access_granted",
+    "protectedAccess": {
+      "allDenied": true,
+      "areas": ["equipment", "reports", "tasks", "preferences", "administration"],
+      "reasonForEveryArea": "approved_account_required"
+    }
+  },
+  "afterBootstrap": {
+    "stage": "complete",
+    "backendIdentity": "verified_identity",
+    "staff": "approved",
+    "protectedAccess": {
+      "allAllowed": true,
+      "checks": [
+        {"area":"equipment","outcome":"allowed","records":1},
+        {"area":"reports","outcome":"allowed","records":1},
+        {"area":"tasks","outcome":"allowed","records":1},
+        {"area":"preferences","outcome":"allowed"},
+        {"area":"administration","outcome":"allowed","records":1}
+      ]
+    }
+  },
+  "nativeAcceptance": "NOT TESTED",
+  "normalWorkspaceUi": "PASS: user confirmed normal reactive account status shows approved demo Administrator, clicked Continue to workspace and confirmed dashboard, demo notice and staff/equipment/maintenance controls",
+  "reactiveClaimRepair": "PASS: real session token was accepted but lacked email claims; shared token selection now uses existing convex template when those claims are missing; normal app recognizes the real approved account",
+  "workflowMutations": "passed with mocked identities in local tests; not exercised live by this evidence"
+}

@@ -1,0 +1,31 @@
+{
+  "at": "2026-10-26T18:34:01.957Z",
+  "target": {
+    "kind": "dev",
+    "name": "greedy-bat-971"
+  },
+  "action": "--verify-signed-out",
+  "resolution": "unauthenticated",
+  "checks": [
+    {
+      "area": "equipment",
+      "outcome": "denied_sign_in_required"
+    },
+    {
+      "area": "reports",
+      "outcome": "denied_sign_in_required"
+    },
+    {
+      "area": "tasks",
+      "outcome": "denied_sign_in_required"
+    },
+    {
+      "area": "preferences",
+      "outcome": "denied_sign_in_required"
+    },
+    {
+      "area": "administration",
+      "outcome": "denied_sign_in_required"
+    }
+  ]
+}

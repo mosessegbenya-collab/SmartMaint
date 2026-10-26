@@ -1,12 +1,18 @@
-import { Component, createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAuth, useSession } from "@clerk/expo";
 import { ConvexProviderWithAuth, ConvexReactClient, useConvex, useConvexAuth, useQuery } from "convex/react";
 import { useIdentity } from "@/features/access/identity";
 import { staffApi } from "@/services/staff-api";
 import { accessCacheKey, nextConnection, observeAuthorization, resolveAccessState, type ObservedAuthorization, type StaffResolution } from "@/domain/staff-access";
-import { fetchConvexSessionToken } from "@/features/access/account-email-service";
+import { createFreshConvexTokenFetcher } from "@/features/access/account-email-service";
+import { describeToken } from "@/features/access/identity-diagnostic-service";
+import type { FunctionReturnType } from "convex/server";
 
-type StaffAccess = StaffResolution & { configured: boolean; connected: boolean; retry: () => void };
+type TokenProof = { mode: "session" | "legacy_convex"; fresh: boolean; description: ReturnType<typeof describeToken> | null };
+type ReactiveProof = { token: TokenProof | null; backend: FunctionReturnType<typeof staffApi.auth_diagnostics.inspect> | undefined; socketConnected: boolean; convexAuthenticated: boolean };
+type StaffAccess = StaffResolution & { configured: boolean; connected: boolean; retry: () => void; reactiveDiagnostics?: ReactiveProof };
+const TokenReporter = createContext<(proof: TokenProof) => void>(() => {});
+const developmentDiagnostics = () => __DEV__ && process.env.EXPO_PUBLIC_CONVEX_URL === "https://greedy-bat-971.convex.cloud";
 const defaultValue: StaffAccess = { status: "unconfigured", account: null, configured: false, connected: false, retry: () => {} };
 const Context = createContext<StaffAccess>(defaultValue);
 export const useStaffAccess = () => useContext(Context);
@@ -18,6 +24,7 @@ class LookupBoundary extends Component<{ children: ReactNode; fallback: ReactNod
 type Observation = (fingerprint: string) => boolean;
 function LiveClient({ url, children, retry, observe }: { url: string; children: ReactNode; retry: () => void; observe: Observation }) {
   const [client] = useState(() => new ConvexReactClient(url, { unsavedChangesWarning: false }));
+  const [tokenProof, setTokenProof] = useState<TokenProof | null>(null);
   const lifecycle = useRef(0);
   useEffect(() => {
     const generation = ++lifecycle.current;
@@ -27,36 +34,51 @@ function LiveClient({ url, children, retry, observe }: { url: string; children: 
       if (lifecycle.current === generation) return client.close();
     }); };
   }, [client]);
-  return <ConvexProviderWithAuth client={client} useAuth={useClerkSessionAuth}>
+  return <TokenReporter.Provider value={setTokenProof}><ConvexProviderWithAuth client={client} useAuth={useClerkSessionAuth}>
     <LookupBoundary fallback={<Context.Provider value={{ status: "authorization_error", account: null, configured: true, connected: false, retry }}>{children}</Context.Provider>}>
-      <ConnectionGate retry={retry} observe={observe}>{children}</ConnectionGate>
+      <ConnectionGate retry={retry} observe={observe} tokenProof={tokenProof}>{children}</ConnectionGate>
     </LookupBoundary>
-  </ConvexProviderWithAuth>;
+  </ConvexProviderWithAuth></TokenReporter.Provider>;
 }
 function useClerkSessionAuth() {
+  const report = useContext(TokenReporter);
+  const identity = useIdentity();
   const clerk = useAuth({ treatPendingAsSignedOut: false });
   const { session, isLoaded: sessionLoaded } = useSession();
-  const audience = session?.lastActiveToken?.jwt?.claims.aud ?? clerk.sessionClaims?.aud;
   const pendingTask = !!session?.currentTask;
-  const fetchAccessToken = useCallback(({ forceRefreshToken }: { forceRefreshToken: boolean }) => fetchConvexSessionToken({
+  // Read the session resource at fetch time, matching the working HTTP path.
+  // Do not select a different token from a hook-level sessionClaims fallback.
+  const fetchAccessToken = useMemo(() => createFreshConvexTokenFetcher(() => ({
     signedIn: !!clerk.isSignedIn,
     sessionReady: sessionLoaded && !!session,
     pendingTask,
-    audience,
-    getToken: (options) => session!.getToken(options),
-  }, forceRefreshToken), [clerk.isSignedIn, session, sessionLoaded, pendingTask, audience]);
+    audience: session?.lastActiveToken?.jwt?.claims.aud,
+    getToken: async (options) => {
+      const token = await session!.getToken(options);
+      if (token && developmentDiagnostics()) {
+        let description: ReturnType<typeof describeToken> | null = null;
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1].replaceAll('-', '+').replaceAll('_', '/'))) as Record<string, unknown>;
+          const host = atob((process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '').replace(/^pk_(test|live)_/, '')).replace(/\$$/, '');
+          description = describeToken(payload, `https://${host}`, identity.email ?? undefined);
+        } catch { /* Never retain a malformed token or raw exception. */ }
+        report({ mode: options.template ? "legacy_convex" : "session", fresh: options.skipCache, description });
+      }
+      return token;
+    },
+  })), [clerk.isSignedIn, session, sessionLoaded, pendingTask, report, identity.email]);
   return { isLoading: !clerk.isLoaded || !sessionLoaded, isAuthenticated: clerk.isSignedIn ?? false, fetchAccessToken };
 }
 let clientSequence = 0;
-function ConnectionGate({ children, retry, observe }: { children: ReactNode; retry: () => void; observe: Observation }) {
+function ConnectionGate({ children, retry, observe, tokenProof }: { children: ReactNode; retry: () => void; observe: Observation; tokenProof: TokenProof | null }) {
   const identity = useIdentity();
   const client = useConvex();
   const auth = useConvexAuth();
   const [connection, setConnection] = useState(() => ({ connected: client.connectionState().isWebSocketConnected, generation: 0 }));
   useEffect(() => client.subscribeToConnectionState((state) => setConnection((previous) => nextConnection(previous, state.isWebSocketConnected))), [client]);
-  return <Resolver key={`${identity.sessionId}:${auth.isAuthenticated}:${connection.generation}`} retry={retry} observe={observe} connected={connection.connected} authLoading={auth.isLoading} authenticated={auth.isAuthenticated}>{children}</Resolver>;
+  return <Resolver key={`${identity.sessionId}:${auth.isAuthenticated}:${connection.generation}`} retry={retry} observe={observe} connected={connection.connected} authLoading={auth.isLoading} authenticated={auth.isAuthenticated} tokenProof={tokenProof}>{children}</Resolver>;
 }
-function Resolver({ children, retry, observe, connected, authLoading, authenticated }: { children: ReactNode; retry: () => void; observe: Observation; connected: boolean; authLoading: boolean; authenticated: boolean }) {
+function Resolver({ children, retry, observe, connected, authLoading, authenticated, tokenProof }: { children: ReactNode; retry: () => void; observe: Observation; connected: boolean; authLoading: boolean; authenticated: boolean; tokenProof: TokenProof | null }) {
   const identity = useIdentity();
   const [clientId] = useState(() => ++clientSequence);
   const [timedOut, setTimedOut] = useState(false);
@@ -64,6 +86,7 @@ function Resolver({ children, retry, observe, connected, authLoading, authentica
   const enabled = identity.loaded && identity.signedIn && !identity.task && authenticated && connected;
   // A new query key after every reconnect prevents replaying a cached pre-revocation grant.
   const value = useQuery(staffApi.staff.resolve, enabled ? { cacheKey: String(clientId) } : "skip");
+  const diagnostic = useQuery(staffApi.auth_diagnostics.inspect, enabled && developmentDiagnostics() ? {} : "skip");
   useEffect(() => {
     if (!identity.signedIn || value !== undefined) return;
     const timer = setTimeout(() => setTimedOut(true), 20000);
@@ -83,7 +106,7 @@ function Resolver({ children, retry, observe, connected, authLoading, authentica
   }, [confirmed, fingerprint, observe]);
   // Do not mount operational queries with a new grant against an old client's record cache.
   const visible: StaffResolution = resolution.status === "approved" && acceptedFingerprint !== fingerprint ? { status: "loading", account: null } : resolution;
-  return <Context.Provider value={{ ...visible, configured: true, connected, retry }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ ...visible, configured: true, connected, retry, reactiveDiagnostics: developmentDiagnostics() ? { token: tokenProof, backend: diagnostic, socketConnected: connected, convexAuthenticated: authenticated } : undefined }}>{children}</Context.Provider>;
 }
 export function StaffAccessProvider({ children }: { children: ReactNode }) {
   const identity = useIdentity();

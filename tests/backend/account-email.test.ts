@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, vi } from 'vitest';
-import { accountEmailError, convexTokenOptions, fetchConvexSessionToken, refreshIdentityClaims, sendAccountEmailCode, verifyAccountEmail } from '../../src/features/access/account-email-service';
+import { accountEmailError, convexTokenOptions, createFreshConvexTokenFetcher, fetchConvexSessionToken, refreshIdentityClaims, sendAccountEmailCode, verifyAccountEmail } from '../../src/features/access/account-email-service';
 import { canUseTrustedAccount, resolveAccessState } from '../../src/domain/staff-access';
 
 test('signed-in unverified accounts expose email verification instead of a dead end', () => {
@@ -132,6 +132,47 @@ test('missing legacy template reports connection configuration rather than faile
   expect(refreshToken).toHaveBeenCalledTimes(1);
   expect(accountEmailError({ code: 'backend_auth_unconfigured' })).toMatch(/connection needs configuration/);
   expect(accountEmailError({ code: 'backend_auth_unconfigured' })).not.toMatch(/Email verification could not finish|\[REDACTED\]/);
+});
+
+test('new reactive clients refresh stale pre-verification tokens and keep a stable current-session fetcher', async () => {
+  const fresh = `mock.${btoa(JSON.stringify({email:'test@example.invalid',email_verified:true}))}.mock`;
+  const stale = `mock.${btoa(JSON.stringify({email:'test@example.invalid',email_verified:false}))}.mock`;
+  const getToken = vi.fn(async (options: {skipCache:boolean;template?:'convex'}) => options.skipCache ? fresh : stale);
+  let ready = false;
+  let audience: unknown = undefined;
+  const fetcher = createFreshConvexTokenFetcher(() => ({signedIn:true,sessionReady:ready,pendingTask:false,audience,getToken}));
+  expect(await fetcher({forceRefreshToken:false})).toBeNull();
+  expect(getToken).not.toHaveBeenCalled();
+  ready = true;
+  expect(await fetcher({forceRefreshToken:false})).toBe(fresh);
+  expect(getToken).toHaveBeenLastCalledWith({template:'convex',skipCache:true});
+  audience = 'convex';
+  await fetcher({forceRefreshToken:true});
+  expect(getToken).toHaveBeenLastCalledWith({skipCache:true});
+  const newSessionFetcher=createFreshConvexTokenFetcher(()=>({signedIn:true,sessionReady:true,pendingTask:false,audience,getToken}));
+  expect(await newSessionFetcher({forceRefreshToken:false})).toBe(fresh);
+  const provider=readFileSync('src/features/staff/provider.tsx','utf8');
+  expect(provider).not.toContain('clerk.sessionClaims?.aud');
+  expect(provider).toContain('createFreshConvexTokenFetcher(() => ({');
+});
+
+test('session audience with missing email claims selects existing legacy template; real false stays unverified', async () => {
+  const token = (claims:Record<string,unknown>)=>`mock.${btoa(JSON.stringify(claims))}.mock`;
+  const sessionToken = token({aud:'convex'});
+  const legacyToken = token({aud:'convex',email:'test@example.invalid',email_verified:true});
+  const getToken=vi.fn(async (options:{skipCache:boolean;template?:'convex'})=>options.template ? legacyToken : sessionToken);
+  const port={signedIn:true,sessionReady:true,pendingTask:false,audience:'convex',getToken};
+  expect(await fetchConvexSessionToken(port,true)).toBe(legacyToken);
+  expect(getToken.mock.calls.map(([options])=>options)).toEqual([{skipCache:true},{template:'convex',skipCache:true}]);
+  const unverified=token({aud:'convex',email:'test@example.invalid',email_verified:false});
+  getToken.mockClear(); getToken.mockResolvedValue(unverified);
+  expect(await fetchConvexSessionToken(port,true)).toBe(unverified);
+  expect(getToken).toHaveBeenCalledOnce();
+  getToken.mockClear(); const unverifiedMissingEmail=token({aud:'convex',email_verified:false}); getToken.mockResolvedValue(unverifiedMissingEmail);
+  expect(await fetchConvexSessionToken(port,true)).toBe(unverifiedMissingEmail);
+  expect(getToken).toHaveBeenCalledOnce();
+  getToken.mockClear(); getToken.mockImplementation(async options=>{if(options.template)throw {code:'resource_not_found'};return sessionToken;});
+  expect(await fetchConvexSessionToken(port,true)).toBeNull();
 });
 
 test('fixed error messages cover expiry, rate limits and revoked sessions without echoing provider material', () => {

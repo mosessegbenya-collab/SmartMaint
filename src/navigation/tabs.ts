@@ -93,6 +93,8 @@ export function tabItems(account: Account): Tab[] {
     keys = ["home", "tasks", "reports", "notifications", "profile"];
   if (["Administrator", "Registration Approver"].includes(account.role))
     keys = ["home", "accounts", "notifications", "profile"];
+  if (account.classification === "development-demo" && account.role === "Administrator")
+    keys = ["home", "equipment", "tasks", "accounts", "profile"];
   keys = keys.filter((key) => {
     if (key === "accounts") return account.capabilities.includes("accounts");
     if (key === "tasks") return account.capabilities.some((c) => ["repair", "assign", "technical", "clinical"].includes(c));

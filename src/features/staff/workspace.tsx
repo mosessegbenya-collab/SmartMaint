@@ -32,7 +32,8 @@ import { StaffHome } from './dashboard-screens';
 import { EmergencyIntroduction } from './emergency-introduction';
 
 export function StaffWorkspaceRoute({ screen, preview: Preview }: { screen: string; preview: ComponentType }) {
-  return <StaffDataBoundary key={screen}><WorkspaceScreen screen={screen} preview={Preview} /></StaffDataBoundary>;
+  const { account } = useStaffAccess();
+  return <View style={{ flex: 1 }}>{account?.classification === "development-demo" && <Notice>Development demo · IT-DEMO · fictional training data. Clinical verification and equipment release are disabled.</Notice>}<StaffDataBoundary key={screen}><WorkspaceScreen screen={screen} preview={Preview} /></StaffDataBoundary></View>;
 }
 function WorkspaceScreen({ screen, preview: Preview }: { screen: string; preview: ComponentType }) {
   const { account, mode } = useApp();

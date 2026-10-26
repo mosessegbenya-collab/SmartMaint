@@ -4,7 +4,7 @@ import { allowedRoleCapabilities } from "./role-policy";
 
 export type AccessStatus = "loading" | "unauthenticated" | "session_expired" | "identity_unverified" | "session_task" | "no_application" | "pending" | "rejected" | "approved" | "suspended" | "revoked" | "unconfigured" | "backend_unavailable" | "timeout" | "authorization_error";
 export type TrustedAccount = Account & { id: GenericId<"staffAccounts">; status: "approved"; staffId: string; email: string; departmentId: GenericId<"departments">; scope: GenericId<"departments">[]; grantableRoles: Role[]; revision: number };
-export type StaffApplication = { id: GenericId<"registrationRequests">; fullName: string; staffId: string; email: string; departmentId: GenericId<"departments">; department: string; requestedRole: Role; verificationStatus: "unverified" | "verified" | "failed"; submittedAt: number; revision: number; rejectionReason?: string };
+export type StaffApplication = { classification?: "development-demo"; id: GenericId<"registrationRequests">; fullName: string; staffId: string; email: string; departmentId: GenericId<"departments">; department: string; requestedRole: Role; verificationStatus: "unverified" | "verified" | "failed"; submittedAt: number; revision: number; rejectionReason?: string };
 export type StaffResolution = { status: AccessStatus; account: TrustedAccount | null; application?: StaffApplication };
 const capabilities = ["report", "repair", "assign", "triage", "technical", "clinical", "accounts", "roles", "suspend", "reconcile", "audit", "analytics", "export", "hold"];
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
