@@ -149,7 +149,7 @@ export const changeRole = mutation({ args: { id: v.id("staffAccounts"), expected
   await validGrant(ctx, actor, args.role, args.capabilities, args.scope, args.grantableRoles);
   if (!args.scope.includes(target.departmentId)) deny("Scope must include the verified staff department.");
   await protectLastAdministrator(ctx, target);
-  await ctx.db.patch(target._id, { role: args.role, capabilities: args.capabilities, scope: args.scope, grantableRoles: args.grantableRoles, revision: target.revision + 1, updatedAt: Date.now() });
+  await ctx.db.patch(target._id, { role: args.role, systemRole: args.role === "Administrator" ? target.systemRole : undefined, capabilities: args.capabilities, scope: args.scope, grantableRoles: args.grantableRoles, revision: target.revision + 1, updatedAt: Date.now() });
   await audit(ctx, actor, "account.role", target._id, args.reason, target.departmentId, target.role, args.role);
   await audit(ctx, actor, "account.scope", target._id, args.reason, target.departmentId, JSON.stringify(target.scope), JSON.stringify(args.scope));
   await audit(ctx, actor, "account.capabilities", target._id, args.reason, target.departmentId, JSON.stringify(target.capabilities), JSON.stringify(args.capabilities));

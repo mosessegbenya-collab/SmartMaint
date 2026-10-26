@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Image, View, Pressable, useWindowDimensions } from "react-native";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
-import * as LocalAuthentication from "expo-local-authentication";
 import {
   Badge,
   brandAssets,
@@ -23,7 +22,6 @@ import {
 import { roles, type Role } from "@/domain/models";
 import { equipment } from "@/services/fixtures";
 import { useApp } from "@/state/app-state";
-import { ConfiguredSSO } from "./sso";
 import { EmailAuth, IdentityStatus } from "./email-auth";
 import { useIdentity } from "./identity";
 import { useCurrentTime } from "@/hooks/use-current-time";
@@ -198,30 +196,6 @@ function AccessScreen({ screen }: { screen: string }) {
     setMessage(
       "This operation requires configured identity services and authorized account approval. No live account change has been made.",
     );
-  const biometrics = async () => {
-    try {
-      if (
-        !(await LocalAuthentication.hasHardwareAsync()) ||
-        !(await LocalAuthentication.isEnrolledAsync())
-      ) {
-        setMessage(
-          "Biometric hardware or enrollment is unavailable. Use your configured account sign-in instead.",
-        );
-        return;
-      }
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Unlock SmartMaint",
-        disableDeviceFallback: true,
-      });
-      setMessage(
-        result.success
-          ? "Device verification succeeded. An approved account session is still required."
-          : "Device verification cancelled or unsuccessful.",
-      );
-    } catch {
-      setMessage("Biometric authentication is unavailable on this device.");
-    }
-  };
   if (identity.signedIn && ["sign-in", "register", "pending", "recovery"].includes(screen))
     return <Screen title="Account access"><Card style={{ gap: 12 }}><IdentityStatus /></Card></Screen>;
   if (!titles[screen])
@@ -276,29 +250,6 @@ function AccessScreen({ screen }: { screen: string }) {
               style={{ minHeight: 48, alignItems: "center", justifyContent: "center" }}
               onPress={() => router.push("/access/register")}
             ><Txt color="#0866E8" style={{ textDecorationLine: "underline" }}>Request an account</Txt></Pressable>
-          <Row><View style={{ flex: 1, height: 1, backgroundColor: "#DCE8F4" }} /><Txt muted size={13}>or continue with</Txt><View style={{ flex: 1, height: 1, backgroundColor: "#DCE8F4" }} /></Row>
-          {process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
-            <ConfiguredSSO />
-          ) : (
-            <>
-              <Notice>
-                Google and Apple sign-in are unconfigured. Staff ID + PIN
-                requires an approved authentication integration.
-              </Notice>
-              <Button
-                label="Continue with Google · Setup required"
-                icon="logo-google"
-                variant="secondary"
-                onPress={unconfigured}
-              />
-              <Button
-                label="Continue with Apple · Setup required"
-                icon="logo-apple"
-                variant="secondary"
-                onPress={unconfigured}
-              />
-            </>
-          )}
           {app.previewEnabled && (
             <Section title="Development preview">
               <Notice tone="warning">
@@ -431,7 +382,7 @@ function AccessScreen({ screen }: { screen: string }) {
         </>
       )}
       {screen === "recovery" && <Card style={{ gap: 16, padding: 22, borderRadius: 28, marginTop: -14 }}>
-        <Txt size={32} weight="800">Need help signing in?</Txt><Txt size={17} muted>Enter your registered email address to receive a fresh sign-in code.</Txt>
+        <Txt size={32} weight="800">Reset your password</Txt><Txt size={17} muted>Enter your registered email address to receive a password reset code.</Txt>
         {identity.configured ? <EmailAuth mode="recovery" /> : <Notice tone="warning">Clerk is not configured. Contact your administrator.</Notice>}
         <Button label="Back to sign in" variant="secondary" onPress={() => router.replace("/access/sign-in")} />
       </Card>}
@@ -440,11 +391,12 @@ function AccessScreen({ screen }: { screen: string }) {
           <View style={{ minHeight: 220, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderRadius: 24 }}><Image source={brandAssets.authHero} blurRadius={12} style={{ position: 'absolute', width: '100%', height: '100%' }} accessible={false} /><Card style={{ padding: 26, borderRadius: 32 }}><Icon name="finger-print" size={96} /></Card></View>
           <Txt size={30} weight="800" style={{ textAlign: 'center' }}>Unlock SmartMaint</Txt>
           <Txt muted size={17} style={{ textAlign: 'center' }}>
-            Check whether this device can verify you with biometrics. A valid staff session is still required.
+            Biometric sign-in is not available. Use your email and password.
           </Txt>
           <Button
-            label="Check biometric support"
-            onPress={() => void biometrics()}
+            label="Biometric sign-in unavailable"
+            disabled
+            onPress={unconfigured}
           />
           <Button
             label="Use account sign-in"

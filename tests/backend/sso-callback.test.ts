@@ -56,9 +56,10 @@ test('callback and continuation paths are explicit and never point directly at a
   expect([SSO_SIGN_IN_PATH, SSO_SIGN_UP_PATH, SSO_TASK_PATH, ACCOUNT_STATUS_PATH].every((p) => !p.startsWith('/workspace'))).toBe(true);
   expect(existsSync('src/app/sso-callback.tsx')).toBe(true);
   expect(existsSync('src/app/sso-continue/[flow].tsx')).toBe(true);
-  const web = readFileSync('src/features/access/sso.web.tsx', 'utf8');
-  expect(web).toContain('signIn.authenticateWithRedirect');
-  expect(web).toContain('redirectUrl: SSO_CALLBACK_PATH');
+  expect(existsSync('src/features/access/sso.web.tsx')).toBe(false);
+  expect(existsSync('src/features/access/sso.tsx')).toBe(false);
+  const access = readFileSync('src/features/access/screens.tsx', 'utf8');
+  expect(access).not.toMatch(/ConfiguredSSO|Continue with Google|Continue with Apple/);
   const callback = readFileSync('src/features/access/sso-callback.web.tsx', 'utf8');
   expect(callback).toContain('clerk.handleRedirectCallback');
   expect(callback).not.toMatch(/location\.(search|hash)|useLocalSearchParams|console\.(log|error|warn)|localStorage|sessionStorage/);

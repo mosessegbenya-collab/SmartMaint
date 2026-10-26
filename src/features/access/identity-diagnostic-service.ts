@@ -5,6 +5,15 @@ export function claimType(value: unknown): string {
   return ['string', 'boolean', 'number', 'object'].includes(typeof value) ? typeof value : 'other';
 }
 
+/** Return fixed codes only, never a provider message, token or identity value. */
+export function diagnosticErrorStatus(error: unknown): string {
+  if (!error || typeof error !== 'object') return 'diagnostic_request_failed';
+  const first = 'errors' in error && Array.isArray(error.errors) ? error.errors[0] : undefined;
+  const code = first && typeof first === 'object' && 'code' in first ? first.code : 'code' in error ? error.code : undefined;
+  return typeof code === 'string' && ['unauthenticated', 'resource_not_found', 'session_expired', 'session_revoked'].includes(code)
+    ? code : 'diagnostic_request_failed';
+}
+
 /** Examine in memory; return only fixed status codes and claim names/types. */
 export function describeToken(payload: Record<string, unknown>, expectedIssuer: string, primaryEmail: string | undefined, now = Date.now()) {
   return {

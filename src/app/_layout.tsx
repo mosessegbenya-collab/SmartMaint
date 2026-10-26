@@ -50,6 +50,9 @@ export default function Root() {
 }
 function IdentityNavigation() {
   const pathname = usePathname();
+  // Caller-only diagnostics reload Clerk state. Keep them outside staff/client
+  // remount boundaries so a token refresh cannot discard their result.
+  if (pathname === "/identity-connection") return <AppProvider><Navigation /></AppProvider>;
   // Keep the browser callback mounted while Clerk activates/replaces sessions.
   // Operational providers remount for authorization changes; they must not replay this handshake.
   if (Platform.OS === "web" && (pathname === "/sso-callback" || pathname.startsWith("/sso-continue/"))) return <AppProvider><Navigation /></AppProvider>;

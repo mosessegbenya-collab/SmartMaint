@@ -1,0 +1,37 @@
+{
+  "at": "2026-10-25T21:30:12.976Z",
+  "target": {
+    "kind": "dev",
+    "name": "greedy-bat-971",
+    "url": "https://greedy-bat-971.convex.cloud",
+    "selected": true,
+    "appUrlMatches": true
+  },
+  "presence": {
+    "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": true,
+    "CONVEX_DEPLOY_KEY": false,
+    "CLERK_SECRET_KEY": false,
+    "SMARTMAINT_TEST_TOKEN": false
+  },
+  "signedOut": {
+    "resolution": "unauthenticated",
+    "checks": [
+      {
+        "function": "operations:equipment",
+        "denied": true
+      },
+      {
+        "function": "operations:reports",
+        "denied": true
+      },
+      {
+        "function": "operations:tasks",
+        "denied": true
+      },
+      {
+        "function": "extensions:preferences",
+        "denied": true
+      }
+    ]
+  }
+}

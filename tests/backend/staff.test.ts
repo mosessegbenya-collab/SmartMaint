@@ -6,6 +6,7 @@ import { staffApi as api } from "../../src/services/staff-api";
 import { POLICY_VERSION, roleCapabilities } from "../../convex/lib/access";
 import { roles, type Role } from "../../src/domain/models";
 import * as operator from "../../convex/operator";
+import { internal } from "../../convex/_generated/api";
 import { protectLastAdministrator } from "../../convex/lib/access";
 import type { Value } from "convex/values";
 
@@ -214,16 +215,24 @@ describe("revocation, role updates and record authorization", () => {
 });
 
 describe("operator-only bootstrap", () => {
+  test("public registration cannot set the system administrator tag", async () => {
+    const f = await setup();
+    const submit = makeFunctionReference<"mutation">("staff:submit");
+    await expect(f.applicant.mutation(submit, { fullName: "Test Applicant", staffId: "TEST-ESCALATE", departmentId: f.a,
+      requestedRole: "Clinician", systemRole: "SYSTEM_ADMINISTRATOR" })).rejects.toThrow();
+    expect(await f.t.run((ctx) => ctx.db.query("staffAccounts").withIndex("by_clerk_user", (q) => q.eq("clerkUserId", "applicant")).unique())).toBeNull();
+  });
   test("no public bootstrap endpoint is exported", () => {
     expect(operator.bootstrapAdministrator).toHaveProperty("isInternal", true);
     expect(operator.configurePolicy).toHaveProperty("isInternal", true);
   });
-  test("bootstrap requires approved policy, allowlisted verified applicant and cannot repeat", async () => {
+  test("bootstrap requires approved policy, intended verified identity and retries only the original grant", async () => {
     const t = createTest();
     const dept = await t.run((ctx) => ctx.db.insert("departments", { code: "TEST", name: "Test", active: true }));
-    const request = await t.withIdentity(user("intended-admin")).mutation(api.staff.submit, { fullName: "Test admin", staffId: "TEST-BOOT", departmentId: dept, requestedRole: "Administrator" });
-    const ref = makeFunctionReference<"mutation">("operator:bootstrapAdministrator");
-    const args = { applicationId: request, institutionalAuthorizationReference: "TEST-OPERATOR-AUTH", verifiedStaffId: "TEST-BOOT", verifiedFullName: "Verified Test admin", scope: [dept] };
+    const intended = { ...user("intended-admin"), email: "moses.segbenya@ucc.edu.gh" };
+    const request = await t.withIdentity(intended).mutation(api.staff.submit, { fullName: "Test admin", staffId: "TEST-BOOT", departmentId: dept, requestedRole: "Administrator" });
+    const ref = internal.operator.bootstrapAdministrator;
+    const args = { applicationId: request, clerkUserId: "intended-admin", institutionalAuthorizationReference: "TEST-OPERATOR-AUTH", verifiedStaffId: "TEST-BOOT", verifiedFullName: "Verified Test admin", scope: [dept] };
     await expect(t.mutation(ref, args)).rejects.toThrow(/policy/);
     await t.run((ctx) => ctx.db.insert("accessPolicy", { key: "staff-access", version: POLICY_VERSION, institutionalPolicyReference: "TEST", manualVerificationEnabled: false, configuredAt: Date.now() }));
     await expect(t.mutation(ref, args)).rejects.toThrow(/policy/);
@@ -232,9 +241,21 @@ describe("operator-only bootstrap", () => {
     vi.stubEnv("SMARTMAINT_BOOTSTRAP_CLERK_SUBJECT", "wrong-subject"); vi.stubEnv("SMARTMAINT_BOOTSTRAP_AUTHORIZATION_REFERENCE", "TEST-OPERATOR-AUTH");
     await expect(t.mutation(ref, args)).rejects.toThrow(/allowlisted/);
     vi.stubEnv("SMARTMAINT_BOOTSTRAP_CLERK_SUBJECT", "intended-admin");
-    await t.mutation(ref, args);
-    expect((await t.withIdentity(user("intended-admin")).query(api.staff.resolve, {})).status).toBe("approved");
-    await expect(t.mutation(ref, args)).rejects.toThrow(/already closed/);
+    await expect(t.mutation(ref, { ...args, clerkUserId: "another-user" })).rejects.toThrow(/allowlisted/);
+    const wrongEmail = await t.withIdentity(user("other-subject")).mutation(api.staff.submit, { fullName: "Test", staffId: "TEST-OTHER", departmentId: dept, requestedRole: "Administrator" });
+    vi.stubEnv("SMARTMAINT_BOOTSTRAP_CLERK_SUBJECT", "other-subject");
+    await expect(t.mutation(ref, { ...args, applicationId: wrongEmail, clerkUserId: "other-subject" })).rejects.toThrow(/allowlisted/);
+    vi.stubEnv("SMARTMAINT_BOOTSTRAP_CLERK_SUBJECT", "intended-admin");
+    const id = await t.mutation(ref, args);
+    expect((await t.withIdentity(intended).query(api.staff.resolve, {})).status).toBe("approved");
+    expect((await t.run((ctx) => ctx.db.get(id)))?.systemRole).toBe("SYSTEM_ADMINISTRATOR");
+    expect(await t.mutation(ref, args)).toBe(id);
+    await expect(t.mutation(ref, { ...args, verifiedStaffId: "TEST-DIFFERENT" })).rejects.toThrow(/already closed/);
+    await expect(t.mutation(ref, { ...args, applicationId: wrongEmail, clerkUserId: "other-subject" })).rejects.toThrow(/allowlisted/);
+    await t.run((ctx) => ctx.db.patch(id, { status: "suspended" }));
+    expect(await t.mutation(ref, args)).toBe(id);
+    expect((await t.withIdentity(intended).query(api.staff.resolve, {})).status).toBe("suspended");
+    expect(await t.run((ctx) => ctx.db.query("staffAccounts").collect())).toHaveLength(1);
     expect((await t.run((ctx) => ctx.db.query("authorizationAudit").collect())).filter((e) => e.action === "operator.bootstrap")).toHaveLength(1);
   });
 });

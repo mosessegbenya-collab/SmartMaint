@@ -9,10 +9,11 @@ export default defineSchema({
   accessPolicy: defineTable({
     key: v.literal("staff-access"), version: v.string(), manualVerificationEnabled: v.boolean(),
     institutionalPolicyReference: v.string(), configuredAt: v.number(), bootstrapCompletedAt: v.optional(v.number()),
+    bootstrapApplicationId: v.optional(v.id("registrationRequests")), bootstrapAccountId: v.optional(v.id("staffAccounts")),
   }).index("by_key", ["key"]),
   staffAccounts: defineTable({
     identity: v.string(), clerkUserId: v.string(), email: v.string(), verifiedStaffId: v.string(), fullName: v.string(),
-    departmentId: v.id("departments"), role, capabilities: v.array(capability), scope: v.array(v.id("departments")),
+    departmentId: v.id("departments"), role, systemRole: v.optional(v.literal("SYSTEM_ADMINISTRATOR")), capabilities: v.array(capability), scope: v.array(v.id("departments")),
     grantableRoles: v.array(role), status: accountStatus,
     approvedBy: v.optional(v.id("staffAccounts")), approvedAt: v.number(),
     statusReason: v.optional(v.string()), statusChangedBy: v.optional(v.id("staffAccounts")), statusChangedAt: v.optional(v.number()),

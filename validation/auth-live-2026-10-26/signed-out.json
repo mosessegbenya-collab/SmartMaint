@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-26T16:12:15.587Z",
+  "target": "development",
+  "source": "fresh_unauthenticated_http_client",
+  "staff": "unauthenticated",
+  "allDenied": true,
+  "checks": [
+    { "area": "equipment", "outcome": "denied", "reason": "sign_in_required" },
+    { "area": "reports", "outcome": "denied", "reason": "sign_in_required" },
+    { "area": "tasks", "outcome": "denied", "reason": "sign_in_required" },
+    { "area": "preferences", "outcome": "denied", "reason": "sign_in_required" },
+    { "area": "administration", "outcome": "denied", "reason": "sign_in_required" }
+  ]
+}
