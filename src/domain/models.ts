@@ -25,6 +25,7 @@ export type Capability =
   | "export"
   | "hold";
 export interface Account {
+  classification?: "development-demo";
   id: string;
   name: string;
   role: Role;

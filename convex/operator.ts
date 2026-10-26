@@ -29,6 +29,7 @@ export const configurePolicy = internalMutation({ args: {
   if (args.approvedRolePolicyVersion !== POLICY_VERSION) deny("Review and approve the exact role/capability policy version.");
   const reference = requiredText(args.institutionalPolicyReference, "approved institutional policy reference");
   const existing = await ctx.db.query("accessPolicy").withIndex("by_key", (q) => q.eq("key", "staff-access")).unique();
+  if (existing?.classification === "development-demo") deny("Development policy cannot be converted through institutional setup.");
   const data = { key: "staff-access" as const, version: POLICY_VERSION, institutionalPolicyReference: reference, manualVerificationEnabled: args.manualVerificationEnabled, configuredAt: Date.now() };
   if (existing) await ctx.db.patch(existing._id, data);
   else await ctx.db.insert("accessPolicy", data);
@@ -40,6 +41,7 @@ export const bootstrapAdministrator = internalMutation({ args: {
   verifiedStaffId: v.string(), verifiedFullName: v.string(), scope: v.array(v.id("departments")),
 }, returns: v.id("staffAccounts"), handler: async (ctx, args) => {
   const currentPolicy = await policy(ctx);
+  if (currentPolicy.classification === "development-demo") deny("Use the explicit development bootstrap for demo accounts.");
   if (!currentPolicy.manualVerificationEnabled) deny("Approved institutional verification policy is required before bootstrap.");
   const intendedSubject = process.env.SMARTMAINT_BOOTSTRAP_CLERK_SUBJECT;
   const approvedReference = process.env.SMARTMAINT_BOOTSTRAP_AUTHORIZATION_REFERENCE;

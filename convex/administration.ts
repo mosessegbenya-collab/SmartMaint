@@ -6,6 +6,7 @@ import type { GenericId } from "convex/values";
 import type { QueryCtx } from "./lib/server";
 import type { AccountDoc } from "./lib/server";
 import { paginationOptsValidator } from "convex/server";
+import { DEMO, reviewEnabled } from "./lib/development";
 
 async function applicationAccess(ctx: QueryCtx, id: GenericId<"registrationRequests">) {
   const actor = await requireAccount(ctx, "accounts");
@@ -69,7 +70,7 @@ export const application = query({ args: { id: v.id("registrationRequests") }, h
   // No details about out-of-scope identities are exposed through conflict warnings.
   const currentPolicy = await policy(ctx);
   const department = await ctx.db.get(request.departmentId);
-  return { ...request, department: department?.name ?? "Unavailable department", verificationEnabled: currentPolicy.manualVerificationEnabled, conflict: !!existing || conflicts.some((r) => r._id !== id && r.status === "pending"), verifications, history };
+  return { ...request, department: department?.name ?? "Unavailable department", verificationEnabled: reviewEnabled(currentPolicy), conflict: !!existing || conflicts.some((r) => r._id !== id && r.status === "pending"), verifications, history };
 } });
 
 export const verify = mutation({ args: {
@@ -78,7 +79,7 @@ export const verify = mutation({ args: {
 }, handler: async (ctx, args) => {
   const { actor, request } = await applicationAccess(ctx, args.id);
   const currentPolicy = await policy(ctx);
-  if (!currentPolicy.manualVerificationEnabled) deny("Institutional verification policy is not approved. Verification is disabled.");
+  if (!reviewEnabled(currentPolicy) || request.classification !== currentPolicy.classification) deny("Institutional verification is disabled; development review requires its matching policy.");
   if (actor.identity === request.identity) deny("Self-verification is prohibited.");
   if (request.status !== "pending" || request.revision !== args.expectedRevision) deny("Application changed. Refresh before reviewing.");
   const verifiedStaffId = staffId(args.verifiedStaffId);
@@ -87,13 +88,14 @@ export const verify = mutation({ args: {
   if (verifiedStaffId !== request.requestedStaffId) deny("Institutional Staff ID does not match the application.");
   if (args.outcome === "verified" && await ctx.db.query("staffAccounts").withIndex("by_staff_id", (q) => q.eq("verifiedStaffId", verifiedStaffId)).first()) deny("Staff identity is already linked to an account.");
   await ctx.db.insert("staffVerifications", { requestId: request._id, outcome: args.outcome,
+    classification: currentPolicy.classification,
     verifiedStaffId: args.outcome === "verified" ? verifiedStaffId : undefined,
     verifiedFullName: args.outcome === "verified" ? verifiedFullName : undefined,
-    departmentId: request.departmentId, evidenceReference, policyReference: currentPolicy.institutionalPolicyReference,
+    departmentId: request.departmentId, evidenceReference, policyReference: currentPolicy.classification === DEMO.classification ? currentPolicy.developmentPolicyReference! : currentPolicy.institutionalPolicyReference,
     reviewerId: actor._id, operator: false, at: Date.now(),
   });
   await ctx.db.patch(request._id, { verificationStatus: args.outcome, revision: request.revision + 1 });
-  await audit(ctx, actor, "application.verify", request._id, `Institutional evidence reference: ${evidenceReference}`, request.departmentId, request.verificationStatus, args.outcome);
+  await audit(ctx, actor, "application.verify", request._id, `${currentPolicy.classification === DEMO.classification ? "Development review only" : "Institutional evidence reference"}: ${evidenceReference}`, request.departmentId, request.verificationStatus, args.outcome);
 } });
 
 export const approve = mutation({ args: {
@@ -105,16 +107,17 @@ export const approve = mutation({ args: {
   if (request.status !== "pending" || request.revision !== args.expectedRevision) deny("Application was already reviewed or changed. Refresh.");
   if (request.verificationStatus !== "verified") deny("Institutional identity must be verified before approval.");
   const currentPolicy = await policy(ctx);
-  if (!currentPolicy.manualVerificationEnabled) deny("Institutional verification is disabled.");
+  if (!reviewEnabled(currentPolicy) || request.classification !== currentPolicy.classification) deny("Institutional verification is disabled; development review requires its matching policy.");
   const verification = await ctx.db.query("staffVerifications").withIndex("by_request", (q) => q.eq("requestId", request._id)).order("desc").first();
   if (!verification || verification.outcome !== "verified" || !verification.verifiedStaffId || !verification.verifiedFullName) deny("Verified institutional evidence is missing.");
-  if (verification.policyReference !== currentPolicy.institutionalPolicyReference) deny("Verification must be repeated under the current approved policy.");
+  if (verification.classification !== currentPolicy.classification || verification.policyReference !== (currentPolicy.classification === DEMO.classification ? currentPolicy.developmentPolicyReference : currentPolicy.institutionalPolicyReference)) deny("Verification must be repeated under the current approved policy.");
   await validGrant(ctx, actor, args.approvedRole, args.capabilities, args.scope, args.grantableRoles);
   if (!args.scope.includes(request.departmentId)) deny("Scope must include the verified staff department.");
   if (await ctx.db.query("staffAccounts").withIndex("by_staff_id", (q) => q.eq("verifiedStaffId", verification.verifiedStaffId!)).first()
     || await ctx.db.query("staffAccounts").withIndex("by_identity", (q) => q.eq("identity", request.identity)).first()) deny("Institutional identity is already linked to an account.");
   const now = Date.now();
   const id = await ctx.db.insert("staffAccounts", { identity: request.identity, clerkUserId: request.clerkUserId, email: request.email,
+    classification: currentPolicy.classification,
     verifiedStaffId: verification.verifiedStaffId, fullName: verification.verifiedFullName, departmentId: request.departmentId,
     role: args.approvedRole, capabilities: args.capabilities, scope: args.scope, grantableRoles: args.grantableRoles,
     status: "approved", approvedBy: actor._id, approvedAt: now, revision: 1, createdAt: now, updatedAt: now,

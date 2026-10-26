@@ -1,6 +1,6 @@
 import { roles, type Account, type Role } from "./models";
 import type { GenericId } from "convex/values";
-import { roleCapabilities } from "./role-policy";
+import { allowedRoleCapabilities } from "./role-policy";
 
 export type AccessStatus = "loading" | "unauthenticated" | "session_expired" | "identity_unverified" | "session_task" | "no_application" | "pending" | "rejected" | "approved" | "suspended" | "revoked" | "unconfigured" | "backend_unavailable" | "timeout" | "authorization_error";
 export type TrustedAccount = Account & { id: GenericId<"staffAccounts">; status: "approved"; staffId: string; email: string; departmentId: GenericId<"departments">; scope: GenericId<"departments">[]; grantableRoles: Role[]; revision: number };
@@ -20,7 +20,8 @@ export function decodeStaffResolution(value: unknown): StaffResolution {
     const a = value.account;
     if (!record(a) || ![a.id, a.name, a.staffId, a.email, a.departmentId].every((v) => typeof v === "string" && v.length > 0) || !role(a.role)
       || !strings(a.capabilities) || a.capabilities.some((c) => !capabilities.includes(c)) || !strings(a.scope) || !a.scope.length || a.scope.length > 20
-      || a.capabilities.some((c) => !roleCapabilities[a.role as Role].includes(c as Account["capabilities"][number]))
+      || (a.classification !== undefined && a.classification !== "development-demo")
+      || a.capabilities.some((c) => !allowedRoleCapabilities(a.role as Role, a.classification as "development-demo" | undefined).includes(c as Account["capabilities"][number]))
       || new Set(a.scope).size !== a.scope.length || new Set(a.capabilities).size !== a.capabilities.length
       || !a.scope.includes(String(a.departmentId)) || !Array.isArray(a.grantableRoles) || !a.grantableRoles.every(role)
       || !Number.isSafeInteger(a.revision) || Number(a.revision) < 1) return fail;

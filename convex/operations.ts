@@ -71,10 +71,12 @@ export const tasks = query({ args: {}, handler: async (ctx) => {
   return actor.capabilities.includes("assign") ? tasks : tasks.filter((t) => t.assigneeId === actor._id || (t.state === "Completed" && actor.capabilities.some((c) => ["technical", "clinical"].includes(c))));
 } });
 export const technicians = query({ args: { departmentId: v.id("departments") }, handler: async (ctx, args) => {
-  await requireAccount(ctx, "assign", args.departmentId);
-  return (await ctx.db.query("staffAccounts").withIndex("by_role_status", (q) => q.eq("role", "Biomedical Technician").eq("status", "approved")).collect())
+  const actor = await requireAccount(ctx, "assign", args.departmentId);
+  const technicians = (await ctx.db.query("staffAccounts").withIndex("by_role_status", (q) => q.eq("role", "Biomedical Technician").eq("status", "approved")).collect())
     .filter((a) => a.scope.includes(args.departmentId) && a.capabilities.includes("repair"))
     .map((a) => ({ id: a._id, name: a.fullName, staffId: a.verifiedStaffId }));
+  if (actor.classification === "development-demo" && actor.role === "Administrator" && actor.capabilities.includes("repair")) technicians.push({ id: actor._id, name: `${actor.fullName} (development demo)`, staffId: actor.verifiedStaffId });
+  return technicians;
 } });
 export const changeDue = mutation({ args: { id: v.id("maintenanceTasks"), expectedRevision: v.number(), dueAt: v.number(), reason: v.string() }, handler: async (ctx, args) => {
   const { actor, task } = await taskAccess(ctx, args.id, "assign");
@@ -109,7 +111,8 @@ export const assign = mutation({ args: { id: v.id("maintenanceTasks"), expectedR
   const { actor, task } = await taskAccess(ctx, args.id, "assign");
   if (task.revision !== args.expectedRevision || ["Completed", "Cancelled"].includes(task.state)) deny("Task changed or is terminal.");
   const assignee = await ctx.db.get(args.assigneeId);
-  if (!assignee || assignee.status !== "approved" || assignee.role !== "Biomedical Technician" || !assignee.capabilities.includes("repair") || !assignee.scope.includes(task.departmentId)) deny("Choose an authorized technician in scope.");
+  const demoAdministrator = actor.classification === "development-demo" && assignee?.classification === "development-demo" && assignee.role === "Administrator";
+  if (!assignee || assignee.status !== "approved" || (assignee.role !== "Biomedical Technician" && !demoAdministrator) || !assignee.capabilities.includes("repair") || !assignee.scope.includes(task.departmentId)) deny("Choose an authorized technician in scope.");
   if (!Number.isFinite(args.dueAt) || args.dueAt <= Date.now()) deny("Choose a future due date.");
   await ctx.db.patch(task._id, { workflowPhase: undefined, workflowRevision: (task.workflowRevision ?? 0) + 1, assigneeId: assignee._id, dueAt: args.dueAt, state: task.state === "Unassigned" ? "Assigned" : task.state, revision: task.revision + 1, updatedAt: Date.now() });
   await taskNotice(ctx, task._id, "Maintenance assigned", "A maintenance task has been assigned to you.");

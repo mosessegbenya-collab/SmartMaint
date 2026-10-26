@@ -49,10 +49,11 @@ async function equipmentContext(ctx: QueryCtx, id: GenericId<"equipment">) {
   const actor = await requireAccount(ctx); const item = await ctx.db.get(id);
   if (!item || !actor.scope.includes(item.departmentId) || !actor.capabilities.some((c) => ["report", "repair", "assign", "clinical", "technical", "analytics", "export", "hold", "reconcile"].includes(c))) deny();
   const policy = await ctx.db.query("safetyPolicies").withIndex("by_department_active", (q) => q.eq("departmentId", item.departmentId).eq("active", true)).unique();
-  return { actor, item, policy };
+  return { actor, item, policy: actor.classification === "development-demo" ? null : policy };
 }
 export const configurePolicy = internalMutation({ args: { departmentId: v.id("departments"), version: v.literal("smartmaint-safety-v1"), approvedReference: v.string(), enabled: v.boolean(), technicalChecks: v.array(v.string()), clinicalChecks: v.array(v.string()), clinicalRequired: v.boolean(), releaseRoles: v.array(role) }, handler: async (ctx, args) => {
-  await activeDepartment(ctx, args.departmentId);
+  const department = await activeDepartment(ctx, args.departmentId);
+  if (department.classification === "development-demo") deny("Clinical safety and release controls are disabled for the development demo.");
   const reference = requiredText(args.approvedReference, "institutional safety approval reference", 200);
   for (const checks of [args.technicalChecks, args.clinicalChecks]) if (checks.length > 30 || new Set(checks).size !== checks.length || checks.some((label) => !label.trim() || label.length > 160)) deny("Supply unique approved checklist labels.");
   if (!args.technicalChecks.length || (args.clinicalRequired && !args.clinicalChecks.length) || !args.releaseRoles.length || new Set(args.releaseRoles).size !== args.releaseRoles.length || args.releaseRoles.some((r) => !roleCapabilities[r].includes("hold"))) deny("Approved checks and explicit release roles with hold authority are required.");

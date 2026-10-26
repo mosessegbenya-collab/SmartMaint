@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./lib/server";
-import { identity, requiredText, staffId, activeDepartment, audit, deny, POLICY_VERSION, roleCapabilities } from "./lib/access";
+import { identity, requiredText, staffId, activeDepartment, audit, deny, currentAccount, POLICY_VERSION } from "./lib/access";
 import { role } from "./lib/validators";
 
 export const departments = query({ args: {}, handler: async (ctx) => {
@@ -19,12 +19,9 @@ export const resolve = query({ args: { cacheKey: v.optional(v.string()) }, handl
   const policy = await ctx.db.query("accessPolicy").withIndex("by_key", (q) => q.eq("key", "staff-access")).unique();
   if (account) {
     if (!policy || policy.version !== POLICY_VERSION) return { status: "unconfigured" as const };
-    const allowed = roleCapabilities[account.role];
-    if (account.clerkUserId !== user.subject || !allowed || !account.scope.length || account.scope.length > 20 || !account.scope.includes(account.departmentId)
-      || new Set(account.scope).size !== account.scope.length || new Set(account.capabilities).size !== account.capabilities.length
-      || account.capabilities.some((c) => !allowed.includes(c))) return { status: "authorization_error" as const };
-    for (const id of [account.departmentId, ...account.scope]) if (!(await ctx.db.get(id))?.active) return { status: "authorization_error" as const };
+    try { await currentAccount(ctx); } catch { return { status: "authorization_error" as const }; }
     return { status: "approved" as const, account: {
+      classification: account.classification,
       id: account._id, name: account.fullName, staffId: account.verifiedStaffId, email: user.email,
       departmentId: account.departmentId, role: account.role, capabilities: account.capabilities,
       scope: account.scope, grantableRoles: account.grantableRoles, revision: account.revision,
@@ -34,6 +31,7 @@ export const resolve = query({ args: { cacheKey: v.optional(v.string()) }, handl
   const department = await ctx.db.get(request.departmentId);
   return { status: request.status === "approved" ? "authorization_error" as const : request.status, application: {
     id: request._id, fullName: request.fullName, staffId: request.requestedStaffId, email: request.email,
+    classification: request.classification,
     departmentId: request.departmentId, department: department?.name ?? "Unavailable department", requestedRole: request.requestedRole,
     verificationStatus: request.verificationStatus, submittedAt: request.submittedAt, revision: request.revision,
     rejectionReason: request.rejectionReason,
@@ -47,7 +45,7 @@ export const submit = mutation({ args: {
   const user = await identity(ctx);
   const name = requiredText(args.fullName, "full name", 120);
   const normalizedId = staffId(args.staffId);
-  await activeDepartment(ctx, args.departmentId);
+  const department = await activeDepartment(ctx, args.departmentId);
   if (await ctx.db.query("staffAccounts").withIndex("by_identity", (q) => q.eq("identity", user.tokenIdentifier)).unique()) deny("This identity already has a staff account. Contact an administrator.");
   if (await ctx.db.query("staffAccounts").withIndex("by_staff_id", (q) => q.eq("verifiedStaffId", normalizedId)).first()) deny("This Staff ID cannot be used. Contact an administrator.");
   const old = await ctx.db.query("registrationRequests").withIndex("by_identity", (q) => q.eq("identity", user.tokenIdentifier)).unique();
@@ -56,6 +54,7 @@ export const submit = mutation({ args: {
     deny("A pending application already exists. It cannot be replaced during review.");
   }
   const data = { identity: user.tokenIdentifier, clerkUserId: user.subject, email: user.email, emailVerified: true,
+    classification: department.classification,
     fullName: name, requestedStaffId: normalizedId, departmentId: args.departmentId, requestedRole: args.requestedRole,
     status: "pending" as const, verificationStatus: "unverified" as const, submittedAt: Date.now(), revision: (old?.revision ?? 0) + 1,
   };
