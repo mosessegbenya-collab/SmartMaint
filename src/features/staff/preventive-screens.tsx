@@ -3,13 +3,14 @@ import { randomUUID } from "expo-crypto";
 import { useMutation, usePaginatedQuery } from "convex/react";
 import type { GenericId } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
-import { Badge, Button, Card, Detail, Field, Notice, Screen, Txt } from "@/components/smart/ui";
+import { Button, Card, Detail, Field, Notice, Screen, Txt } from "@/components/smart/ui";
 import { DateTimeField } from "@/components/smart/date-time-field";
 import { staffApi } from "@/services/staff-api";
 import { go } from "@/navigation/go";
 import { useStaffAccess } from "./provider";
 import { ConfirmAction } from "./ui";
 import { OperationalList, ScopeSelect } from "./operational-screens";
+import { ScheduleStatus, ScheduleActivityAction } from '@/components/smart/schedule-activity';
 import { useCurrentTime } from "@/hooks/use-current-time";
 
 export function PreventiveSchedules() {
@@ -23,9 +24,9 @@ function SchedulePage({ department }: { department: GenericId<"departments"> }) 
 }
 function ScheduleRow({ schedule }: { schedule: FunctionReturnType<typeof staffApi.preventive.page>["page"][number] }) {
   const now = useCurrentTime();
-  const { account } = useStaffAccess(); const create = useMutation(staffApi.preventive.materialize); const reschedule = useMutation(staffApi.preventive.reschedule); const [due, setDue] = useState(new Date(schedule.nextDueAt).toISOString()); const [reason, setReason] = useState("");
-  return <Card style={{ gap: 10 }}><Txt weight="700" size={20}>{schedule.title}</Txt><Badge label={!schedule.active ? "Paused" : schedule.nextDueAt < now ? "Overdue" : "Scheduled"} tone={schedule.nextDueAt < now ? "danger" : "info"} /><Detail label="Next due" value={new Date(schedule.nextDueAt).toLocaleString()} /><Detail label="Interval" value={`${schedule.intervalDays} days`} /><Detail label="Approved procedure" value={schedule.approvedReference} /><Detail label="Checklist" value={schedule.checklist.join("\n")} />
-    {account?.capabilities.includes("assign") && <><ConfirmAction label="Create scheduled task" title="Create preventive maintenance task?" detail="The occurrence is deduplicated and the next scheduled date advances. Technician assignment remains required." disabled={!schedule.active} onConfirm={async () => { const taskId = await create({ id: schedule._id, expectedRevision: schedule.revision, scheduledDueAt: schedule.nextDueAt }); go("live-task", taskId); }} /><DateTimeField label="Rescheduled next due" value={due} onChange={setDue} /><Field label="Rescheduling / pause reason" value={reason} onChangeText={setReason} maxLength={500} /><ConfirmAction label="Save next due date" title="Reschedule future maintenance?" detail="Existing work orders retain their own due dates." disabled={!reason.trim()} onConfirm={() => reschedule({ id: schedule._id, expectedRevision: schedule.revision, nextDueAt: Date.parse(due), active: schedule.active, reason })} /><ConfirmAction label={schedule.active ? "Pause schedule" : "Resume schedule"} title="Change schedule activity?" detail="Existing tasks are not cancelled by this action." disabled={!reason.trim()} onConfirm={() => reschedule({ id: schedule._id, expectedRevision: schedule.revision, nextDueAt: Date.parse(due), active: !schedule.active, reason })} /></>}
+  const { account } = useStaffAccess(); const create = useMutation(staffApi.preventive.materialize); const reschedule = useMutation(staffApi.preventive.reschedule); const setActivity = useMutation(staffApi.preventive.setActivity); const [due, setDue] = useState(new Date(schedule.nextDueAt).toISOString()); const [reason, setReason] = useState("");
+  return <Card style={{ gap: 10 }}><Txt weight="700" size={20}>{schedule.title}</Txt><ScheduleStatus active={schedule.active} nextDueAt={schedule.nextDueAt} now={now} /><Detail label="Next due" value={new Date(schedule.nextDueAt).toLocaleString()} /><Detail label="Interval" value={`${schedule.intervalDays} days`} /><Detail label="Approved procedure" value={schedule.approvedReference} /><Detail label="Checklist" value={schedule.checklist.join("\n")} />
+    {account?.capabilities.includes("assign") && <><ConfirmAction label="Create scheduled task" title="Create preventive maintenance task?" detail="The occurrence is deduplicated and the next scheduled date advances. Technician assignment remains required." disabled={!schedule.active} onConfirm={async () => { const taskId = await create({ id: schedule._id, expectedRevision: schedule.revision, scheduledDueAt: schedule.nextDueAt }); go("live-task", taskId); }} /><DateTimeField label="Rescheduled next due" value={due} onChange={setDue} /><Field label="Rescheduling / pause reason" value={reason} onChangeText={setReason} maxLength={500} /><ConfirmAction label="Save next due date" title="Reschedule future maintenance?" detail="Existing work orders retain their own due dates." disabled={!reason.trim()} onConfirm={() => reschedule({ id: schedule._id, expectedRevision: schedule.revision, nextDueAt: Date.parse(due), active: schedule.active, reason })} /><ScheduleActivityAction active={schedule.active} revision={schedule.revision} reason={reason} onChange={(active) => setActivity({ id: schedule._id, expectedRevision: schedule.revision, active, reason })} /></>}
   </Card>;
 }
 export function PreventiveCreate({ id }: { id?: string }) {

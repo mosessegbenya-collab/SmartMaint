@@ -1,0 +1,7 @@
+{
+  "target": "dev:greedy-bat-971",
+  "at": "2026-10-28T09:16:49.646Z",
+  "authenticated": false,
+  "function": "workflows:equipmentStatus",
+  "result": "PASS: unsigned chronology read denied"
+}

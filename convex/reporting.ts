@@ -58,7 +58,7 @@ export const publish = mutation({ args: { id: v.id("faultReports"), expectedRevi
   if (report.submissionState !== "draft" || report.revision !== args.expectedRevision) deny("Draft conflict: review the current report before submitting.");
   if ((report.attachmentRevision ?? 0) !== (args.expectedAttachmentRevision ?? 0)) deny("Photo conflict: review the current attachments before submitting.");
   await equipmentAccess(ctx, report.equipmentId);
-  await ctx.db.patch(report._id, { submissionState: "submitted", revision: args.expectedRevision + 1 });
+  await ctx.db.patch(report._id, { submissionState: "submitted", submittedAt: Date.now(), revision: args.expectedRevision + 1 });
   await ctx.db.insert("notifications", { recipientId: actor._id, departmentId: report.departmentId, title: report.emergency ? "Urgent report received" : "Fault report received", body: "Your report was recorded. This is an in-app receipt; external alert delivery is not confirmed.", targetKind: "report", targetId: report._id, createdAt: Date.now(), dispatchState: "in_app" });
   await audit(ctx, actor, "report.submit", report._id, report.emergency ? "Urgent report received; external escalation not confirmed" : "Fault report submitted after review", report.departmentId, "draft", "submitted");
   return report._id;

@@ -7,6 +7,7 @@ import { eligibility } from "./safety";
 import { taskNotice, reportNotice } from "./lib/notifications";
 import { csvCell } from "../src/domain/policy";
 import { priority } from "./lib/validators";
+import { authoredCompletionAt } from "../src/domain/event-chronology";
 import { canTransitionTask } from "../src/domain/maintenance-workflow";
 
 export const importInventory = mutation({ args: { departmentId: v.id("departments"), operationId: v.string(), rows: v.array(v.object({ assetId: v.string(), name: v.string(), model: v.string(), location: v.string() })), reason: v.string() }, returns: v.array(v.id("equipment")), handler: async (ctx, args) => {
@@ -109,11 +110,12 @@ export const metricsPage = query({ args: { departmentId: v.id("departments"), so
     else if ("diagnosis" in row) {
       if (row.state === "Completed") {
         add("completedRepairs");
-        const completion = await ctx.db.query("workEntries").withIndex("by_task", q => q.eq("taskId", row._id)).order("desc").first();
+        const completion = await ctx.db.query("workEntries").withIndex("by_task_revision", q => q.eq("taskId", row._id).eq("revision", row.revision)).unique();
         // Administrative workflow updates also change task.updatedAt. Only an
         // immutable authored completion is evidence of repair completion time.
-        if (completion?.state === "Completed" && completion.actorId && !completion.baseline && completion.at >= row.createdAt) {
-          add("timedRepairs"); add("recordedRepairElapsedMs", completion.at - row.createdAt);
+        const completedAt = authoredCompletionAt(row, completion);
+        if (completedAt !== null) {
+          add("timedRepairs"); add("recordedRepairElapsedMs", completedAt - row.createdAt);
         }
       } else if (row.state !== "Cancelled") add("openTasks");
     }

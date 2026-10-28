@@ -41,3 +41,21 @@ export const reschedule = mutation({ args: { id: v.id("preventiveSchedules"), ex
   await ctx.db.patch(schedule._id, { nextDueAt: args.nextDueAt, active: args.active, revision: schedule.revision + 1 });
   await audit(ctx, actor, "preventive.reschedule", schedule._id, args.reason, schedule.departmentId, String(schedule.nextDueAt), String(args.nextDueAt));
 } });
+
+// Activity changes preserve overdue obligations and every existing occurrence.
+export const setActivity = mutation({
+  args: { id: v.id('preventiveSchedules'), expectedRevision: v.number(), active: v.boolean(), reason: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const actor = await requireAccount(ctx, 'assign');
+    const schedule = await ctx.db.get(args.id);
+    if (!schedule || !actor.scope.includes(schedule.departmentId)) deny();
+    if (schedule.revision !== args.expectedRevision) deny('Schedule changed; review its current activity before continuing.');
+    const reason = requiredText(args.reason, 'schedule activity justification', 500);
+    if (schedule.active === args.active) return schedule.revision;
+    const revision = schedule.revision + 1;
+    await ctx.db.patch(schedule._id, { active: args.active, revision });
+    await audit(ctx, actor, 'preventive.activity', schedule._id, reason, schedule.departmentId, schedule.active ? 'Active' : 'Paused', args.active ? 'Active' : 'Paused');
+    return revision;
+  },
+});

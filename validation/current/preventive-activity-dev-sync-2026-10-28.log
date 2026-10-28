@@ -1,0 +1,9 @@
+▌ Developing against deployment:
+▌ [Development] moses-segbenya:smartmaint:dev/moses-segbenya (dev) (dashboard: https://dashboard.convex.dev/t/moses-segbenya/smartmaint/greedy-bat-971)
+▌ └─ https://greedy-bat-971.convex.cloud
+- Preparing Convex functions...
+
+[36mA minor update is available for Convex[39m [2m(1.47.0 → 1.48.0)[22m
+[2mChangelog:[22m [4mhttps://github.com/get-convex/convex-js/blob/main/CHANGELOG.md#changelog[24m
+Your Convex AI files are out of date. Run npx convex ai-files update to get the latest.
+√ 09:40:39 Convex functions ready! (8.65s)

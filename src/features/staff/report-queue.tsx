@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { AppState, Platform, View } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { randomUUID } from "expo-crypto";
@@ -6,6 +6,8 @@ import { useConvex, useMutation, useQuery } from "convex/react";
 import type { GenericId } from "convex/values";
 import { EncryptedReportQueue, type PendingPublication } from "@/domain/report-queue";
 import { PublicationCoordinator, PublicationPaused, duePublication, MAX_PUBLICATION_ATTEMPTS, MAX_RECEIPT_CHECKS } from "@/domain/publication-coordinator";
+import { PublicationQueueLoader } from "@/domain/publication-queue-loader";
+import { QueueAvailability } from "./queue-availability";
 import { useCurrentTime } from "@/hooks/use-current-time";
 import { staffApi } from "@/services/staff-api";
 import { Badge, Button, Card, Detail, Icon, LinkRow, Notice, Row, Screen, Txt } from "@/components/smart/ui";
@@ -15,7 +17,7 @@ import { useStaffAccess } from "./provider";
 import { ConfirmAction } from "./ui";
 
 const queue = new EncryptedReportQueue({ get: (key) => SecureStore.getItemAsync(key), set: (key, value) => SecureStore.setItemAsync(key, value, { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY }), remove: (key) => SecureStore.deleteItemAsync(key) }, randomUUID);
-type QueueApi = { available: boolean; rows: PendingPublication[]; error: string; publish?: (id: GenericId<"faultReports">, revision: number, attachmentRevision?: number) => Promise<GenericId<"faultReports">>; retry?: (entry: PendingPublication, recover?: boolean) => Promise<void> };
+type QueueApi = { available: boolean; loading?: boolean; reload?: () => void; rows: PendingPublication[]; error: string; publish?: (id: GenericId<"faultReports">, revision: number, attachmentRevision?: number) => Promise<GenericId<"faultReports">>; retry?: (entry: PendingPublication, recover?: boolean) => Promise<void> };
 const Context = createContext<QueueApi>({ available: false, rows: [], error: "" });
 export const useReportQueue = () => useContext(Context);
 export function ReportQueueBoundary({ children }: { children: ReactNode }) {
@@ -28,39 +30,45 @@ function NativeQueue({ children, owner }: { children: ReactNode; owner: string }
   const publishMutation = useMutation(staffApi.reporting.publish);
   const [rows, setRows] = useState<PendingPublication[]>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const reload = useRef<(() => Promise<void>) | null>(null);
   const [controller, setController] = useState<PublicationCoordinator | null>(null);
   useEffect(() => {
     let mounted = true;
     let active = AppState.currentState === "active";
-    let loaded = false;
     let latest: PendingPublication[] = [];
     const worker = new PublicationCoordinator(queue, owner,
       (entry) => publishMutation({ id: entry.reportId as GenericId<"faultReports">, expectedRevision: entry.expectedRevision, expectedAttachmentRevision: entry.expectedAttachmentRevision ?? 0 }),
       () => mounted && active,
       (items) => { latest = items; if (mounted && active) setRows(items); }, Date.now, authErrorMessage,
       (entry) => client.query(staffApi.reporting.publicationReceipt, { id: entry.reportId as GenericId<"faultReports">, expectedRevision: entry.expectedRevision, expectedAttachmentRevision: entry.expectedAttachmentRevision ?? 0 }));
+    const loader = new PublicationQueueLoader(() => worker.load(), () => mounted && active, (state) => {
+      setLoading(state.phase === "loading");
+      setController(state.phase === "ready" ? worker : null);
+      setError(state.phase === "failed" ? authErrorMessage(state.error) : "");
+      if (state.phase !== "ready") { latest = []; setRows([]); }
+    });
+    const reloadQueue = () => loader.retry();
+    reload.current = reloadQueue;
     const subscription = AppState.addEventListener("change", (state) => { active = mounted && state === "active"; });
     let timer: ReturnType<typeof setTimeout>;
     const replay = async () => {
       if (!mounted) return;
       if (active) {
-        if (!loaded) {
-          try { await worker.load(); loaded = true; if (mounted && active) setController(worker); }
-          catch (failure) {
-            if (!(failure instanceof PublicationPaused)) { if (mounted) setError(authErrorMessage(failure)); return; }
-          }
+        if (!loader.ready && loader.phase !== "failed") {
+          try { await loader.ensureLoaded(); } catch { /* Loader exposes recoverable errors without restarting submission budgets. */ }
         }
-        const entry = latest.find((item) => duePublication(item, Date.now()));
-        if (entry) try { await worker.sendEntry(entry.id); } catch (failure) {
+        const entry = loader.ready ? latest.find((item) => duePublication(item, Date.now())) : undefined;
+        if (entry) try { await worker.sendEntry(entry.id); if (mounted && active) setError(""); } catch (failure) {
           if (mounted && active && !(failure instanceof PublicationPaused)) setError(authErrorMessage(failure));
         }
       }
       if (mounted) timer = setTimeout(() => { void replay(); }, 1000);
     };
     void replay();
-    return () => { mounted = false; active = false; clearTimeout(timer); subscription.remove(); };
+    return () => { mounted = false; active = false; clearTimeout(timer); subscription.remove(); if (reload.current === reloadQueue) reload.current = null; };
   }, [owner, publishMutation, client]);
-  return <Context.Provider value={{ available: controller !== null, rows, error,
+  return <Context.Provider value={{ available: controller !== null, loading, reload: () => { void reload.current?.().catch(() => {}); }, rows, error,
     publish: async (reportId, revision, attachmentRevision = 0) => { setError(""); if (!controller) throw Error("The private submission queue is not ready."); return await controller.enqueue(reportId, revision, attachmentRevision, randomUUID()) as GenericId<"faultReports">; },
     retry: async (entry, recover = false) => { setError(""); if (!controller) throw Error("The private submission queue is not ready."); await controller.sendEntry(entry.id, recover); },
   }}>{children}</Context.Provider>;
@@ -69,12 +77,13 @@ function NativeQueue({ children, owner }: { children: ReactNode; owner: string }
 export function ReportQueueScreen({ view = 'sync' }: { view?: string }) {
   const now = useCurrentTime(1000);
   const service = useReportQueue(); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
-  const selected = service.rows.filter((row) => view === 'upload-failed' ? row.state === 'FAILED' : view === 'conflict' ? row.state === 'CONFLICT' : view === 'queue' ? row.state !== 'SYNCED' : true);
+  const visibleRows = service.available ? service.rows : [];
+  const selected = visibleRows.filter((row) => view === 'upload-failed' ? row.state === 'FAILED' : view === 'conflict' ? row.state === 'CONFLICT' : view === 'queue' ? row.state !== 'SYNCED' : true);
   const states = [{ state: 'PENDING', title: 'Pending (saved locally)', route: 'queue', icon: 'document-text-outline' }, { state: 'SYNCING', title: 'Sending / receipt unconfirmed', route: 'queue', icon: 'cloud-upload-outline' }, { state: 'FAILED', title: 'Failed', route: 'upload-failed', icon: 'alert-circle-outline' }, { state: 'CONFLICT', title: 'Conflicts', route: 'conflict', icon: 'sync-outline' }] as const;
   return <Screen title={view === 'upload-failed' ? 'Upload Failed' : view === 'conflict' ? 'Sync Conflict' : view === 'queue' ? 'Pending Sync Queue' : 'Sync Status'} subtitle={view === 'sync' ? 'View the current sync status and pending items.' : view === 'queue' ? 'Report submissions awaiting a server receipt.' : view === 'conflict' ? 'Review changed revisions before submitting again.' : 'Server receipt was not confirmed for these attempts.'}>
-    <Notice tone={service.available ? 'success' : 'warning'}>{service.available ? 'Secure submission queue available for this approved account.' : 'Secure queue unavailable. Reconnect with an approved account on Android or iOS.'}</Notice>
-    {!!(error || service.error) && <Notice tone="warning">{error || service.error}</Notice>}
-    {view === 'sync' && <Card style={{ gap: 14 }}><Txt size={21} weight="700">Pending items</Txt>{states.map((item) => <LinkRow key={item.state} title={item.title} icon={item.icon} tail={<Badge label={String(service.rows.filter((r) => r.state === item.state).length)} tone={item.state === 'FAILED' ? 'danger' : 'info'} />} onPress={() => go(item.route)} />)}</Card>}
+    <QueueAvailability available={service.available} loading={service.loading} error={service.error} reload={service.reload} />
+    {!!error && <Notice tone="warning">{error}</Notice>}
+    {view === 'sync' && service.available && <Card style={{ gap: 14 }}><Txt size={21} weight="700">Pending items</Txt>{states.map((item) => <LinkRow key={item.state} title={item.title} icon={item.icon} tail={<Badge label={String(visibleRows.filter((r) => r.state === item.state).length)} tone={item.state === 'FAILED' ? 'danger' : 'info'} />} onPress={() => go(item.route)} />)}</Card>}
     {service.available && !selected.length && <Card><Txt muted>{view === 'conflict' ? 'No conflicting submissions.' : view === 'upload-failed' ? 'No failed submissions.' : 'No pending submissions in this selection.'}</Txt></Card>}
     {selected.map((r) => view === 'conflict' ? <PublicationConflict key={r.id} entry={r} /> : <Card key={r.id} style={{ gap: 12 }}><Row><Icon name={r.state === 'SYNCED' ? 'checkmark-circle' : r.state === 'FAILED' ? 'alert-circle' : 'cloud-upload-outline'} size={34} color={r.state === 'FAILED' ? '#C92E40' : '#0866E8'} /><View style={{ flex: 1, gap: 5 }}><Txt weight="700" size={18}>Fault report</Txt><Badge label={r.state === "SYNCING" && r.retryCount >= MAX_PUBLICATION_ATTEMPTS ? "Receipt unconfirmed" : r.state} tone={r.state === 'FAILED' ? 'danger' : r.state === 'SYNCED' ? 'success' : 'warning'} /></View></Row><Detail label="Report" value={r.reportId} /><Detail label="Attempts" value={`${r.retryCount} / ${MAX_PUBLICATION_ATTEMPTS}`} />{!!r.nextRetryAt && <Detail label="Next automatic retry" value={new Date(r.nextRetryAt).toLocaleString()} />}{r.state === "FAILED" && !r.retryable && <Notice tone="warning">Automatic retry stopped. Review the saved draft and current access; exhausted attempts require receipt reconciliation or explicit bounded recovery.</Notice>}<Detail label="Last updated" value={new Date(r.updatedAt).toLocaleString()} />{r.state !== 'SYNCED' && <Notice tone="warning">Server receipt not confirmed for this submission attempt.</Notice>}{!!r.lastError && <Notice tone="warning">{r.lastError}</Notice>}{r.state === 'SYNCED' && <Button label="View received report" onPress={() => go('report-detail', r.serverId)} />}{r.state === 'CONFLICT' ? <Button label="Review saved draft conflict" onPress={() => go('conflict')} /> : r.state === 'FAILED' && <Button label="Retry publication" icon="refresh-outline" loading={busy} disabled={!service.available || !service.retry || !duePublication(r, now)} onPress={() => { setBusy(true); void service.retry?.(r).catch((failure) => setError(authErrorMessage(failure))).finally(() => setBusy(false)); }} />}<ExhaustedPublication entry={r} /></Card>)}
     <LinkRow title="Recover device drafts and photos" icon="document-text-outline" onPress={() => go("device-drafts")} />

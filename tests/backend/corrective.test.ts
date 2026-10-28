@@ -549,6 +549,41 @@ test("publication requires the reviewed photo revision and submitted evidence ca
   await expect(f.user("reporter").mutation(api.attachments.remove, { id: photo.id })).rejects.toThrow(/immutable/);
   expect((await f.user("reporter").action(api.attachments.read, { id: photo.id })).dataUri).toMatch(/^data:image\/png/);
 });
+test('preventive activity can pause and resume overdue work without moving its due date', async () => {
+  const f = await setup();
+  const id = await f.user('supervisor').mutation(api.preventive.create, { equipmentId: f.equipment, title: 'TEST schedule', approvedReference: 'TEST ONLY', intervalDays: 30, nextDueAt: Date.now() + 86400000, checklist: ['TEST check'] });
+  const overdueAt = Date.now() - 86400000;
+  await f.t.run(ctx => ctx.db.patch(id, { nextDueAt: overdueAt }));
+  const taskId = await f.t.run(ctx => ctx.db.insert('maintenanceTasks', { equipmentId: f.equipment, departmentId: f.a, scheduleId: id, scheduledDueAt: overdueAt - 30 * 86400000, dueAt: overdueAt - 30 * 86400000, state: 'Unassigned', diagnosis: '', notes: '', parts: [], cycle: 1, revision: 1, createdAt: overdueAt, updatedAt: overdueAt }));
+  const existingTask = await f.t.run(ctx => ctx.db.get(taskId));
+  await f.user('supervisor').mutation(api.preventive.setActivity, { id, expectedRevision: 1, active: false, reason: 'TEST pause without changing the original obligation' });
+  expect(await f.t.run(ctx => ctx.db.get(id))).toMatchObject({ nextDueAt: overdueAt, active: false, revision: 2 });
+  await expect(f.user('supervisor').mutation(api.preventive.materialize, { id, expectedRevision: 2, scheduledDueAt: overdueAt })).rejects.toThrow(/paused/);
+  await f.user('supervisor').mutation(api.preventive.setActivity, { id, expectedRevision: 2, active: true, reason: 'TEST resume the retained obligation' });
+  expect(await f.t.run(ctx => ctx.db.get(id))).toMatchObject({ nextDueAt: overdueAt, active: true, revision: 3 });
+  expect(await f.t.run(ctx => ctx.db.get(taskId))).toEqual(existingTask);
+  const events = await f.t.run(ctx => ctx.db.query('authorizationAudit').withIndex('by_target', q => q.eq('target', id)).collect());
+  expect(events.filter(e => e.action === 'preventive.activity').map(e => [e.from, e.to])).toEqual([['Active', 'Paused'], ['Paused', 'Active']]);
+  const nextTask = await f.user('supervisor').mutation(api.preventive.materialize, { id, expectedRevision: 3, scheduledDueAt: overdueAt });
+  expect(await f.t.run(ctx => ctx.db.get(nextTask))).toMatchObject({ scheduledDueAt: overdueAt, dueAt: overdueAt });
+});
+
+test('preventive activity rejects unauthorized, stale and unjustified changes atomically', async () => {
+  const f = await setup();
+  const id = await f.user('supervisor').mutation(api.preventive.create, { equipmentId: f.equipment, title: 'TEST schedule', approvedReference: 'TEST ONLY', intervalDays: 30, nextDueAt: Date.now() + 86400000, checklist: ['TEST check'] });
+  const args = { id, expectedRevision: 1, active: false, reason: 'TEST pause' };
+  const before = await f.t.run(ctx => ctx.db.get(id));
+  await expect(f.t.mutation(api.preventive.setActivity, args)).rejects.toThrow();
+  await expect(f.user('tech').mutation(api.preventive.setActivity, args)).rejects.toThrow();
+  await expect(f.user('supervisor').mutation(api.preventive.setActivity, { ...args, expectedRevision: 2 })).rejects.toThrow(/changed/);
+  await expect(f.user('supervisor').mutation(api.preventive.setActivity, { ...args, reason: ' ' })).rejects.toThrow(/justification/);
+  await f.t.run(ctx => ctx.db.patch(f.supervisor, { scope: [f.b], departmentId: f.b }));
+  await expect(f.user('supervisor').mutation(api.preventive.setActivity, args)).rejects.toThrow();
+  expect(await f.t.run(ctx => ctx.db.get(id))).toEqual(before);
+  const audit = await f.t.run(ctx => ctx.db.query('authorizationAudit').withIndex('by_target', q => q.eq('target', id)).collect());
+  expect(audit.filter(e => e.action === 'preventive.activity')).toHaveLength(0);
+});
+
 test("preventive schedules enforce scoped supervisor authority and occurrence generation is duplicate-safe", async () => {
   const f = await setup(); const dueAt = Date.now() + 100000; const args = { equipmentId: f.equipment, title: "TEST schedule", approvedReference: "TEST-MAINTENANCE-PROCEDURE", intervalDays: 30, nextDueAt: dueAt, checklist: ["TEST maintenance check"], operationId: "TEST-SCHEDULE-RETRY" };
   await expect(f.user("reporter").mutation(api.preventive.create, args)).rejects.toThrow();
@@ -620,4 +655,45 @@ test('equipment status orders real events while keeping drafts and other reporte
   expect(supervisor.events.map((event) => event.at)).toEqual([500, 400, 200, 100]);
   await expect(f.user('other').query(api.workflows.equipmentStatus, { id: f.equipment })).rejects.toThrow(/scope/);
   await expect(f.t.query(api.workflows.equipmentStatus, { id: f.equipment })).rejects.toThrow(/Sign in/);
+});
+
+test('publication records submission separately from draft creation and preserves it on an exact retry', async () => {
+  const f = await setup(); const draft = await f.user('reporter').mutation(api.reporting.saveDraft, draftFields(f.equipment));
+  await f.t.run(ctx => ctx.db.patch(draft.id, { createdAt: 1000 }));
+  const args = { id: draft.id, expectedRevision: draft.revision, expectedAttachmentRevision: 0 };
+  await f.user('reporter').mutation(api.reporting.publish, args);
+  const first = (await f.t.run(ctx => ctx.db.get(draft.id)))!;
+  expect(first).toMatchObject({ createdAt: 1000, submissionState: 'submitted', submittedAt: expect.any(Number) });
+  await f.user('reporter').mutation(api.reporting.publish, args);
+  expect(await f.t.run(ctx => ctx.db.get(draft.id))).toEqual(first);
+  const status = await f.user('reporter').query(api.workflows.equipmentStatus, { id: f.equipment });
+  expect(status.events.find(event => event.id === draft.id)?.at).not.toBe(1000);
+});
+
+test('direct publication records its own time, rejects a saved draft and does not fabricate older missing times', async () => {
+  const f = await setup(); const { emergency, ...fields } = draftFields(f.equipment);
+  await f.user('reporter').mutation(api.reporting.saveDraft, { ...fields, emergency });
+  await expect(f.user('reporter').mutation(api.operations.submitReport, fields)).rejects.toThrow(/saved draft/);
+  const direct = { ...fields, operationId: 'DIRECT-TIMING' };
+  const id = await f.user('reporter').mutation(api.operations.submitReport, direct);
+  const record = (await f.t.run(ctx => ctx.db.get(id)))!;
+  expect(record).toMatchObject({ submissionState: 'submitted', submittedAt: record.createdAt });
+  await f.t.run(ctx => ctx.db.patch(id, { submittedAt: undefined }));
+  expect(await f.user('reporter').mutation(api.operations.submitReport, direct)).toBe(id);
+  expect((await f.t.run(ctx => ctx.db.get(id)))?.submittedAt).toBeUndefined();
+});
+
+test('equipment history uses authored completion time rather than later administrative update time', async () => {
+  const f = await setup();
+  const id = await f.t.run(async ctx => {
+    const task = await ctx.db.insert('maintenanceTasks', { equipmentId: f.equipment, departmentId: f.a, assigneeId: f.tech, state: 'Completed', workflowPhase: 'closed', revision: 2, workflowRevision: 3, diagnosis: 'TEST', notes: 'TEST', parts: [], cycle: 1, dueAt: 10000, createdAt: 1000, updatedAt: 9000 });
+    await ctx.db.insert('workEntries', { taskId: task, departmentId: f.a, actorId: f.tech, revision: 2, state: 'Completed', diagnosis: 'TEST', notes: 'TEST', parts: [], at: 5000 });
+    // Imported older history may arrive later; insertion order is not work revision.
+    await ctx.db.insert('workEntries', { taskId: task, departmentId: f.a, baseline: true, revision: 1, state: 'Assigned', diagnosis: 'Older snapshot', notes: '', parts: [], at: 1000 });
+    return task;
+  });
+  const status = await f.user('supervisor').query(api.workflows.equipmentStatus, { id: f.equipment });
+  expect(status.events.find(event => event.id === id)).toMatchObject({ at: 5000, title: 'Repair completion recorded' });
+  expect(status.events.some(event => event.at === 9000 && /closed/i.test(event.title))).toBe(true);
+  expect((await f.user('admin').query(api.extensions.metricsPage, { departmentId: f.a, source: 'maintenanceTasks', paginationOpts: { cursor: null, numItems: 20 } })).counts.recordedRepairElapsedMs).toBe(4000);
 });

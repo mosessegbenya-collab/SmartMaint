@@ -8,7 +8,13 @@ The [report recovery continuation](REPORT_RECOVERY_INTEGRATION.md) connects comp
 
 The [work editor continuation](WORK_EDITOR_INTEGRATION.md) retains unsaved findings across incoming task changes and connects explicit comparison to backend work/workflow revision checks.
 
+The [work exit continuation](WORK_EXIT_INTEGRATION.md) protects unsaved maintenance fields from accidental route removal and blocks leaving during a pending save.
+
 The [shared dialog continuation](DIALOGS_INTEGRATION.md) fixes large-text error recovery, opaque modal surfaces and narrow-screen date selection across workflows.
+
+The [queue-loading continuation](QUEUE_LOADING_INTEGRATION.md) prevents partial receipt confirmation and connects loading failures to explicit recovery in sync and report review screens.
+
+The [event chronology continuation](EVENT_CHRONOLOGY_INTEGRATION.md) distinguishes record creation, actual submission, immutable repair completion and administrative closure, while disclosing unknown historical times.
 
 ## Product objective
 

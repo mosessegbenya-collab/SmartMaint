@@ -1,12 +1,12 @@
 {
-  "at": "2026-10-28T08:36:56.353Z",
+  "at": "2026-10-28T08:37:54.514Z",
   "device": "emulator-5554",
   "platform": "Android 15",
   "api": "35",
   "fontScale": "1.0",
   "sourceState": {
-    "at": "2026-10-28T08:36:57.115Z",
-    "head": "3635624230ec6449ae069c793a6507fb3bebe3c1",
+    "at": "2026-10-28T08:37:55.008Z",
+    "head": "9831b37a3be3a7aa52d31d7a6673607e894c6dd4",
     "sourceSha256": "e36cbfde55aa9310883237f122de116833b9cec2dce5649dae515988a07ea6d0",
     "files": [
       {
@@ -904,184 +904,39 @@
     ],
     "note": "Includes uncommitted tracked and untracked source; excludes credentials, screenshots and validation logs."
   },
-  "scenario": "Shared confirmation after active keyboard was hidden",
+  "scenario": "Confirmation visible after invocation from an active keyboard; IME reports hidden",
   "screenshot": "validation/current/confirmation-2026-10-28-keyboard-opened.png",
   "hierarchy": "validation/current/confirmation-2026-10-28-keyboard-opened.xml",
   "labels": [
     {
-      "text": "",
-      "label": "Tools",
-      "bounds": "[937,205][1005,273]"
-    },
-    {
-      "text": "",
-      "label": "Go back",
-      "bounds": "[0,139][126,265]"
-    },
-    {
-      "text": "",
+      "text": "Keep these reviewed maintenance details?",
       "label": "",
-      "bounds": "[34,172][92,233]"
+      "bounds": "[86,861][994,1021]"
+    },
+    {
+      "text": "Your next save will replace the current server work fields with the local details shown here. Review every field, including the diagnosis, supporting evidence, cause assessment, repair notes, parts and scheduled checklist. This review does not save or complete maintenance, independently verify a repair or authorize equipment use.",
+      "label": "",
+      "bounds": "[86,1063][994,1434]"
     },
     {
       "text": "",
-      "label": "SmartMaint gear and heartbeat logo",
-      "bounds": "[350,160][434,244]"
+      "label": "Cancel",
+      "bounds": "[87,1477][527,1603]"
     },
     {
-      "text": "SmartMaint",
+      "text": "Cancel",
       "label": "",
-      "bounds": "[447,165][729,238]"
+      "bounds": "[244,1513][369,1566]"
     },
     {
       "text": "",
-      "label": "About SmartMaint",
-      "bounds": "[954,139][1080,265]"
+      "label": "Confirm",
+      "bounds": "[554,1477][994,1603]"
     },
     {
-      "text": "",
+      "text": "Confirm",
       "label": "",
-      "bounds": "[988,172][1046,233]"
-    },
-    {
-      "text": "Confirmation preview",
-      "label": "",
-      "bounds": "[47,322][1033,412]"
-    },
-    {
-      "text": "Development component reference",
-      "label": "",
-      "bounds": "[47,422][1033,475]"
-    },
-    {
-      "text": "",
-      "label": "",
-      "bounds": "[81,568][134,623]"
-    },
-    {
-      "text": "Fictional actions only. No maintenance record, report or device file is changed.",
-      "label": "",
-      "bounds": "[160,568][998,658]"
-    },
-    {
-      "text": "Confirmation example",
-      "label": "",
-      "bounds": "[47,729][1033,777]"
-    },
-    {
-      "text": "",
-      "label": "Long review",
-      "bounds": "[47,795][301,921]"
-    },
-    {
-      "text": "Long review",
-      "label": "",
-      "bounds": "[81,829][266,873]"
-    },
-    {
-      "text": "",
-      "label": "Failed action",
-      "bounds": "[316,795][577,921]"
-    },
-    {
-      "text": "Failed action",
-      "label": "",
-      "bounds": "[350,829][542,873]"
-    },
-    {
-      "text": "",
-      "label": "Slow action",
-      "bounds": "[592,795][836,921]"
-    },
-    {
-      "text": "Slow action",
-      "label": "",
-      "bounds": "[626,829][801,873]"
-    },
-    {
-      "text": "Sample work note",
-      "label": "",
-      "bounds": "[47,958][1033,1006]"
-    },
-    {
-      "text": "Fictional maintenance findings",
-      "label": "Sample work note",
-      "bounds": "[50,1025][1032,1151]"
-    },
-    {
-      "text": "Action attempts",
-      "label": "",
-      "bounds": "[47,1189][465,1233]"
-    },
-    {
-      "text": "0",
-      "label": "",
-      "bounds": "[490,1189][1033,1233]"
-    },
-    {
-      "text": "Confirmed sample actions",
-      "label": "",
-      "bounds": "[47,1270][465,1314]"
-    },
-    {
-      "text": "0",
-      "label": "",
-      "bounds": "[490,1270][1033,1314]"
-    },
-    {
-      "text": "",
-      "label": "Review sample action",
-      "bounds": "[47,1351][1033,1477]"
-    },
-    {
-      "text": "Review sample action",
-      "label": "",
-      "bounds": "[345,1387][733,1440]"
-    },
-    {
-      "text": "Sample decision priority",
-      "label": "",
-      "bounds": "[47,1514][1033,1562]"
-    },
-    {
-      "text": "",
-      "label": "Sample decision priority: Routine",
-      "bounds": "[47,1578][1033,1704]"
-    },
-    {
-      "text": "Routine",
-      "label": "",
-      "bounds": "[81,1612][930,1663]"
-    },
-    {
-      "text": "",
-      "label": "",
-      "bounds": "[956,1616][998,1660]"
-    },
-    {
-      "text": "Sample maintenance date",
-      "label": "",
-      "bounds": "[47,1740][1033,1788]"
-    },
-    {
-      "text": "",
-      "label": "Sample maintenance date: 11/5/2026, 12:00:00 PM",
-      "bounds": "[47,1804][1033,1930]"
-    },
-    {
-      "text": "",
-      "label": "",
-      "bounds": "[81,1839][131,1891]"
-    },
-    {
-      "text": "11/5/2026, 12:00:00 PM",
-      "label": "",
-      "bounds": "[157,1838][931,1891]"
-    },
-    {
-      "text": "",
-      "label": "",
-      "bounds": "[956,1843][998,1887]"
+      "bounds": "[701,1513][847,1566]"
     }
   ]
 }

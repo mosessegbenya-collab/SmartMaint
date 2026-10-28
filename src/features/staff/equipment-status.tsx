@@ -1,9 +1,10 @@
+import { EquipmentEventTimeline } from "@/components/smart/equipment-event-timeline";
 import { useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMutation, useQuery } from "convex/react";
 import type { GenericId } from "convex/values";
 import { Badge, Button, Card, Detail, Field, LinkRow, Notice, Screen, Txt } from "@/components/smart/ui";
-import { StatusPanel, TimelineItem } from "@/components/smart/status-ui";
+import { StatusPanel } from "@/components/smart/status-ui";
 import { staffApi } from "@/services/staff-api";
 import { go } from "@/navigation/go";
 import { useStaffAccess } from "./provider";
@@ -18,8 +19,8 @@ export function EquipmentStatusTimeline({ id }: { id: string }) {
       <ReleaseControls id={id} />
       <Txt size={19} weight="700">Status timeline</Txt>
       {!result.events.length && <Notice>No status events are recorded for this equipment.</Notice>}
-      {result.events.map((event, index) => <TimelineItem key={event.id} title={event.title} detail={event.detail} at={event.at} icon={event.kind === "hold" ? "lock-closed-outline" : event.kind === "resolved" || event.kind === "release" ? "shield-checkmark-outline" : event.kind === "verification" ? "clipboard-outline" : event.kind === "repair" ? "construct-outline" : "document-text-outline"} tone={event.kind === "hold" ? "danger" : event.kind === "resolved" || event.kind === "release" ? "success" : "info"} last={index === result.events.length - 1} />)}
-      <Txt muted size={11}>Recent overview: up to {result.limit} records per source and 100 displayed events. Verification entries cover the latest repair cycle. {result.limited ? "Additional history exists or may exist beyond these limits." : "Open maintenance history for individual work records."}</Txt>
+      <EquipmentEventTimeline events={result.events} />
+      <Txt muted size={11}>Overview: up to {result.limit} most recently created records per source and 100 displayed events. Verification entries cover the latest repair cycle. {result.limited ? "Additional history exists or may exist beyond these limits." : "Open maintenance history for individual work records."}</Txt>
       <LinkRow title="Equipment maintenance history" icon="time-outline" onPress={() => go("equipment-history", id)} />
     </> : <Notice>Loading authorized status history…</Notice>}
   </Screen>;

@@ -1,6 +1,7 @@
 ﻿import { test, expect, vi } from "vitest";
 import { EncryptedReportQueue, type PrivateStore, type PendingPublication } from "../../src/domain/report-queue";
 import { PublicationCoordinator, MAX_PUBLICATION_ATTEMPTS, duePublication, retryDelay } from "../../src/domain/publication-coordinator";
+import { PublicationQueueLoader } from "../../src/domain/publication-queue-loader";
 
 test('a cached receipt acknowledges only its original reviewed report and photo revisions', async () => {
   const f = setup();
@@ -36,6 +37,65 @@ test('missing verification and authorization loss cannot display or upgrade an o
   const revoked = new PublicationCoordinator(f.queue, 'OWNER', f.send, () => current, changed, Date.now, undefined, async () => { current = false; return 'REPORT'; });
   await expect(revoked.load()).rejects.toThrow(/paused/);
   expect(changed).not.toHaveBeenCalled(); expect((await f.queue.load('OWNER'))[0].receiptBindingVersion).toBeUndefined(); expect(f.send).not.toHaveBeenCalled();
+});
+
+test('loading multiple older receipts never exposes an unverified row when a later lookup fails', async () => {
+  const f = setup();
+  await f.queue.update('OWNER', () => [
+    { ...row, state: 'SYNCED', serverId: 'REPORT' },
+    { ...row, id: 'SECOND', reportId: 'REPORT_B', state: 'SYNCED', serverId: 'REPORT_B' },
+  ]);
+  const changed = vi.fn(); let fail = true;
+  const receipt = vi.fn(async (entry: PendingPublication) => {
+    if (entry.reportId === 'REPORT_B' && fail) throw Error('Network unavailable');
+    return entry.reportId;
+  });
+  const worker = new PublicationCoordinator(f.queue, 'OWNER', f.send, () => true, changed, Date.now, undefined, receipt);
+  await expect(worker.load()).rejects.toThrow(/Network/);
+  expect(changed).not.toHaveBeenCalled();
+  expect((await f.queue.load('OWNER')).map(row => row.receiptBindingVersion)).toEqual([1, undefined]);
+  fail = false; await worker.load();
+  expect(changed).toHaveBeenCalledTimes(1);
+  expect(changed.mock.calls[0][0].every((row: PendingPublication) => row.receiptBindingVersion === 1)).toBe(true);
+  expect(receipt).toHaveBeenCalledTimes(3); expect(f.send).not.toHaveBeenCalled();
+});
+
+test('concurrent queue loads share receipt verification and a failed load can be explicitly retried', async () => {
+  const f = setup(); await f.queue.update('OWNER', () => [{ ...row, state: 'SYNCED', serverId: 'REPORT' }]);
+  let release!: () => void; const blocked = new Promise<void>(resolve => { release = resolve; });
+  const receipt = vi.fn(async () => { await blocked; return 'REPORT'; }); const changed = vi.fn();
+  const worker = new PublicationCoordinator(f.queue, 'OWNER', f.send, () => true, changed, Date.now, undefined, receipt);
+  const first = worker.load(), second = worker.load();
+  release(); await Promise.all([first, second]);
+  expect(receipt).toHaveBeenCalledTimes(1); expect(changed).toHaveBeenCalledTimes(1);
+});
+
+test('reloading after a storage failure preserves exhausted submission and reconciliation budgets', async () => {
+  const f = setup();
+  await f.queue.update('OWNER', () => [{ ...row, state: 'FAILED', retryCount: 5, reconciliationCount: 3, recoveryCount: 1, retryable: false }]);
+  const get = f.store.get; let failed = true;
+  f.store.get = async key => { if (failed) throw Error('Storage unavailable'); return get(key); };
+  const loader = new PublicationQueueLoader(() => f.worker.load(), () => true, () => {});
+  await expect(loader.ensureLoaded()).rejects.toThrow(/Storage/);
+  failed = false; await loader.retry();
+  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ state: 'FAILED', retryCount: 5, reconciliationCount: 3, recoveryCount: 1 });
+  await expect(f.worker.enqueue('REPORT', 1, 2, 'REPLACEMENT')).rejects.toThrow(/limit/);
+  expect(f.send).not.toHaveBeenCalled();
+});
+
+test('authorization loss on a later receipt does not publish an earlier partial batch', async () => {
+  const f = setup(); await f.queue.update('OWNER', () => [
+    { ...row, state: 'SYNCED', serverId: 'REPORT' },
+    { ...row, id: 'SECOND', reportId: 'REPORT_B', state: 'SYNCED', serverId: 'REPORT_B' },
+  ]);
+  let current = true; const changed = vi.fn();
+  const worker = new PublicationCoordinator(f.queue, 'OWNER', f.send, () => current, changed, Date.now, undefined, async entry => {
+    if (entry.reportId === 'REPORT_B') current = false;
+    return entry.reportId;
+  });
+  await expect(worker.load()).rejects.toThrow(/paused/);
+  expect(changed).not.toHaveBeenCalled(); expect(f.send).not.toHaveBeenCalled();
+  expect((await f.queue.load('OWNER')).map(row => row.receiptBindingVersion)).toEqual([1, undefined]);
 });
 
 function setup() {

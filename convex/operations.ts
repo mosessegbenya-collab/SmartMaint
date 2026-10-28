@@ -46,17 +46,18 @@ export const reports = query({ args: {}, handler: async (ctx) => {
 export const submitReport = mutation({ args: {
   equipmentId: v.id("equipment"), operationId: v.string(), category: v.string(), symptoms: v.string(), description: v.string(), priority,
   condition: v.string(), inUse: v.boolean(), noticedAt: v.number(),
-}, handler: async (ctx, args) => {
+}, returns: v.id("faultReports"), handler: async (ctx, args) => {
   const { item } = await equipmentAccess(ctx, args.equipmentId);
   const actor = await requireAccount(ctx, "report", item.departmentId);
   const operationId = requiredText(args.operationId, "operation reference", 100);
   const previous = await ctx.db.query("faultReports").withIndex("by_reporter_operation", (q) => q.eq("reporterId", actor._id).eq("operationId", operationId)).unique();
-  if (previous) return previous._id;
+  if (previous) { if (previous.submissionState === "draft") deny("This operation is a saved draft. Review and publish it before using a submission receipt."); return previous._id; }
   if (!["Electrical/Power", "Mechanical/Physical", "Performance/Function", "Controls/Display", "Accessories/Connections", "Alarm/Safety Concern", "Other/Unknown"].includes(args.category)) deny("Invalid fault category.");
   if (!["Not functioning (reported)", "Functioning with concern", "Unknown"].includes(args.condition)) deny("Invalid reported condition.");
   if (!Number.isFinite(args.noticedAt) || args.noticedAt <= 0 || args.noticedAt > Date.now()) deny("Invalid noticed time.");
   if (args.description.length > 2000) deny("Description is too long.");
-  return await ctx.db.insert("faultReports", { ...args, operationId, symptoms: requiredText(args.symptoms, "symptoms", 300), reporterId: actor._id, departmentId: item.departmentId, createdAt: Date.now() });
+  const submittedAt = Date.now();
+  return await ctx.db.insert("faultReports", { ...args, operationId, symptoms: requiredText(args.symptoms, "symptoms", 300), reporterId: actor._id, departmentId: item.departmentId, createdAt: submittedAt, submittedAt, submissionState: "submitted" });
 } });
 export const triage = mutation({ args: { id: v.id("faultReports"), priority, reason: v.string() }, handler: async (ctx, args) => {
   const { actor, report } = await reportAccess(ctx, args.id, "triage");

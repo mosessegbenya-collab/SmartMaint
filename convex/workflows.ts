@@ -6,6 +6,7 @@ import type { GenericId } from "convex/values";
 import { activeDepartment, audit, deny, requireAccount, requiredText } from "./lib/access";
 import { equipmentAccess } from "./operations";
 import { priority, taskStatus } from "./lib/validators";
+import { maintenanceTimelineEvents, reportSubmissionAt, type StatusEvent } from "../src/domain/event-chronology";
 import { repairContributors } from "./lib/repair_evidence";
 
 function pageSize(n: number) { if (!Number.isInteger(n) || n < 1 || n > 100) deny("Choose a page size between 1 and 100."); }
@@ -127,7 +128,7 @@ export const hasUnreadNotice = query({ args: {}, handler: async (ctx) => {
 } });
 
 /** Bounded status history. Summary events never expose private draft content or verification evidence. */
-export const equipmentStatus = query({ args: { id: v.id("equipment") }, handler: async (ctx, { id }) => {
+export const equipmentStatus = query({ args: { id: v.id("equipment") }, returns: v.object({ equipment: v.object({ assetId: v.string(), name: v.string(), location: v.string() }), events: v.array(v.object({ id: v.string(), at: v.number(), title: v.string(), detail: v.string(), kind: v.union(v.literal("repair"), v.literal("hold"), v.literal("resolved"), v.literal("release"), v.literal("report"), v.literal("verification"), v.literal("administrative")) })), limit: v.number(), limited: v.boolean() }), handler: async (ctx, { id }) => {
   const { actor, item } = await equipmentAccess(ctx, id);
   const limit = 50;
   const [tasks, holds, releases, reports] = await Promise.all([
@@ -136,15 +137,17 @@ export const equipmentStatus = query({ args: { id: v.id("equipment") }, handler:
     ctx.db.query("releaseRecords").withIndex("by_equipment", (q) => q.eq("equipmentId", id)).order("desc").take(limit),
     ctx.db.query("faultReports").withIndex("by_equipment", (q) => q.eq("equipmentId", id)).filter((q) => q.neq(q.field("submissionState"), "draft")).order("desc").take(limit),
   ]);
-  type Event = { id: string; at: number; title: string; detail: string; kind: "repair" | "hold" | "resolved" | "release" | "report" | "verification" };
-  const events: Event[] = [];
+  const events: StatusEvent[] = [];
   for (const hold of holds) {
     events.push({ id: `${hold._id}:raised`, at: hold.createdAt, title: "Safety hold raised", detail: hold.reason, kind: "hold" });
     if (hold.resolvedAt !== undefined) events.push({ id: `${hold._id}:resolved`, at: hold.resolvedAt, title: "Safety hold resolved", detail: hold.resolutionReason ?? "Resolution recorded. This does not release equipment.", kind: "resolved" });
   }
-  for (const task of tasks) events.push({ id: task._id, at: task.updatedAt, title: task.state === "Completed" ? "Repair completed" : task.parentTaskId ? "Follow-up rework" : "Maintenance updated", detail: `Cycle ${task.cycle} · ${task.state}`, kind: "repair" });
+  for (const task of tasks) {
+    const completion = task.state === "Completed" ? await ctx.db.query("workEntries").withIndex("by_task_revision", q => q.eq("taskId", task._id).eq("revision", task.revision)).unique() : null;
+    events.push(...maintenanceTimelineEvents(task, completion));
+  }
   for (const report of reports) {
-    if (report.reporterId === actor._id || actor.capabilities.some((c) => ["assign", "triage"].includes(c))) events.push({ id: report._id, at: report.createdAt, title: "Fault reported", detail: report.symptoms, kind: "report" });
+    if (report.reporterId === actor._id || actor.capabilities.some((c) => ["assign", "triage"].includes(c))) events.push({ id: report._id, at: reportSubmissionAt(report) ?? report.createdAt, title: reportSubmissionAt(report) === null ? "Report record created" : "Fault report submitted", detail: reportSubmissionAt(report) === null ? `${report.symptoms} (Submission time is not recorded for this older report.)` : report.symptoms, kind: "report" });
   }
   for (const release of releases) events.push({ id: release._id, at: release.at, title: "Return-to-service decision", detail: "An authorized decision was recorded. Review current availability before use.", kind: "release" });
   // The current cycle's latest decisions are sufficient for this status overview; full attempts remain in verifier history.

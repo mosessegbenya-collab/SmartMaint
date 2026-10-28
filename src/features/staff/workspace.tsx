@@ -8,7 +8,8 @@ import { DateTimeField } from "@/components/smart/date-time-field";
 import { useApp } from "@/state/app-state";
 import { useCurrentTime } from "@/hooks/use-current-time";
 import { maintenanceStatus } from "@/domain/maintenance-workflow";
-import { workFields, workRevision } from "@/domain/work-editor";
+import { hasUnsavedWork, workFields, workRevision } from "@/domain/work-editor";
+import { useWorkExit } from "@/hooks/use-work-exit";
 import { WorkRevisionReview } from "./work-revision-review";
 import { MaintenanceBadge, StatusPanel } from "@/components/smart/status-ui";
 import { AccountProfile } from "@/features/workspace/profile";
@@ -87,6 +88,7 @@ function TaskForm({ task, view }: { task: FunctionReturnType<typeof staffApi.ope
   const [newPart, setNewPart] = useState('');
   const save = useMutation(staffApi.operations.recordWork);
   const [reviewed, setReviewed] = useState(task);
+  const [recordedWork, setRecordedWork] = useState(() => workFields(task));
   const [savingWork, setSavingWork] = useState(false);
   const [diagnosis, setDiagnosis] = useState(task.diagnosis); const [notes, setNotes] = useState(task.notes); const [parts, setParts] = useState(task.parts.join(", "));
   const [diagnosisEvidence, setDiagnosisEvidence] = useState(task.diagnosisEvidence ?? '');
@@ -97,20 +99,21 @@ function TaskForm({ task, view }: { task: FunctionReturnType<typeof staffApi.ope
   const changed = workRevision(reviewed) !== workRevision(task);
   const editing = !['task-detail', 'rework', 'live-task', 'maintenance-history', 'assignment', 'due-date', 'cancellation'].includes(view);
   const localWork = { diagnosis, diagnosisEvidence, causeAssessment: cause, notes, parts, preventiveResults };
+  const exitDialog = useWorkExit(editing && hasUnsavedWork(localWork, recordedWork, newPart), savingWork);
   const loadCurrentWork = () => {
     const fields = workFields(task);
     setDiagnosis(fields.diagnosis); setDiagnosisEvidence(fields.diagnosisEvidence); setCause(fields.causeAssessment);
-    setNotes(fields.notes); setParts(fields.parts); setPreventiveResults(fields.preventiveResults); setNewPart(''); setReviewed(task);
+    setNotes(fields.notes); setParts(fields.parts); setPreventiveResults(fields.preventiveResults); setNewPart(''); setReviewed(task); setRecordedWork(fields);
   };
   const saveWork = async (complete: boolean) => {
     if (changed || savingWork || !canRepair) throw Error('Review the current work order before recording these details. Your unsaved details remain on this screen.');
     if (newPart.trim()) throw Error('Add or clear the pending part before recording work.');
     setSavingWork(true);
-    try { const receipt = await save({ id: task._id, expectedRevision: reviewed.revision, expectedWorkflowRevision: reviewed.workflowRevision ?? 0, diagnosis, diagnosisEvidence, causeAssessment: cause, notes, parts: parts.split(',').map((p) => p.trim()).filter(Boolean), complete, preventiveResults }); setReviewed(prior => ({ ...prior, revision: receipt.revision, workflowRevision: receipt.workflowRevision })); }
+    try { const receipt = await save({ id: task._id, expectedRevision: reviewed.revision, expectedWorkflowRevision: reviewed.workflowRevision ?? 0, diagnosis, diagnosisEvidence, causeAssessment: cause, notes, parts: parts.split(',').map((p) => p.trim()).filter(Boolean), complete, preventiveResults }); setRecordedWork(localWork); setReviewed(prior => ({ ...prior, revision: receipt.revision, workflowRevision: receipt.workflowRevision })); }
     finally { setSavingWork(false); }
   };
-  const workReview = editing && changed ? <WorkRevisionReview reviewed={reviewed} current={task} local={localWork} canRepair={!!canRepair} busy={savingWork} keepLocal={() => setReviewed(task)} loadServer={loadCurrentWork} /> : null;
-  const summary = <Card style={{ gap: 10 }}><Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}><View style={{ flex: 1, minWidth: 180 }}><Txt muted size={13}>Work Order</Txt><Txt size={23} weight="800">{task._id}</Txt></View><MaintenanceBadge task={task} /></Row><Txt size={18} weight="600">{equipment?.name ?? 'Loading equipment…'}</Txt><Txt muted>{equipment?.assetId}</Txt><Txt muted>{equipment?.location}</Txt>{task.parentTaskId && <Badge label="Follow-up rework" tone="danger" />}<MaintenanceFlow task={task} /></Card>;
+  const workReview = editing && changed ? <WorkRevisionReview reviewed={reviewed} current={task} local={localWork} canRepair={!!canRepair} busy={savingWork} keepLocal={() => { setReviewed(task); setRecordedWork(workFields(task)); }} loadServer={loadCurrentWork} /> : null;
+  const summary = <Card style={{ gap: 10 }}>{exitDialog}<Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}><View style={{ flex: 1, minWidth: 180 }}><Txt muted size={13}>Work Order</Txt><Txt size={23} weight="800">{task._id}</Txt></View><MaintenanceBadge task={task} /></Row><Txt size={18} weight="600">{equipment?.name ?? 'Loading equipment…'}</Txt><Txt muted>{equipment?.assetId}</Txt><Txt muted>{equipment?.location}</Txt>{task.parentTaskId && <Badge label="Follow-up rework" tone="danger" />}<MaintenanceFlow task={task} /></Card>;
   if (['task-detail', 'rework', 'live-task'].includes(view)) return <Screen title={view === 'rework' ? 'Follow-up Rework' : 'Maintenance Task Details'} subtitle={view === 'rework' ? 'Review the work linked to a previous maintenance cycle.' : 'Review the fault, assigned work and recorded activity.'}>
     {summary}
     {!!task.parentTaskId && <Card style={{ gap: 10 }}><Detail label="Original maintenance task" value={task.parentTaskId} /><Detail label="Linked verification decision" value={task.failureAttemptId ?? "Not recorded"} /></Card>}

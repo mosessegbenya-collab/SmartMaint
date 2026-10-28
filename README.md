@@ -8,7 +8,13 @@ Report recovery continuation (28 October 2026): [draft lifecycle, complete confl
 
 Work editor continuation: [preserved local findings and work/workflow revision review](docs/WORK_EDITOR_INTEGRATION.md), with [validation evidence](validation/current/WORK_EDITOR_INTEGRATION_2026-10-28.md). Preview the comparison at `/design-system?example=work` in development.
 
+Work exit continuation: [unsaved-field and pending-save navigation protection](docs/WORK_EXIT_INTEGRATION.md), with [267-test and Android back-navigation evidence](validation/current/WORK_EXIT_INTEGRATION_2026-10-28.md). The same work preview exercises the actual exit guard.
+
 Shared dialog continuation: [scrollable confirmations, selectors and adaptive date selection](docs/DIALOGS_INTEGRATION.md), with [200% system-text and short-screen evidence](validation/current/DIALOGS_INTEGRATION_2026-10-28.md). Preview at `/design-system?example=confirmation` in development.
+
+Private queue continuation: [verified receipt batches and recoverable loading](docs/QUEUE_LOADING_INTEGRATION.md), with [260-test and Android evidence](validation/current/QUEUE_LOADING_INTEGRATION_2026-10-28.md). Preview at `/design-system?example=queue-loading` in development.
+
+Event chronology continuation: [separate submission, completion and closure times](docs/EVENT_CHRONOLOGY_INTEGRATION.md), with [266-test, development backend and Android evidence](validation/current/EVENT_CHRONOLOGY_INTEGRATION_2026-10-28.md). Preview at `/design-system?example=chronology` in development.
 
 Latest continuation: [fresh implementation and acceptance evidence](validation/current/FINAL_ACCEPTANCE_PASS.md), [73-reference checklist](validation/current/CHECKLIST.md), [prepared native procedure](docs/NATIVE_ACCEPTANCE_PROCEDURE.md) and [live integration prerequisites/commands](docs/LIVE_INTEGRATION_ACCEPTANCE.md). Native synthetic coverage is separate from exact-state and live acceptance.
 

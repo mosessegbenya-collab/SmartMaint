@@ -25,3 +25,6 @@ export function compareWorkFields(local: WorkFields, current: WorkFields) {
   ];
   return rows.map(([key, label, left, right]) => ({ key, label, left, right, changed: left !== right }));
 }
+export function hasUnsavedWork(local: WorkFields, recorded: WorkFields, pendingPart = '') {
+  return !!pendingPart.trim() || compareWorkFields(local, recorded).some(row => row.changed);
+}

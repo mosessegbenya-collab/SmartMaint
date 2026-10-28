@@ -21,31 +21,40 @@ export function duePublication(row: PendingPublication, now: number): boolean {
 export class PublicationCoordinator {
   private inFlight = new Map<string, Promise<string>>();
   private serial: Promise<unknown> = Promise.resolve();
+  private loading: Promise<PendingPublication[]> | null = null;
   constructor(private queue: EncryptedReportQueue, private owner: string, private send: (row: PendingPublication) => Promise<string>, private current: () => boolean, private changed: (rows: PendingPublication[]) => void, private now = Date.now, private message = (error: unknown) => error instanceof Error ? error.message : String(error), private receipt?: (row: PendingPublication) => Promise<string | null>) {}
   private assertCurrent() { if (!this.current()) throw new PublicationPaused(); }
-  private async update(change: (rows: PendingPublication[]) => PendingPublication[]) {
+  private async update(change: (rows: PendingPublication[]) => PendingPublication[], notify = true) {
     const rows = await this.queue.update(this.owner, change);
-    if (this.current()) this.changed(rows);
+    if (notify && this.current() && rows.every(row => row.state !== "SYNCED" || row.receiptBindingVersion === 1)) this.changed(rows);
     return rows;
   }
-  async load() {
+  load(): Promise<PendingPublication[]> {
+    if (this.loading) return this.loading;
+    const work = this.loadVerified();
+    this.loading = work;
+    void work.finally(() => { if (this.loading === work) this.loading = null; }).catch(() => {});
+    return work;
+  }
+  private async loadVerified() {
     this.assertCurrent();
     const stored = await this.queue.load(this.owner);
-    for (const row of stored) if (row.state === "SYNCED" && row.receiptBindingVersion !== 1) await this.verifyStoredReceipt(row);
+    for (const row of stored) if (row.state === "SYNCED" && row.receiptBindingVersion !== 1) await this.verifyStoredReceipt(row, false);
     const rows = await this.queue.load(this.owner);
+    if (rows.some(row => row.state === "SYNCED" && row.receiptBindingVersion !== 1)) throw Error("The private queue changed while its receipts were being checked. Reload it before reviewing submission status.");
     this.assertCurrent(); this.changed(rows); return rows;
   }
-  private async verifyStoredReceipt(row: PendingPublication) {
+  private async verifyStoredReceipt(row: PendingPublication, notify = true) {
     this.assertCurrent();
     if (!this.receipt) throw Error("This stored receipt needs fresh server verification before it can be displayed as confirmed.");
     try {
       const receipt = await this.receipt(row);
       this.assertCurrent();
       if (receipt !== row.reportId) throw Error("Stored receipt revision conflict: the server does not confirm this reviewed submission.");
-      await this.update(items => items.map(item => item.id === row.id && item.state === "SYNCED" && item.expectedRevision === row.expectedRevision && item.expectedAttachmentRevision === row.expectedAttachmentRevision ? { ...item, receiptBindingVersion: 1, lastError: undefined, updatedAt: this.now() } : item));
+      await this.update(items => items.map(item => item.id === row.id && item.state === "SYNCED" && item.expectedRevision === row.expectedRevision && item.expectedAttachmentRevision === row.expectedAttachmentRevision ? { ...item, receiptBindingVersion: 1, lastError: undefined, updatedAt: this.now() } : item), notify);
     } catch (failure) {
       if (failure instanceof PublicationPaused || publicationFailure(failure) !== "CONFLICT") throw failure;
-      await this.update(items => items.map(item => item.id === row.id && item.state === "SYNCED" && item.expectedRevision === row.expectedRevision && item.expectedAttachmentRevision === row.expectedAttachmentRevision ? { ...item, state: "CONFLICT", serverId: undefined, receiptBindingVersion: undefined, retryable: false, nextRetryAt: undefined, lastError: `Stored receipt needs review: ${this.message(failure)}`.slice(0, 4000), updatedAt: this.now() } : item));
+      await this.update(items => items.map(item => item.id === row.id && item.state === "SYNCED" && item.expectedRevision === row.expectedRevision && item.expectedAttachmentRevision === row.expectedAttachmentRevision ? { ...item, state: "CONFLICT", serverId: undefined, receiptBindingVersion: undefined, retryable: false, nextRetryAt: undefined, lastError: `Stored receipt needs review: ${this.message(failure)}`.slice(0, 4000), updatedAt: this.now() } : item), notify);
     }
   }
   sendEntry(id: string, recover = false): Promise<string> {

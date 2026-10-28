@@ -20,4 +20,4 @@ All consequential task confirmation components are bound to the reviewed server 
 
 Implementation: `src/domain/work-editor.ts`, `src/components/smart/work-field-comparison.tsx`, `src/features/staff/work-revision-review.tsx`, `workspace.tsx`, `extensions-ui.tsx`, the shared `ConfirmAction`, and `convex/operations.ts`.
 
-Evidence: [work editor validation](../validation/current/WORK_EDITOR_INTEGRATION_2026-10-28.md). Local fields are still held in memory: navigation away, sign-out or process termination can discard them. Encrypted maintenance drafts and navigation-loss warnings are not delivered by this change.
+Evidence: [work editor validation](../validation/current/WORK_EDITOR_INTEGRATION_2026-10-28.md). The subsequent [route-removal guard](WORK_EXIT_INTEGRATION.md) warns before discarding unsaved fields. Local fields are still held in memory; sign-out, process termination and parent access-boundary unmounts can discard them. Encrypted maintenance drafts remain unfinished.

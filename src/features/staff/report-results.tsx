@@ -1,3 +1,4 @@
+import { ReportTimingDetails } from "@/components/smart/report-timing";
 import { useQuery } from "convex/react";
 import type { GenericId } from "convex/values";
 import { Badge, Button, Card, Detail, Notice, Screen, Txt } from "@/components/smart/ui";
@@ -17,7 +18,7 @@ export function ReportReceipt({ id, emergency = false, cleanup }: { id: string; 
     {!!cleanup?.error && <Button label="Review remaining device copy" variant="secondary" onPress={() => go("device-drafts")} />}
     {report ? <>
       <StatusPanel title={report.submissionState === "draft" ? "Saved as a draft" : "Server receipt confirmed"} detail={report.submissionState === "draft" ? "Your details are saved to your account. The report has not been submitted for maintenance." : "The staff service has recorded your report. Maintenance acceptance and equipment availability are checked separately."} icon={report.submissionState === "draft" ? "document-text-outline" : "checkmark-circle"} tone={report.submissionState === "draft" ? "warning" : "success"} />
-      <Card style={{ gap: 12 }}><Badge label={report.submissionState === "draft" ? "Draft" : "Submitted"} tone={report.submissionState === "draft" ? "warning" : "success"} /><Detail label="Report reference" value={report._id} /><Detail label="Recorded" value={new Date(report.createdAt).toLocaleString()} /><Detail label="Category" value={report.category} /><Detail label="Reported priority" value={report.priority} /><Txt size={18} weight="700">{report.symptoms}</Txt></Card>
+      <Card style={{ gap: 12 }}><Badge label={report.submissionState === "draft" ? "Draft" : "Submitted"} tone={report.submissionState === "draft" ? "warning" : "success"} /><Detail label="Report reference" value={report._id} /><ReportTimingDetails report={report} /><Detail label="Category" value={report.category} /><Detail label="Reported priority" value={report.priority} /><Txt size={18} weight="700">{report.symptoms}</Txt></Card>
       {(emergency || report.emergency) && <Notice tone="warning">External emergency alert delivery is not confirmed. Follow your institution’s approved urgent-response procedure.</Notice>}
       {report.submissionState === "draft" ? <Button label="Continue report" onPress={() => go("resume-report", report._id)} /> : <Button label="View report timeline" onPress={() => go("report-detail", report._id)} />}
       <Button label="View my reports" variant="secondary" onPress={() => go("live-reports")} />
