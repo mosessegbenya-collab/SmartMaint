@@ -20,6 +20,10 @@ Welcome restoration continuation: [public welcome and inline session recovery](d
 
 Protected restoration continuation: [shared branded waiting and retry surface](docs/SESSION_SURFACE_INTEGRATION.md), with [layout-boundary checks and compact dark/200% system-text evidence](validation/current/SESSION_SURFACE_INTEGRATION_2026-10-28.md).
 
+Inventory identity continuation: [consistent identity labels, explicit match review and adaptive detail rows](docs/INVENTORY_IDENTITY_INTEGRATION.md), with [278-test and Android evidence](validation/current/INVENTORY_IDENTITY_INTEGRATION_2026-10-28.md). Preview at `/design-system?example=identity` in development.
+
+Verification review continuation: [retained findings and reviewed-policy decisions](docs/VERIFICATION_REVIEW_INTEGRATION.md), with [282-test, development deployment and Android evidence](validation/current/VERIFICATION_REVIEW_INTEGRATION_2026-10-28.md). Preview at `/design-system?example=verification-review` in development.
+
 Shared dialog continuation: [scrollable confirmations, selectors and adaptive date selection](docs/DIALOGS_INTEGRATION.md), with [200% system-text and short-screen evidence](validation/current/DIALOGS_INTEGRATION_2026-10-28.md). Preview at `/design-system?example=confirmation` in development.
 
 Private queue continuation: [verified receipt batches and recoverable loading](docs/QUEUE_LOADING_INTEGRATION.md), with [260-test and Android evidence](validation/current/QUEUE_LOADING_INTEGRATION_2026-10-28.md). Preview at `/design-system?example=queue-loading` in development.

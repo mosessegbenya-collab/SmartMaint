@@ -507,20 +507,20 @@ async function repaired(f: Awaited<ReturnType<typeof setup>>) {
 async function testSafetyPolicy(f: Awaited<ReturnType<typeof setup>>) {
   return await f.t.run((ctx) => ctx.db.insert("safetyPolicies", { departmentId: f.a, active: true, version: "smartmaint-safety-v1", approvalReference: "TEST-ONLY-NOT-INSTITUTIONAL-APPROVAL", technicalChecks: ["TEST technical check"], clinicalChecks: ["TEST clinical check"], clinicalRequired: true, releaseRoles: ["Maintenance Supervisor"], configuredAt: Date.now() }));
 }
-const verification = (taskId: Awaited<ReturnType<typeof repaired>>, kind: "technical" | "clinical", outcome: "pass" | "fail" = "pass") => ({ taskId, expectedRevision: 3, kind, outcome, checks: [{ label: kind === "technical" ? "TEST technical check" : "TEST clinical check", passed: outcome === "pass" }], notes: outcome === "pass" ? "Test findings" : "Test failure", evidenceReference: "TEST-EVIDENCE", operationId: `TEST-${kind}-${outcome}`, reworkDueAt: outcome === "fail" ? Date.now() + 100000 : undefined });
+const verification = async (f: Awaited<ReturnType<typeof setup>>, taskId: Awaited<ReturnType<typeof repaired>>, kind: "technical" | "clinical", outcome: "pass" | "fail" = "pass") => ({ taskId, expectedRevision: 3, expectedPolicyId: (await f.user(kind === "clinical" ? "reporter" : "verifier").query(api.safety.verificationContext, {taskId, kind})).policy?.id, kind, outcome, checks: [{ label: kind === "technical" ? "TEST technical check" : "TEST clinical check", passed: outcome === "pass" }], notes: outcome === "pass" ? "Test findings" : "Test failure", evidenceReference: "TEST-EVIDENCE", operationId: `TEST-${kind}-${outcome}`, reworkDueAt: outcome === "fail" ? Date.now() + 100000 : undefined });
 test("safety decisions remain disabled without policy and repair completion never releases equipment", async () => {
   const f = await setup(); const task = await repaired(f);
   expect((await f.user("reporter").query(api.safety.releaseStatus, { equipmentId: f.equipment })).available).toBe(false);
-  await expect(f.user("verifier").mutation(api.safety.verify, verification(task, "technical"))).rejects.toThrow(/policy/);
+  await expect(f.user("verifier").mutation(api.safety.verify, await verification(f, task, "technical"))).rejects.toThrow(/policy/);
   await expect(f.user("supervisor").mutation(api.safety.release, { equipmentId: f.equipment, expectedTaskRevision: 3, reason: "Test" })).rejects.toThrow(/authority/);
 });
 test("independent ordered verification and authorized release are atomic, idempotent and invalidated by new holds/faults", async () => {
   const f = await setup(); const task = await repaired(f); await testSafetyPolicy(f);
-  await expect(f.user("tech").mutation(api.safety.verify, verification(task, "technical"))).rejects.toThrow(/independent/);
-  await expect(f.user("reporter").mutation(api.safety.verify, verification(task, "clinical"))).rejects.toThrow(/technical pass/);
-  await f.user("verifier").mutation(api.safety.verify, verification(task, "technical"));
+  await expect(f.user("tech").mutation(api.safety.verify, await verification(f, task, "technical"))).rejects.toThrow(/independent/);
+  await expect(f.user("reporter").mutation(api.safety.verify, await verification(f, task, "clinical"))).rejects.toThrow(/technical pass/);
+  await f.user("verifier").mutation(api.safety.verify, await verification(f, task, "technical"));
   expect((await f.user("reporter").query(api.safety.releaseStatus, { equipmentId: f.equipment })).eligible).toBe(false);
-  await f.user("reporter").mutation(api.safety.verify, verification(task, "clinical"));
+  await f.user("reporter").mutation(api.safety.verify, await verification(f, task, "clinical"));
   const release = { equipmentId: f.equipment, expectedTaskRevision: 3, expectedEvidence: (await f.user("supervisor").query(api.safety.releaseStatus, { equipmentId: f.equipment })).evidenceSnapshot, reason: "TEST approved release evidence" };
   await expect(f.user("reporter").mutation(api.safety.release, release)).rejects.toThrow(/authority/);
   const [a, b] = await Promise.all([f.user("supervisor").mutation(api.safety.release, release), f.user("supervisor").mutation(api.safety.release, release)]); expect(a).toBe(b);
@@ -539,17 +539,17 @@ test("independent ordered verification and authorized release are atomic, idempo
 });
 test("failed verification creates one linked rework and never overwrites the completed repair or failed decision", async () => {
   const f = await setup(); const task = await repaired(f); await testSafetyPolicy(f);
-  const args = verification(task, "technical", "fail"); const first = await f.user("verifier").mutation(api.safety.verify, args); expect(await f.user("verifier").mutation(api.safety.verify, args)).toBe(first);
+  const args = await verification(f, task, "technical", "fail"); const first = await f.user("verifier").mutation(api.safety.verify, args); expect(await f.user("verifier").mutation(api.safety.verify, args)).toBe(first);
   const children = await f.t.run((ctx) => ctx.db.query("maintenanceTasks").withIndex("by_parent", (q) => q.eq("parentTaskId", task)).collect()); expect(children).toHaveLength(1); expect(children[0].failureAttemptId).toBe(first);
   expect((await f.t.run((ctx) => ctx.db.get(task)))?.state).toBe("Completed");
-  await expect(f.user("verifier").mutation(api.safety.verify, verification(task, "technical"))).rejects.toThrow(/original failed repair/);
+  await expect(f.user("verifier").mutation(api.safety.verify, await verification(f, task, "technical"))).rejects.toThrow(/original failed repair/);
   expect((await f.user("reporter").query(api.safety.releaseStatus, { equipmentId: f.equipment })).available).toBe(false);
 });
 test("operational notices stay recipient-scoped, reflect rework/holds and do not claim external delivery", async () => {
   const f = await setup(); const task = await repaired(f); await testSafetyPolicy(f);
   const reportId = (await f.t.run((ctx) => ctx.db.get(task)))!.reportId!;
   await f.user("supervisor").mutation(api.operations.triage, { id: reportId, priority: "Urgent", reason: "TEST triage" });
-  const args = verification(task, "technical", "fail"); await f.user("verifier").mutation(api.safety.verify, args);
+  const args = await verification(f, task, "technical", "fail"); await f.user("verifier").mutation(api.safety.verify, args);
   const pageArgs = { paginationOpts: { cursor: null, numItems: 100 } };
   const inbox = await f.user("reporter").query(api.workflows.inbox, pageArgs);
   expect(inbox.page.map((r) => r.title)).toEqual(expect.arrayContaining(["Fault report triaged", "Repair completed — verification pending", "Verification requires linked rework"]));
@@ -583,7 +583,7 @@ test("verification requests require approved policy, current repair and independ
   const clinicalRequest = { ...request, kind: "clinical" as const, recipientId: f.reporter };
   await expect(f.user("tech").mutation(api.safety.requestVerification, { ...clinicalRequest, recipientId: f.other })).rejects.toThrow(/scope/);
   await expect(f.user("tech").mutation(api.safety.requestVerification, clinicalRequest)).rejects.toThrow(/technical pass/);
-  await f.user("verifier").mutation(api.safety.verify, verification(task, "technical"));
+  await f.user("verifier").mutation(api.safety.verify, await verification(f, task, "technical"));
   const clinicalNotice = await f.user("tech").mutation(api.safety.requestVerification, clinicalRequest);
   expect((await f.t.run((ctx) => ctx.db.get(clinicalNotice)))?.title).toBe("Clinical verification requested");
   expect((await f.t.run((ctx) => ctx.db.query("safetyAttempts").collect()))).toHaveLength(1); // Requesting is not verification.

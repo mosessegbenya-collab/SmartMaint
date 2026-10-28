@@ -6,12 +6,12 @@ import { randomUUID } from "expo-crypto";
 import type { GenericId } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import { Badge, Button, Card, Choices, Detail, Field, Icon, LinkRow, Notice, Row, Screen, Txt } from "@/components/smart/ui";
-import { StatusPanel } from "@/components/smart/status-ui";
-import { DateTimeField } from "@/components/smart/date-time-field";
+import { ReleaseDecisionControls } from "./release-editor";
 import { staffApi } from "@/services/staff-api";
 import { go } from "@/navigation/go";
 import { useStaffAccess } from "./provider";
 import { ConfirmAction } from "./ui";
+import { VerificationEditorControls } from "./verification-editor";
 
 export function VerificationScreen({ id, kind, view = 'checklist' }: { id: string; kind: "technical" | "clinical"; view?: 'checklist' | 'result' | 'history' }) {
   const { account } = useStaffAccess();
@@ -19,7 +19,7 @@ export function VerificationScreen({ id, kind, view = 'checklist' }: { id: strin
 }
 function VerificationLoader({ id, kind, view }: { id: GenericId<"maintenanceTasks">; kind: "technical" | "clinical"; view: 'checklist' | 'result' | 'history' }) {
   const context = useQuery(staffApi.safety.verificationContext, { taskId: id, kind });
-  return context ? view === 'checklist' ? <VerificationForm key={`${id}:${context.task.revision}:${context.policy?.id ?? "disabled"}`} context={context} kind={kind} /> : <VerificationDecisions context={context} kind={kind} history={view === 'history'} /> : <Screen title="Verification"><Notice>Loading authorized repair and policy…</Notice></Screen>;
+  return context ? view === 'checklist' ? <VerificationForm key={`${id}:${kind}`} context={context} kind={kind} /> : <VerificationDecisions context={context} kind={kind} history={view === 'history'} /> : <Screen title="Verification"><Notice>Loading authorized repair and policy…</Notice></Screen>;
 }
 
 function VerificationDecisions({ context, kind, history }: { context: FunctionReturnType<typeof staffApi.safety.verificationContext>; kind: 'technical' | 'clinical'; history: boolean }) {
@@ -33,20 +33,16 @@ function VerificationDecisions({ context, kind, history }: { context: FunctionRe
   </Screen>;
 }
 function VerificationForm({ context, kind }: { context: FunctionReturnType<typeof staffApi.safety.verificationContext>; kind: "technical" | "clinical" }) {
-  const verify = useMutation(staffApi.safety.verify); const [checks, setChecks] = useState<Record<string, "Not checked" | "Pass" | "Fail">>({}); const [outcome, setOutcome] = useState<"pass" | "fail" | "unable">("pass"); const [notes, setNotes] = useState(""); const [reference, setReference] = useState(""); const [due, setDue] = useState(""); const [operationId, setOperationId] = useState(randomUUID); const [received, setReceived] = useState("");
-  const policy = context.policy; const self = !context.independent;
+  const verify = useMutation(staffApi.safety.verify);
+  const [operationId] = useState(randomUUID);
+  const [received, setReceived] = useState('');
   return <Screen title={kind === "technical" ? "Technical Safety Checklist" : "Clinical Safety Checklist"} subtitle="Record an independent decision against the approved institutional policy.">
-    <Card style={{ gap: 9 }}><Detail label="Linked repair" value={context.task._id} /><Detail label="Repair status" value={context.task.state} /><Detail label="Repair diagnosis" value={context.task.diagnosis || "Not recorded"} /><Detail label="Maintenance cycle" value={String(context.task.cycle)} /></Card>
-    {!policy ? <Notice tone="warning">Institutional safety policy is not approved/configured. Verification is disabled. No illustrative checklist is used for a live safety decision.</Notice> : <>
-      <Card style={{ gap: 10 }}><Detail label="Approved policy reference" value={policy.approvalReference} /><Detail label="Checks marked pass" value={`${policy.checks.filter((label) => checks[label] === "Pass").length} / ${policy.checks.length}`} /><Txt muted size={12}>Every required check must pass before a pass decision can be recorded.</Txt></Card>
-      {self && <Notice tone="warning">The repairing technician cannot verify their own work. An independent authorized verifier is required.</Notice>}
-      {policy.checks.map((label) => <Card key={label}><Choices label={label} values={["Not checked", "Pass", "Fail"]} value={checks[label] ?? "Not checked"} onChange={(value) => setChecks((old) => ({ ...old, [label]: value }))} /></Card>)}
-      <Choices label="Verification outcome" values={["pass", "fail", "unable"]} value={outcome} onChange={setOutcome} /><Field label="Findings / failure or inability reason" value={notes} onChangeText={setNotes} multiline maxLength={2000} /><Field label="Evidence reference" value={reference} onChangeText={setReference} maxLength={500} />
-      {outcome !== "pass" && <><Notice>A failed/unable decision creates linked rework and blocks return to service.</Notice><DateTimeField label="Required rework due date" value={due} onChange={setDue} required /></>}
-      {!!received && <><Notice>Verification recorded: {received}</Notice><Button label="View recorded verification results" onPress={() => go(`${kind}-result`, context.task._id)} /></>}
-      <ConfirmAction label="Record verification" title="Record this safety decision?" detail="This creates an immutable decision tied to the current policy, repair revision and your account. A pass does not release equipment." disabled={self || context.task.state !== "Completed" || !reference.trim() || !!received || (outcome === "pass" && policy.checks.some((label) => checks[label] !== "Pass")) || (outcome !== "pass" && (!notes.trim() || !due))}
-        onConfirm={async () => { const id = await verify({ taskId: context.task._id, expectedRevision: context.task.revision, kind, outcome, checks: policy.checks.map((label) => ({ label, passed: checks[label] === "Pass" })), notes, evidenceReference: reference, operationId, reworkDueAt: outcome === "pass" ? undefined : Date.parse(due) }); setReceived(id); setOperationId(randomUUID()); }} />
-    </>}
+    <Card style={{ gap: 9 }}><Detail label="Linked repair" value={context.task._id} /><Detail label="Repair status" value={context.task.state} /><Detail label="Current repair diagnosis" value={context.task.diagnosis || "Not recorded"} /><Detail label="Maintenance cycle" value={String(context.task.cycle)} /></Card>
+    <VerificationEditorControls current={context} independent={context.independent} onReceived={setReceived} onSubmit={async editor => {
+      const policy = editor.reviewed.policy!;
+      return await verify({ taskId: context.task._id, expectedRevision: editor.reviewed.task.revision, expectedPolicyId: policy.id as GenericId<"safetyPolicies">, kind, outcome: editor.outcome, checks: policy.checks.map(label => ({ label, passed: editor.checks[label] === 'Pass' })), notes: editor.notes, evidenceReference: editor.reference, operationId, reworkDueAt: editor.outcome === 'pass' ? undefined : Date.parse(editor.due) });
+    }} />
+    {!!received && <Button label="View recorded verification results" onPress={() => go(`${kind}-result`, context.task._id)} />}
     <Txt size={20} weight="700">Verification history</Txt>{context.attempts.map((r) => <Card key={r._id} style={{ gap: 8 }}><Badge label={`${r.kind} · ${r.outcome}`} tone={r.outcome === "pass" ? "success" : "danger"} /><Detail label="Verifier account" value={r.actorId} /><Detail label="Recorded" value={new Date(r.at).toLocaleString()} /><Txt>{r.notes || "No additional findings"}</Txt></Card>)}
     <LinkRow title="Equipment availability and release" onPress={() => go("release", context.task.equipmentId)} />
   </Screen>;
@@ -80,16 +76,12 @@ export function ReleaseScreen({ id, overview = false }: { id: string; overview?:
   </Screen>;
 }
 export function ReleaseControls({ id }: { id: string }) {
-  const equipmentId = id as GenericId<"equipment">; const result = useQuery(staffApi.safety.releaseStatus, { equipmentId }); const release = useMutation(staffApi.safety.release); const [reason, setReason] = useState("");
-  return result ? <View style={{ gap: 14 }}>
-    <StatusPanel title={result.available ? "Released for service" : "Not released for service"} detail={result.available ? "The current release decision satisfies the recorded prerequisites. Later faults or safety holds can change this status." : "Do not infer availability from a completed repair or an individual verification pass."} icon={result.available ? "shield-checkmark" : "alert-circle"} tone={result.available ? "success" : "warning"} />
-    <Card style={{ gap: 14 }}><Txt size={20} weight="800">Return-to-service prerequisites</Txt><Detail label="Approved policy" value={result.policyReference ?? "Not approved/configured"} />
-      {result.blockers.map((blocker, index) => <Row key={blocker} style={{ alignItems: "flex-start" }}><Icon name="close-circle-outline" color="#C92E40" /><View style={{ flex: 1, gap: 3 }}><Txt size={12} muted>Restriction {index + 1}</Txt><Txt>{blocker}</Txt></View></Row>)}
-      {result.available && <Notice tone="success">Current release confirmed by the staff service.</Notice>}
-      {result.canRelease && !result.available && <><Field label="Return-to-service justification" value={reason} onChangeText={setReason} maxLength={500} multiline /><ConfirmAction key={result.evidenceSnapshot} label="Authorize Return to Service" title="Release equipment for service?" detail="All current repairs, verifications, identity and holds are checked atomically by the server." disabled={!result.eligible || !reason.trim() || result.expectedTaskRevision === null} onConfirm={() => release({ equipmentId, expectedTaskRevision: result.expectedTaskRevision!, expectedEvidence: result.evidenceSnapshot, reason })} /></>}
-    </Card>
-  </View> : <Notice>Checking current release prerequisites?</Notice>;
+  const equipmentId = id as GenericId<"equipment">;
+  const result = useQuery(staffApi.safety.releaseStatus, { equipmentId });
+  const release = useMutation(staffApi.safety.release);
+  return result ? <ReleaseDecisionControls key={id} current={{ ...result, equipmentId }} onRelease={async editor => await release({ equipmentId, expectedTaskRevision: editor.reviewed.expectedTaskRevision!, expectedEvidence: editor.reviewed.evidenceSnapshot, reason: editor.reason })} /> : <Notice>Checking current release prerequisites?</Notice>;
 }
+
 export function ResolveHold({ id, equipmentId }: { id: GenericId<"safetyHolds">; equipmentId: GenericId<"equipment"> }) {
   const status = useQuery(staffApi.safety.releaseStatus, { equipmentId }); const resolve = useMutation(staffApi.safety.resolveHold); const [reason, setReason] = useState("");
   return status?.canRelease ? <><Field label="Hold resolution evidence / reason" value={reason} onChangeText={setReason} maxLength={500} /><ConfirmAction label="Resolve hold" title="Resolve this safety hold?" detail="The original hold and an audited resolution remain in history. This action does not release equipment." disabled={!reason.trim()} onConfirm={() => resolve({ id, reason })} /></> : <Notice>Hold clearance is disabled without approved policy and clearance authority.</Notice>;

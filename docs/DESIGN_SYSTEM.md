@@ -26,6 +26,10 @@ The [welcome restoration continuation](WELCOME_RESTORATION_INTEGRATION.md) keeps
 
 The [protected restoration continuation](SESSION_SURFACE_INTEGRATION.md) uses a themed, branded and scrollable session gate with readable system bars and reachable recovery on compact large-text screens.
 
+The [inventory identity continuation](INVENTORY_IDENTITY_INTEGRATION.md) shares informational/warning identity labels across workflows, makes lookup review explicit, and stacks label/value details on compact or larger-text views.
+
+The [verification review continuation](VERIFICATION_REVIEW_INTEGRATION.md) retains prepared findings across repair/policy changes, requires explicit review with all checks reset, and binds new backend decisions to the reviewed policy.
+
 ## Product objective
 
 Help CCTH staff identify equipment, report faults, coordinate evidence-based maintenance, and distinguish completed repairs from independently verified equipment that has an authorized return-to-service decision. The approved `Design/` references remain the visual target. The existing development demo remains fictional and cannot enable clinical verification or release.

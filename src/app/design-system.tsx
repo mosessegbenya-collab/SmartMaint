@@ -10,6 +10,8 @@ import { PreventivePreview } from "@/features/design-system/preventive-preview";
 import { ScheduleReviewPreview } from "@/features/design-system/schedule-review-preview";
 import { NotificationPreview } from "@/features/design-system/notification-preview";
 import { InventoryIdentityPreview } from "@/features/design-system/inventory-identity-preview";
+import { VerificationReviewPreview } from "@/features/design-system/verification-review-preview";
+import { ReleaseReviewPreview } from "@/features/design-system/release-review-preview";
 
 export default function DesignSystemRoute() {
   const { example } = useLocalSearchParams<{ example?: string }>();
@@ -24,5 +26,7 @@ export default function DesignSystemRoute() {
   if (example === "schedule-review") return <ScheduleReviewPreview />;
   if (example === "notification") return <NotificationPreview />;
   if (example === "identity") return <InventoryIdentityPreview />;
+  if (example === "verification-review") return <VerificationReviewPreview />;
+  if (example === "release-review") return <ReleaseReviewPreview />;
   return <DesignSystemCatalog />;
 }

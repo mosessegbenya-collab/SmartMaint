@@ -21,7 +21,7 @@ async function setup() {
   const user = (name: string) => t.withIdentity(identity(name));
   let operation = 0;
   const task = (updatedAt = 1) => t.run((ctx) => ctx.db.insert("maintenanceTasks", { equipmentId: records.equipmentId, departmentId: records.departmentId, assigneeId: records.a, state: "Completed", dueAt: Date.now() + 100000, diagnosis: "TEST work", notes: "", parts: [], cycle: 1, revision: 3, createdAt: 1, updatedAt }));
-  const verify = (taskId: Awaited<ReturnType<typeof task>>, outcome: "pass" | "fail" = "pass", who = "C", revision = 3) => user(who).mutation(api.safety.verify, { taskId, expectedRevision: revision, kind: "technical", outcome, checks: [{ label: "TEST check", passed: outcome === "pass" }], notes: "TEST ONLY", evidenceReference: "TEST ONLY", operationId: `TEST-${++operation}`, reworkDueAt: outcome === "fail" ? Date.now() + 100000 : undefined });
+  const verify = (taskId: Awaited<ReturnType<typeof task>>, outcome: "pass" | "fail" = "pass", who = "C", revision = 3) => user(who).mutation(api.safety.verify, { taskId, expectedRevision: revision, expectedPolicyId: records.policyId, kind: "technical", outcome, checks: [{ label: "TEST check", passed: outcome === "pass" }], notes: "TEST ONLY", evidenceReference: "TEST ONLY", operationId: `TEST-${++operation}`, reworkDueAt: outcome === "fail" ? Date.now() + 100000 : undefined });
   const status = () => user("S").query(api.safety.releaseStatus, { equipmentId: records.equipmentId });
   // Conditional spread lets the original implementation run: stale confirmation must fail
   // because evidence changed, rather than because an unknown argument was supplied.
@@ -31,6 +31,27 @@ async function setup() {
   };
   return { t, ...records, user, task, verify, status, confirmation };
 }
+
+test('verification rejects an unreviewed or replaced policy even when checklist labels are identical', async () => {
+  const f = await setup(); const taskId = await f.task();
+  const args = { taskId, expectedRevision: 3, expectedPolicyId: f.policyId, kind: 'technical' as const, outcome: 'pass' as const, checks: [{ label: 'TEST check', passed: true }], notes: 'TEST ONLY', evidenceReference: 'TEST ONLY', operationId: 'POLICY-REVIEW' };
+  await expect(f.user('C').mutation(api.safety.verify, { ...args, expectedPolicyId: undefined })).rejects.toThrow(/policy.*reviewed/);
+  const replacementId = await f.t.run(async ctx => {
+    const policy = (await ctx.db.get(f.policyId))!;
+    await ctx.db.patch(policy._id, { active: false });
+    const { _id, _creationTime, ...fields } = policy; void _id; void _creationTime;
+    return await ctx.db.insert('safetyPolicies', { ...fields, configuredAt: Date.now(), approvalReference: 'REPLACEMENT TEST ONLY' });
+  });
+  await expect(f.user('C').mutation(api.safety.verify, args)).rejects.toThrow(/policy changed/);
+  expect(await f.t.run(ctx => ctx.db.query('safetyAttempts').collect())).toHaveLength(0);
+  const reviewed = { ...args, expectedPolicyId: replacementId };
+  const id = await f.user('C').mutation(api.safety.verify, reviewed);
+  expect(await f.user('C').mutation(api.safety.verify, reviewed)).toBe(id);
+  await expect(f.user('C').mutation(api.safety.verify, args)).rejects.toThrow(/cannot be reused/);
+  await expect(f.user('C').mutation(api.safety.verify, { ...reviewed, expectedRevision: 4 })).rejects.toThrow(/cannot be reused/);
+  expect((await f.t.run(ctx => ctx.db.get(id)))?.policyId).toBe(replacementId);
+  expect((await f.status()).available).toBe(false);
+});
 
 test("review 1: every completed repair requires verification, not only the newest", async () => {
   const f = await setup(); await f.task(1); const newest = await f.task(2); await f.verify(newest);
@@ -85,7 +106,7 @@ test.each(["policy", "hold", "attempt", "task"])("review 3: stale confirmation r
       const { _id, _creationTime, ...fields } = policy; void _id; void _creationTime;
       await ctx.db.insert("safetyPolicies", { ...fields, technicalChecks: ["Replacement TEST check"], configuredAt: 2 });
     });
-    await f.user("C").mutation(api.safety.verify, { taskId: task, expectedRevision: 3, kind: "technical", outcome: "pass", checks: [{ label: "Replacement TEST check", passed: true }], notes: "", evidenceReference: "TEST replacement", operationId: "replacement" });
+    await f.user("C").mutation(api.safety.verify, { taskId: task, expectedRevision: 3, expectedPolicyId: (await f.user("C").query(api.safety.verificationContext, {taskId: task, kind: "technical"})).policy!.id, kind: "technical", outcome: "pass", checks: [{ label: "Replacement TEST check", passed: true }], notes: "", evidenceReference: "TEST replacement", operationId: "replacement" });
   } else if (change === "hold") {
     const hold = await f.user("S").mutation(api.operations.placeHold, { equipmentId: f.equipmentId, reason: "TEST hold" });
     await f.user("S").mutation(api.safety.resolveHold, { id: hold, reason: "TEST resolution" });

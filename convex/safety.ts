@@ -69,14 +69,15 @@ export const verificationContext = query({ args: { taskId: v.id("maintenanceTask
   return { task, independent: !(await repairContributors(ctx, task)).has(actor._id), policy: policy ? { id: policy._id, approvalReference: policy.approvalReference, checks: args.kind === "technical" ? policy.technicalChecks : policy.clinicalChecks, clinicalRequired: policy.clinicalRequired } : null,
     attempts: await ctx.db.query("safetyAttempts").withIndex("by_task", (q) => q.eq("taskId", task._id)).order("desc").take(100) };
 } });
-export const verify = mutation({ args: { taskId: v.id("maintenanceTasks"), expectedRevision: v.number(), kind: v.union(v.literal("technical"), v.literal("clinical")), outcome: v.union(v.literal("pass"), v.literal("fail"), v.literal("unable")), checks: v.array(v.object({ label: v.string(), passed: v.boolean() })), notes: v.string(), evidenceReference: v.string(), operationId: v.string(), reworkDueAt: v.optional(v.number()) }, handler: async (ctx, args) => {
+export const verify = mutation({ args: { taskId: v.id("maintenanceTasks"), expectedRevision: v.number(), expectedPolicyId: v.optional(v.id("safetyPolicies")), kind: v.union(v.literal("technical"), v.literal("clinical")), outcome: v.union(v.literal("pass"), v.literal("fail"), v.literal("unable")), checks: v.array(v.object({ label: v.string(), passed: v.boolean() })), notes: v.string(), evidenceReference: v.string(), operationId: v.string(), reworkDueAt: v.optional(v.number()) }, returns: v.id("safetyAttempts"), handler: async (ctx, args) => {
   const actor = await requireAccount(ctx, args.kind); const task = await ctx.db.get(args.taskId);
   if (!task || !actor.scope.includes(task.departmentId)) deny();
   const { policy } = await equipmentContext(ctx, task.equipmentId); if (!policy) deny("Approved institutional safety policy is not configured.");
   if ((await repairContributors(ctx, task)).has(actor._id)) deny("An independent verifier must not be a recorded repair contributor.");
   const operationId = requiredText(args.operationId, "verification operation", 100);
   const prior = await ctx.db.query("safetyAttempts").withIndex("by_actor_operation", (q) => q.eq("actorId", actor._id).eq("operationId", operationId)).unique();
-  if (prior) { if (prior.taskId !== task._id || prior.kind !== args.kind || prior.outcome !== args.outcome) deny("This verification operation cannot be reused."); return prior._id; }
+  if (prior) { if (prior.taskId !== task._id || prior.kind !== args.kind || prior.outcome !== args.outcome || prior.taskRevision !== args.expectedRevision || prior.policyId !== args.expectedPolicyId) deny("This verification operation cannot be reused."); return prior._id; }
+  if (args.expectedPolicyId !== policy._id) deny("The approved policy changed or was not reviewed. Review the current repair and policy before recording verification.");
   if (task.state !== "Completed" || task.revision !== args.expectedRevision || (await repairContributors(ctx, task)).has(actor._id)) deny("A current completed repair and an independent verifier are required.");
   const linkedRework = await ctx.db.query("maintenanceTasks").withIndex("by_parent", (q) => q.eq("parentTaskId", task._id)).first();
   if (linkedRework) deny("Verify the completed linked rework; the original failed repair cycle cannot be reopened.");
