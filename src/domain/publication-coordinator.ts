@@ -28,7 +28,26 @@ export class PublicationCoordinator {
     if (this.current()) this.changed(rows);
     return rows;
   }
-  async load() { this.assertCurrent(); const rows = await this.queue.load(this.owner); this.assertCurrent(); this.changed(rows); return rows; }
+  async load() {
+    this.assertCurrent();
+    const stored = await this.queue.load(this.owner);
+    for (const row of stored) if (row.state === "SYNCED" && row.receiptBindingVersion !== 1) await this.verifyStoredReceipt(row);
+    const rows = await this.queue.load(this.owner);
+    this.assertCurrent(); this.changed(rows); return rows;
+  }
+  private async verifyStoredReceipt(row: PendingPublication) {
+    this.assertCurrent();
+    if (!this.receipt) throw Error("This stored receipt needs fresh server verification before it can be displayed as confirmed.");
+    try {
+      const receipt = await this.receipt(row);
+      this.assertCurrent();
+      if (receipt !== row.reportId) throw Error("Stored receipt revision conflict: the server does not confirm this reviewed submission.");
+      await this.update(items => items.map(item => item.id === row.id && item.state === "SYNCED" && item.expectedRevision === row.expectedRevision && item.expectedAttachmentRevision === row.expectedAttachmentRevision ? { ...item, receiptBindingVersion: 1, lastError: undefined, updatedAt: this.now() } : item));
+    } catch (failure) {
+      if (failure instanceof PublicationPaused || publicationFailure(failure) !== "CONFLICT") throw failure;
+      await this.update(items => items.map(item => item.id === row.id && item.state === "SYNCED" && item.expectedRevision === row.expectedRevision && item.expectedAttachmentRevision === row.expectedAttachmentRevision ? { ...item, state: "CONFLICT", serverId: undefined, receiptBindingVersion: undefined, retryable: false, nextRetryAt: undefined, lastError: `Stored receipt needs review: ${this.message(failure)}`.slice(0, 4000), updatedAt: this.now() } : item));
+    }
+  }
   sendEntry(id: string, recover = false): Promise<string> {
     const existing = this.inFlight.get(id); if (existing) return existing;
     const work = this.serial.catch(() => {}).then(async () => {
@@ -36,7 +55,15 @@ export class PublicationCoordinator {
       const row = (await this.queue.load(this.owner)).find((item) => item.id === id);
       this.assertCurrent();
       if (!row) throw Error("Saved submission is unavailable.");
-      if (row.state === "SYNCED" && row.serverId === row.reportId) return row.serverId;
+      if (row.state === "SYNCED" && row.serverId === row.reportId) {
+        if (row.receiptBindingVersion !== 1) {
+          await this.verifyStoredReceipt(row);
+          const checked = (await this.queue.load(this.owner)).find(item => item.id === row.id);
+          this.assertCurrent();
+          if (checked?.state !== "SYNCED" || checked.receiptBindingVersion !== 1) throw Error("Stored receipt revision conflict: review the recorded report before continuing.");
+        }
+        return row.serverId;
+      }
       const exhausted = row.retryCount >= MAX_PUBLICATION_ATTEMPTS;
       if (exhausted && !recover) return this.reconcile(row);
       if (recover && (!exhausted || !row.recoveryEligible || (row.recoveryCount ?? 0) >= MAX_RECOVERY_ATTEMPTS)) throw Error("The bounded recovery attempt is unavailable. Check the server receipt and review the saved draft.");
@@ -46,7 +73,7 @@ export class PublicationCoordinator {
       this.assertCurrent();
       try {
         const receipt = requireMatchingReceipt(row.reportId, await this.send(attempt));
-        await this.update((items) => items.map((item) => item.id === id ? { ...item, state: "SYNCED", serverId: receipt, lastError: undefined, retryable: false, nextRetryAt: undefined, updatedAt: this.now() } : item));
+        await this.update((items) => items.map((item) => item.id === id ? { ...item, state: "SYNCED", serverId: receipt, receiptBindingVersion: 1, lastError: undefined, retryable: false, nextRetryAt: undefined, updatedAt: this.now() } : item));
         return receipt;
       } catch (failure) {
         const state = publicationFailure(failure);
@@ -74,7 +101,7 @@ export class PublicationCoordinator {
     }
     if (receipt !== null) {
       requireMatchingReceipt(row.reportId, receipt);
-      await this.update((items) => items.map((item) => item.id === row.id ? { ...item, state: "SYNCED", serverId: receipt!, lastError: undefined, retryable: false, recoveryEligible: false, nextRetryAt: undefined, updatedAt: this.now() } : item));
+      await this.update((items) => items.map((item) => item.id === row.id ? { ...item, state: "SYNCED", serverId: receipt!, receiptBindingVersion: 1, lastError: undefined, retryable: false, recoveryEligible: false, nextRetryAt: undefined, updatedAt: this.now() } : item));
       return receipt;
     }
     const recoveryEligible = (row.recoveryCount ?? 0) < MAX_RECOVERY_ATTEMPTS;
@@ -86,7 +113,10 @@ export class PublicationCoordinator {
     if (this.inFlight.size) throw Error("A submission is in progress. Wait for its result before reviewing another snapshot.");
     const rows = await this.update((items) => {
       const prior = items.find((item) => item.reportId === reportId);
-      if (prior?.state === "SYNCED") return items;
+      if (prior?.state === "SYNCED") {
+        if (prior.expectedRevision !== revision || (prior.expectedAttachmentRevision ?? 0) !== attachmentRevision) throw Error("Reviewed snapshot conflict: this confirmed receipt belongs to different report or photo revisions. Open the recorded report.");
+        return items;
+      }
       if (prior && prior.retryCount >= MAX_PUBLICATION_ATTEMPTS && prior.expectedRevision === revision && (prior.expectedAttachmentRevision ?? 0) === attachmentRevision) throw Error("Attempt limit reached. Reconcile the saved submission and explicitly confirm bounded recovery; do not reset its attempts.");
       if (prior && ["PENDING", "SYNCING"].includes(prior.state)) {
         if (prior.expectedRevision !== revision || (prior.expectedAttachmentRevision ?? 0) !== attachmentRevision) throw Error("A different snapshot is pending. Review the saved submission first.");

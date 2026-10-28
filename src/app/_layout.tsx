@@ -62,11 +62,12 @@ function SessionBoundary() {
   const identity = useIdentity();
   const access = useStaffAccess();
   const pathname = usePathname();
-  // The isolated development probe has no staff data or backend operations and must work without identity services.
-  const storageProbe = __DEV__ && pathname === "/diagnostics";
+  // These development tools contain synthetic examples only. They remain
+  // inspectable while identity restores and never grant operational access.
+  const developmentTool = __DEV__ && ["/diagnostics", "/design-system"].includes(pathname);
   // Discard synthetic account data when the real identity/session changes.
   return <AppProvider key={identity.signedIn ? accessCacheKey(identity.sessionId, access) : "signed-out-preview"}>
-    {identity.loaded || storageProbe ? <Navigation /> : <View style={{ flex: 1, gap: 12, alignItems: "center", justifyContent: "center" }}>
+    {identity.loaded || developmentTool ? <Navigation /> : <View style={{ flex: 1, gap: 12, alignItems: "center", justifyContent: "center" }}>
       <ActivityIndicator accessibilityLabel="Restoring secure session" />
       <Txt>Restoring secure session…</Txt>
       {identity.restoreTimedOut && <><Txt>Identity services are taking too long to respond.</Txt><Button label="Retry secure sign-in" onPress={identity.retry} /></>}

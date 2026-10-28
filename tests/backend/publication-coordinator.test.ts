@@ -2,6 +2,42 @@
 import { EncryptedReportQueue, type PrivateStore, type PendingPublication } from "../../src/domain/report-queue";
 import { PublicationCoordinator, MAX_PUBLICATION_ATTEMPTS, duePublication, retryDelay } from "../../src/domain/publication-coordinator";
 
+test('a cached receipt acknowledges only its original reviewed report and photo revisions', async () => {
+  const f = setup();
+  expect(await f.worker.enqueue('REPORT', 1, 2, 'ORIGINAL')).toBe('REPORT');
+  expect(await f.worker.enqueue('REPORT', 1, 2, 'RETRY')).toBe('REPORT');
+  await expect(f.worker.enqueue('REPORT', 2, 2, 'DIFFERENT_FIELDS')).rejects.toThrow(/snapshot conflict/);
+  await expect(f.worker.enqueue('REPORT', 1, 3, 'DIFFERENT_PHOTOS')).rejects.toThrow(/snapshot conflict/);
+  expect(f.send).toHaveBeenCalledTimes(1);
+  expect((await f.queue.load('OWNER'))[0]).toMatchObject({ state: 'SYNCED', expectedRevision: 1, expectedAttachmentRevision: 2 });
+});
+
+test('older stored receipts are verified once against the server before being shown as confirmed', async () => {
+  const f = setup(); await f.queue.update('OWNER', () => [{ ...row, state: 'SYNCED', serverId: 'REPORT' }]);
+  const receipt = vi.fn(async () => 'REPORT');
+  const worker = new PublicationCoordinator(f.queue, 'OWNER', f.send, () => true, () => {}, Date.now, undefined, receipt);
+  expect((await worker.load())[0]).toMatchObject({ state: 'SYNCED', receiptBindingVersion: 1, expectedRevision: 1, expectedAttachmentRevision: 2 });
+  await worker.load(); expect(receipt).toHaveBeenCalledTimes(1); expect(f.send).not.toHaveBeenCalled();
+});
+
+test('a mismatched legacy receipt becomes a review conflict without submitting or replacing its reviewed revisions', async () => {
+  const f = setup(); await f.queue.update('OWNER', () => [{ ...row, state: 'SYNCED', serverId: 'REPORT' }]);
+  const worker = new PublicationCoordinator(f.queue, 'OWNER', f.send, () => true, () => {}, Date.now, undefined, async () => { throw Error('Publication revision conflict'); });
+  expect((await worker.load())[0]).toMatchObject({ state: 'CONFLICT', expectedRevision: 1, expectedAttachmentRevision: 2, retryable: false });
+  expect((await f.queue.load('OWNER'))[0].serverId).toBeUndefined(); expect(f.send).not.toHaveBeenCalled();
+});
+
+test('missing verification and authorization loss cannot display or upgrade an older stored receipt', async () => {
+  const f = setup(); await f.queue.update('OWNER', () => [{ ...row, state: 'SYNCED', serverId: 'REPORT' }]);
+  const changed = vi.fn();
+  const unavailable = new PublicationCoordinator(f.queue, 'OWNER', f.send, () => true, changed);
+  await expect(unavailable.load()).rejects.toThrow(/fresh server verification/);
+  let current = true;
+  const revoked = new PublicationCoordinator(f.queue, 'OWNER', f.send, () => current, changed, Date.now, undefined, async () => { current = false; return 'REPORT'; });
+  await expect(revoked.load()).rejects.toThrow(/paused/);
+  expect(changed).not.toHaveBeenCalled(); expect((await f.queue.load('OWNER'))[0].receiptBindingVersion).toBeUndefined(); expect(f.send).not.toHaveBeenCalled();
+});
+
 function setup() {
   const values=new Map<string,string>();const store:PrivateStore={get:async k=>values.get(k)??null,set:async(k,v)=>{values.set(k,v);},remove:async k=>{values.delete(k);}};
   let generation=0,now=1000,active=true;const queue=new EncryptedReportQueue(store,()=>`g-${++generation}`);

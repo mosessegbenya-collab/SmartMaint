@@ -6,9 +6,15 @@ import { staffApi } from "@/services/staff-api";
 import { go } from "@/navigation/go";
 import { useStaffAccess } from "./provider";
 
-export function ReportReceipt({ id, emergency = false }: { id: string; emergency?: boolean }) {
+type Cleanup = { error: string; busy: boolean; retry: () => Promise<void> };
+export function ReceiptCleanup({ error, busy, retry }: Cleanup) {
+  return error ? <Card style={{ gap: 10 }}><Notice tone="warning">Server receipt confirmed. Device cleanup did not finish: {error}. A private copy may remain on this device.</Notice><Button label="Retry device cleanup" loading={busy} variant="secondary" onPress={() => void retry()} /></Card> : busy ? <Notice>Server receipt confirmed. Removing the saved device copy…</Notice> : null;
+}
+export function ReportReceipt({ id, emergency = false, cleanup }: { id: string; emergency?: boolean; cleanup?: Cleanup }) {
   const report = useQuery(staffApi.workflows.reportDetail, { id: id as GenericId<"faultReports"> });
   return <Screen title={!report ? "Checking Report Status" : report.submissionState === "draft" ? "Report Draft Saved" : emergency ? "Urgent Report Receipt" : "Report Received"} subtitle="Review the recorded submission status.">
+    {cleanup && <ReceiptCleanup {...cleanup} />}
+    {!!cleanup?.error && <Button label="Review remaining device copy" variant="secondary" onPress={() => go("device-drafts")} />}
     {report ? <>
       <StatusPanel title={report.submissionState === "draft" ? "Saved as a draft" : "Server receipt confirmed"} detail={report.submissionState === "draft" ? "Your details are saved to your account. The report has not been submitted for maintenance." : "The staff service has recorded your report. Maintenance acceptance and equipment availability are checked separately."} icon={report.submissionState === "draft" ? "document-text-outline" : "checkmark-circle"} tone={report.submissionState === "draft" ? "warning" : "success"} />
       <Card style={{ gap: 12 }}><Badge label={report.submissionState === "draft" ? "Draft" : "Submitted"} tone={report.submissionState === "draft" ? "warning" : "success"} /><Detail label="Report reference" value={report._id} /><Detail label="Recorded" value={new Date(report.createdAt).toLocaleString()} /><Detail label="Category" value={report.category} /><Detail label="Reported priority" value={report.priority} /><Txt size={18} weight="700">{report.symptoms}</Txt></Card>

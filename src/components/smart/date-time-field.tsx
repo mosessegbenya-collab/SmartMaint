@@ -16,11 +16,13 @@ export function DateTimeField({
   value,
   onChange,
   required = false,
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
+  disabled?: boolean;
 }) {
   const p = usePalette();
   const initial = Number.isFinite(Date.parse(value))
@@ -64,6 +66,8 @@ export function DateTimeField({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${value ? initial.toLocaleString() : "Choose date and time"}`}
+        accessibilityState={{ disabled, expanded: open }}
+        disabled={disabled}
         onPress={show}
         style={{
           minHeight: 48,
@@ -233,17 +237,19 @@ export function DateTimeField({
             </Txt>
             <Button
               label="Use Selected Date"
+              disabled={disabled}
               onPress={() => {
-                onChange(date.toISOString());
+                if (!disabled) onChange(date.toISOString());
                 setOpen(false);
               }}
             />
             {!required && (
               <Button
                 label="Clear Date"
+                disabled={disabled}
                 variant="secondary"
                 onPress={() => {
-                  onChange("");
+                  if (!disabled) onChange("");
                   setOpen(false);
                 }}
               />

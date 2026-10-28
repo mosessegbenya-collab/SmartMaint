@@ -2,6 +2,10 @@ import type { PrivateStore } from "./report-queue";
 export type RecoveryFields = { category: string; symptoms: string; description: string; priority: "Urgent" | "High" | "Routine"; condition: string; inUse: "" | "Yes" | "No"; noticedAt: string; emergency: boolean };
 export type RecoveryPhoto = { operationId: string; contentType: "image/jpeg" | "image/png" | "image/webp"; base64: string };
 export type RecoveryDraft = { owner: string; operationId: string; equipmentId: string; departmentId: string; updatedAt: number; fields: RecoveryFields; server?: { id: string; revision: number }; photos: { operationId: string; contentType: RecoveryPhoto["contentType"]; size: number }[] };
+export function recoveryForReport(rows: RecoveryDraft[], owner: string, report: { id: string; reporterId: string; operationId: string; equipmentId: string; departmentId: string }) {
+  if (report.reporterId !== owner) return null;
+  return rows.find(row => row.owner === owner && row.operationId === report.operationId && row.equipmentId === report.equipmentId && row.departmentId === report.departmentId && (!row.server || row.server.id === report.id)) ?? null;
+}
 const id = (s: unknown): s is string => typeof s === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(s);
 export class ReportRecoveryRepository {
   private serial: Promise<unknown> = Promise.resolve();
@@ -81,10 +85,11 @@ export class ReportRecoveryRepository {
       await this.prune(owner, updated, keys);
     });
   }
-  removeDraft(owner: string, operationId: string) {
+  removeDraft(owner: string, operationId: string, expected?: RecoveryDraft) {
     return this.exclusive(async () => {
       if (!id(operationId)) throw Error("Invalid recovery reference.");
       const rows = await this.list(owner); const prior = rows.find((row) => row.operationId === operationId);
+      if (expected && prior && JSON.stringify(prior) !== JSON.stringify(expected)) throw Error("This device copy changed after review. Reload it before discarding; its fields and photos were preserved.");
       await this.prune(owner, rows.filter((row) => row.operationId !== operationId), (prior?.photos ?? []).map((photo) => `${this.root(owner)}.${operationId}.${photo.operationId}`));
     });
   }

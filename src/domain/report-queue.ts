@@ -1,5 +1,5 @@
 export type QueueState = "PENDING" | "SYNCING" | "SYNCED" | "FAILED" | "CONFLICT";
-export type PendingPublication = { id: string; owner: string; reportId: string; expectedRevision: number; expectedAttachmentRevision?: number; createdAt: number; updatedAt: number; state: QueueState; retryCount: number; lastAttempt?: number; lastError?: string; serverId?: string; retryable?: boolean; nextRetryAt?: number; reconciliationCount?: number; recoveryCount?: number; recoveryEligible?: boolean };
+export type PendingPublication = { id: string; owner: string; reportId: string; expectedRevision: number; expectedAttachmentRevision?: number; createdAt: number; updatedAt: number; state: QueueState; retryCount: number; lastAttempt?: number; lastError?: string; serverId?: string; receiptBindingVersion?: 1; retryable?: boolean; nextRetryAt?: number; reconciliationCount?: number; recoveryCount?: number; recoveryEligible?: boolean };
 export type PrivateStore = { get: (key: string) => Promise<string | null>; set: (key: string, value: string) => Promise<void>; remove: (key: string) => Promise<void>; prune?: (key: string, value: string, removeKeys: string[]) => Promise<void> };
 export function requireMatchingReceipt(reportId: string, receipt: unknown): string {
   if (receipt !== reportId) throw Error("The server returned an unexpected report receipt.");
@@ -15,6 +15,7 @@ export function validatePublicationRows(rows: unknown, owner: string): asserts r
       || !Number.isSafeInteger(row.expectedRevision) || row.expectedRevision < 1
       || (row.expectedAttachmentRevision !== undefined && (!Number.isSafeInteger(row.expectedAttachmentRevision) || row.expectedAttachmentRevision < 0))
       || (row.state === "SYNCED" && row.serverId !== row.reportId)
+      || (row.receiptBindingVersion !== undefined && (row.receiptBindingVersion !== 1 || row.state !== "SYNCED"))
       || !Number.isSafeInteger(row.retryCount) || row.retryCount < 0
       || (row.reconciliationCount !== undefined && (!Number.isSafeInteger(row.reconciliationCount) || row.reconciliationCount < 0 || row.reconciliationCount > 3))
       || (row.recoveryCount !== undefined && (!Number.isSafeInteger(row.recoveryCount) || row.recoveryCount < 0 || row.recoveryCount > 1))

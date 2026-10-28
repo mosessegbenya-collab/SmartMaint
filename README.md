@@ -1,12 +1,18 @@
 # SmartMaint
 
+Design-system continuation (27 October 2026): [implemented foundations, component catalogue and workflow contract](docs/DESIGN_SYSTEM.md). Use `/design-system` during development to inspect shared components in light/dark appearance and with larger text. The [existing development demo](docs/DEVELOPMENT_DEMO_2026-10-26.md) is configured; older preparation-only reports below are historical.
+
+Management continuation: [complete analytics and guarded CSV delivery](docs/MANAGEMENT_INTEGRATION.md), with [235-test and native evidence](validation/current/MANAGEMENT_INTEGRATION_2026-10-27.md). The analytics preview is `/design-system?example=management` in development.
+
+Report recovery continuation (28 October 2026): [draft lifecycle, complete conflict comparison and revision-bound receipts](docs/REPORT_RECOVERY_INTEGRATION.md), with [automated and Android validation evidence](validation/current/REPORT_RECOVERY_INTEGRATION_2026-10-28.md). Preview the shared components at `/design-system?example=recovery` during development.
+
 Latest continuation: [fresh implementation and acceptance evidence](validation/current/FINAL_ACCEPTANCE_PASS.md), [73-reference checklist](validation/current/CHECKLIST.md), [prepared native procedure](docs/NATIVE_ACCEPTANCE_PROCEDURE.md) and [live integration prerequisites/commands](docs/LIVE_INTEGRATION_ACCEPTANCE.md). Native synthetic coverage is separate from exact-state and live acceptance.
 
 Current corrective checkpoint: [acceptance status](SMARTMAINT_FINAL_ACCEPTANCE_REPORT.md), [73-reference matrix](SMARTMAINT_73_SCREEN_MATRIX.md), [remaining issues](SMARTMAINT_REMAINING_ISSUES.md). Backend/source implementation and live/native acceptance are tracked separately. For SDK57 in-place native regeneration, use `npx expo prebuild --platform android --no-clean --no-install`; this SDK recreates native folders by default. Do not clear generated projects while builds or IDE imports hold them open.
 
 Expo SDK 57 / React Native application for equipment identification, fault reporting, maintenance and independent safety verification. The approved references are in `Design/`.
 
-This implementation includes Clerk identity, trusted Convex staff-access source and an isolated synthetic preview. No Convex deployment or approved institutional verification policy exists yet; verification remains disabled. See [staff access](docs/STAFF_ACCESS.md), [validation](VALIDATION.md) and [the design audit](DESIGN_IMPLEMENTATION_AUDIT.md).
+This implementation includes Clerk identity, trusted Convex staff access, an existing scoped development demo and an isolated synthetic preview. Institutional verification and clinical release remain disabled for the demo. See [development demo](docs/DEVELOPMENT_DEMO_2026-10-26.md), [staff access](docs/STAFF_ACCESS.md), [validation](VALIDATION.md) and [the design audit](DESIGN_IMPLEMENTATION_AUDIT.md).
 
 ## Run
 

@@ -1,0 +1,7 @@
+{
+  "target": "dev:greedy-bat-971",
+  "function": "reporting:publicationReceipt",
+  "authenticated": false,
+  "result": "PASS: unsigned receipt lookup denied",
+  "at": "2026-10-28T00:03:09.976Z"
+}

@@ -19,7 +19,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, usePathname, useLocalSearchParams } from "expo-router";
 import { tabItems } from '@/navigation/tabs';
 import { useApp } from "@/state/app-state";
-import { palette, tokens, readableSemanticColor } from "@/design/tokens";
+import { palette, tokens, readableSemanticColor, layout, radii, spacing, typography, semanticStyle, type Tone } from "@/design/tokens";
 
 export type IconName = React.ComponentProps<typeof Ionicons>["name"];
 export const brandAssets = {
@@ -45,8 +45,9 @@ export function usePalette() {
 }
 export function Txt({
   children,
-  size = 14,
-  weight = "400",
+  size,
+  weight,
+  variant = "body",
   muted = false,
   color,
   style,
@@ -56,6 +57,7 @@ export function Txt({
 }: {
   children: React.ReactNode;
   size?: number;
+  variant?: keyof typeof typography;
   weight?: "400" | "500" | "600" | "700" | "800";
   muted?: boolean;
   color?: string;
@@ -66,16 +68,19 @@ export function Txt({
 }) {
   const p = usePalette();
   const { preferences, dark } = useApp();
+  const textStyle = typography[variant];
+  const fontSize = size ?? textStyle.size;
+  const fontWeight = weight ?? textStyle.weight;
   return (
     <Text
       accessibilityRole={accessibilityRole}
       accessibilityLiveRegion={accessibilityLiveRegion}
       style={[
         {
-          fontFamily: preferences.bold || Number(weight) >= 800 ? "InterExtraBold" : Number(weight) >= 700 ? "InterBold" : Number(weight) >= 600 ? "InterSemiBold" : "InterRegular",
-          fontSize: size * (preferences.largeText ? 1.18 : 1),
-          lineHeight: (lineHeight ?? size * 1.38) * (preferences.largeText ? 1.18 : 1),
-          fontWeight: preferences.bold ? "700" : weight,
+          fontFamily: preferences.bold || Number(fontWeight) >= 800 ? "InterExtraBold" : Number(fontWeight) >= 700 ? "InterBold" : Number(fontWeight) >= 600 ? "InterSemiBold" : "InterRegular",
+          fontSize: fontSize * (preferences.largeText ? 1.18 : 1),
+          lineHeight: (lineHeight ?? (size === undefined ? textStyle.lineHeight : size * 1.38)) * (preferences.largeText ? 1.18 : 1),
+          fontWeight: preferences.bold ? "700" : fontWeight,
           color: readableSemanticColor(color, dark) ?? (muted ? p.secondary : p.text),
         },
         style,
@@ -94,7 +99,8 @@ export function Icon({
   size?: number;
   color?: string;
 }) {
-  return <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Ionicons name={name} size={size} color={color} accessible={false} /></View>;
+  const { dark } = useApp();
+  return <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Ionicons name={name} size={size} color={readableSemanticColor(color, dark)} accessible={false} /></View>;
 }
 export function IconButton({
   name,
@@ -184,7 +190,7 @@ export function Screen({
     <View style={[styles.content, padding !== undefined && { padding }]}>
       {!!title && (
         <View style={{ gap: 4, marginBottom: 8 }}>
-          <Txt size={26} weight="800" accessibilityRole="header">
+          <Txt variant="title" accessibilityRole="header">
             {title}
           </Txt>
           {!!subtitle && <Txt muted>{subtitle}</Txt>}
@@ -256,10 +262,12 @@ export function Card({
   const p = usePalette();
   return (
     <View
-      className="rounded-2xl border p-4"
       style={[
         {
           backgroundColor: p.card,
+          borderRadius: radii.card,
+          borderWidth: 1,
+          padding: spacing.lg,
           borderColor: p.border,
           boxShadow: "0 5px 20px rgba(35,103,163,0.045)",
         },
@@ -310,15 +318,15 @@ export function Button({
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
       style={{
-        minHeight: 48,
-        borderRadius: 12,
+        minHeight: layout.touchTarget,
+        borderRadius: radii.control,
         paddingHorizontal: 14,
         paddingVertical: 12,
         alignItems: "center",
         justifyContent: "center",
         flexDirection: "row",
         gap: 8,
-        opacity: disabled ? 0.45 : pressed ? 0.72 : 1,
+        opacity: disabled || loading ? 0.55 : pressed ? 0.72 : 1,
         backgroundColor:
           variant === "secondary"
             ? p.card
@@ -350,12 +358,14 @@ export function Field({
   ...props
 }: TextInputProps & { label: string; error?: string; icon?: IconName; insetLabel?: boolean }) {
   const p = usePalette();
+  const { preferences, dark } = useApp();
+  const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: 6 }}>
       {!insetLabel && <Txt size={13} weight="600">
         {label}
       </Txt>}
-      <View style={{ minHeight: insetLabel ? 56 : undefined, paddingVertical: insetLabel ? 6 : 0, flexDirection: 'row', alignItems: props.multiline ? 'flex-start' : 'center', borderWidth: 1, borderColor: error ? tokens.danger : p.border, backgroundColor: p.input, borderRadius: 12 }}>
+      <View style={{ minHeight: insetLabel ? 56 : layout.touchTarget, paddingVertical: insetLabel ? 6 : 0, flexDirection: 'row', alignItems: props.multiline ? 'flex-start' : 'center', borderWidth: 1, borderColor: error ? semanticStyle('danger', dark).border : focused ? semanticStyle('info', dark).border : p.border, backgroundColor: p.input, borderRadius: radii.control }}>
       {icon && <View style={{ paddingLeft: 14, paddingTop: props.multiline ? 14 : 0 }}><Icon name={icon} size={23} color={p.secondary} /></View>}
       <View style={{ flex: 1, minWidth: 0 }}>
       {insetLabel && <Txt size={11} muted style={{ paddingHorizontal: 12 }}>{label}</Txt>}
@@ -363,6 +373,9 @@ export function Field({
         accessibilityLabel={label}
         placeholderTextColor={p.secondary}
         {...props}
+        accessibilityHint={[props.accessibilityHint, error].filter(Boolean).join('. ') || undefined}
+        onFocus={(event) => { setFocused(true); props.onFocus?.(event); }}
+        onBlur={(event) => { setFocused(false); props.onBlur?.(event); }}
         style={[
           {
             minHeight: insetLabel ? 26 : 48,
@@ -374,7 +387,8 @@ export function Field({
             color: p.text,
             backgroundColor: p.input,
             fontFamily: "InterRegular",
-            fontSize: insetLabel ? 16 : 14,
+            fontSize: (insetLabel ? 16 : typography.body.size) * (preferences.largeText ? 1.18 : 1),
+            fontWeight: preferences.bold ? '700' : '400',
             textAlignVertical: props.multiline ? "top" : "center",
           },
           props.style,
@@ -397,6 +411,7 @@ export function Select<T extends string>({
   onChange,
   insetLabel = false,
   icon,
+  disabled = false,
 }: {
   label: string;
   values: readonly T[];
@@ -404,6 +419,7 @@ export function Select<T extends string>({
   onChange: (value: T) => void;
   insetLabel?: boolean;
   icon?: IconName;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const p = usePalette();
@@ -415,11 +431,12 @@ export function Select<T extends string>({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${value || "Select an option"}`}
-        accessibilityState={{ expanded: open }}
+        accessibilityState={{ expanded: open, disabled }}
+        disabled={disabled}
         onPress={() => setOpen(true)}
         style={{
-          minHeight: insetLabel ? 56 : 48,
-          borderRadius: 10,
+          minHeight: insetLabel ? 56 : layout.touchTarget,
+          borderRadius: radii.control,
           paddingHorizontal: 12,
           paddingVertical: insetLabel ? 8 : 12,
           backgroundColor: p.input,
@@ -440,6 +457,7 @@ export function Select<T extends string>({
         onRequestClose={() => setOpen(false)}
       >
         <View
+          accessibilityViewIsModal
           style={{
             flex: 1,
             backgroundColor: "rgba(8,20,40,0.35)",
@@ -458,7 +476,7 @@ export function Select<T extends string>({
                   accessibilityRole="radio"
                   accessibilityState={{ checked: value === option }}
                   onPress={() => {
-                    onChange(option);
+                    if (!disabled) onChange(option);
                     setOpen(false);
                   }}
                   style={{
@@ -498,11 +516,13 @@ export function Choices<T extends string>({
   values,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string;
   values: readonly T[];
   value: string;
   onChange: (v: T) => void;
+  disabled?: boolean;
 }) {
   const p = usePalette();
   return (
@@ -515,13 +535,14 @@ export function Choices<T extends string>({
           <Pressable
             key={v}
             accessibilityRole="radio"
-            accessibilityState={{ checked: value === v }}
+            accessibilityState={{ checked: value === v, disabled }}
+            disabled={disabled}
             onPress={() => onChange(v)}
             style={{
-              minHeight: 48,
+              minHeight: layout.touchTarget,
               paddingHorizontal: 12,
               paddingVertical: 12,
-              borderRadius: 10,
+              borderRadius: radii.control,
               borderWidth: 1,
               borderColor: value === v ? tokens.blue : p.border,
               backgroundColor: value === v ? tokens.blue : p.input,
@@ -541,53 +562,30 @@ export function Notice({
   tone = "info",
 }: {
   children: React.ReactNode;
-  tone?: "info" | "warning" | "danger" | "success";
+  tone?: Tone;
 }) {
   const { dark } = useApp();
-  const color =
-    tone === "danger"
-      ? tokens.danger
-      : tone === "warning"
-        ? tokens.warning
-        : tone === "success"
-          ? tokens.success
-          : tokens.blue;
+  const appearance = semanticStyle(tone, dark);
   return (
     <View
       style={{
-        borderRadius: 12,
-        padding: 12,
+        borderRadius: radii.control,
+        padding: spacing.md,
         gap: 10,
         flexDirection: "row",
         alignItems: "flex-start",
-        backgroundColor: dark
-          ? "#1D3046"
-          : tone === "danger"
-            ? "#FFF0F2"
-            : tone === "warning"
-              ? "#FFF8E7"
-              : tone === "success"
-                ? "#EAF9F2"
-                : "#E8F3FF",
-        borderColor: `${color}25`,
+        backgroundColor: appearance.surface,
+        borderColor: appearance.border,
         borderWidth: 1,
       }}
     >
       <Icon
-        name={
-          tone === "danger"
-            ? "alert-circle"
-            : tone === "warning"
-              ? "warning"
-              : tone === "success"
-                ? "checkmark-circle"
-                : "information-circle"
-        }
+        name={appearance.icon}
         size={20}
-        color={color}
+        color={appearance.foreground}
       />
       <View style={{ flex: 1 }}>
-        <Txt size={12} color={dark ? "#F1F7FF" : color}>
+        <Txt variant="caption" color={appearance.foreground}>
           {children}
         </Txt>
       </View>
@@ -599,27 +597,21 @@ export function Badge({
   tone = "info",
 }: {
   label: string;
-  tone?: "info" | "warning" | "danger" | "success";
+  tone?: Tone;
 }) {
-  const color =
-    tone === "danger"
-      ? tokens.danger
-      : tone === "warning"
-        ? tokens.warning
-        : tone === "success"
-          ? tokens.success
-          : tokens.blue;
+  const { dark } = useApp();
+  const appearance = semanticStyle(tone, dark);
   return (
     <View
       style={{
         alignSelf: "flex-start",
-        borderRadius: 20,
+        borderRadius: radii.pill,
         paddingHorizontal: 9,
         paddingVertical: 4,
-        backgroundColor: `${color}16`,
+        backgroundColor: appearance.surface,
       }}
     >
-      <Txt size={10} weight="600" color={color}>
+      <Txt variant="caption" weight="600" color={appearance.foreground}>
         {label}
       </Txt>
     </View>
@@ -672,7 +664,7 @@ export function Section({
 }) {
   return (
     <View style={{ gap: 10 }}>
-      <Txt size={17} weight="700" accessibilityRole="header">
+      <Txt variant="section" accessibilityRole="header">
         {title}
       </Txt>
       {children}
@@ -698,11 +690,11 @@ export function Detail({
   );
 }
 const styles = StyleSheet.create({
-  frame: { flex: 1, width: "100%", maxWidth: 600, alignSelf: "center" },
-  content: { padding: 18, gap: 14, paddingBottom: 28 },
+  frame: { flex: 1, width: "100%", maxWidth: layout.contentWidth, alignSelf: "center" },
+  content: { padding: layout.screenPadding, gap: layout.screenGap, paddingBottom: 28 },
   iconButton: {
-    width: 48,
-    height: 48,
+    width: layout.touchTarget,
+    height: layout.touchTarget,
     alignItems: "center",
     justifyContent: "center",
   },

@@ -1,12 +1,13 @@
 import { useState } from "react";
 
-import { Badge, Button, Card, Choices, Detail, Field, LinkRow, Notice, Screen, Section, Txt } from "@/components/smart/ui";
+import { Button, Card, Choices, Detail, Field, LinkRow, Notice, Screen, Section, Txt } from "@/components/smart/ui";
 import { allowed, canRepair } from "@/domain/policy";
 import { updateTask, canSeeTask } from "@/services/development";
 import { equipment } from "@/services/fixtures";
 import { useApp } from "@/state/app-state";
 import { go } from "@/navigation/go";
 import { DateTimeField } from '@/components/smart/date-time-field';
+import { MaintenanceBadge } from '@/components/smart/status-ui';
 const titles: Record<string, string> = {
   "task-detail": "Maintenance Task",
   assignment: "Assign Technician",
@@ -74,10 +75,7 @@ export function MaintenanceWorkflow({
         <Detail label="Location" value={item?.location ?? "Unknown"} />
         <Detail label="Assigned to" value={task.assigneeId ?? "Unassigned"} />
         <Detail label="Due" value={new Date(task.dueAt).toLocaleString()} />
-        <Badge
-          label={task.state}
-          tone={task.state === "Completed" ? "success" : "warning"}
-        />
+        <MaintenanceBadge task={task} />
       </Card>
       {!!message && <Notice tone="warning">{message}</Notice>}
       {screen === "task-detail" && (

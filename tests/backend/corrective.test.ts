@@ -7,6 +7,7 @@ import type { Role } from "../../src/domain/models";
 import type { FunctionReturnType } from "convex/server";
 import { EncryptedReportQueue } from "../../src/domain/report-queue";
 import { PublicationCoordinator } from "../../src/domain/publication-coordinator";
+import { canTransitionTask, maintenanceStatus } from "../../src/domain/maintenance-workflow";
 
 const modules = { "./extensions.ts": () => import("../../convex/extensions"), "./staff.ts": () => import("../../convex/staff"), "./administration.ts": () => import("../../convex/administration"), "./operations.ts": () => import("../../convex/operations"), "./workflows.ts": () => import("../../convex/workflows"), "./reporting.ts": () => import("../../convex/reporting"), "./attachments.ts": () => import("../../convex/attachments"), "./safety.ts": () => import("../../convex/safety"), "./preventive.ts": () => import("../../convex/preventive"), "./_generated/loader-marker.js": async () => ({}) };
 const identity = (subject: string) => ({ subject, tokenIdentifier: `https://test.invalid|${subject}`, email: `${subject}@example.invalid`, emailVerified: true });
@@ -31,6 +32,46 @@ test('continuation: notification preferences persist per owner and reject stale 
   expect((await f.user('tech').query(api.extensions.preferences, {})).reportUpdates).toBe(true);
   await expect(f.user('reporter').mutation(api.extensions.savePreferences, { ...fields, expectedRevision: 0 })).rejects.toThrow(/changed/);
   await expect(f.t.query(api.extensions.preferences, {})).rejects.toThrow(/Sign in/);
+});
+
+test('maintenance status never presents repair completion or cancellation as equipment clearance', () => {
+  expect(maintenanceStatus({ state: 'Completed' })).toMatchObject({ label: 'Awaiting verification', tone: 'warning' });
+  expect(maintenanceStatus({ state: 'Completed', workflowPhase: 'closed' })).toMatchObject({ label: 'Work order closed', tone: 'neutral' });
+  expect(maintenanceStatus({ state: 'Cancelled', workflowPhase: 'awaiting_parts' }).label).toBe('Cancelled');
+  expect(canTransitionTask({ state: 'Cancelled', workflowPhase: 'awaiting_parts' }, 'resume')).toBe(false);
+  expect(canTransitionTask({ state: 'In progress' }, 'accept')).toBe(true);
+  expect(canTransitionTask({ state: 'Completed' }, 'await_parts')).toBe(false);
+});
+
+test('recorded work accepts the assignment and permits parts pause without losing evidence', async () => {
+  const f = await setup();
+  const id = await f.t.run(ctx => ctx.db.insert('maintenanceTasks', { equipmentId: f.equipment, departmentId: f.a, assigneeId: f.tech, state: 'Assigned', diagnosis: '', notes: '', parts: [], cycle: 1, revision: 1, dueAt: Date.now() + 10000, createdAt: 1, updatedAt: 1 }));
+  await f.user('tech').mutation(api.operations.recordWork, { id, expectedRevision: 1, diagnosis: 'Observed power fault', notes: 'Inspecting supply', parts: [], complete: false });
+  const started = (await f.t.run(ctx => ctx.db.get(id)))!;
+  expect(started).toMatchObject({ state: 'In progress', workflowPhase: 'accepted', workflowRevision: 1, revision: 2 });
+  const pause = { id, expectedRevision: 2, expectedWorkflowRevision: 1, action: 'await_parts' as const, reason: 'Replacement supply required' };
+  await f.user('tech').mutation(api.extensions.transition, pause);
+  await expect(f.user('tech').mutation(api.operations.recordWork, { id, expectedRevision: 2, diagnosis: 'Lost update', notes: '', parts: [], complete: true })).rejects.toThrow(/parts/);
+  await f.user('supervisor').mutation(api.operations.cancelTask, { id, expectedRevision: 2, reason: 'Work order withdrawn' });
+  await expect(f.user('tech').mutation(api.extensions.transition, { ...pause, expectedRevision: 3, expectedWorkflowRevision: 2, action: 'resume' })).rejects.toThrow(/state/);
+  expect((await f.t.run(ctx => ctx.db.get(id)))?.diagnosis).toBe('Observed power fault');
+  expect(await f.t.run(ctx => ctx.db.query('workEntries').withIndex('by_task', q => q.eq('taskId', id)).take(10))).toHaveLength(2);
+});
+
+test('reassigned in-progress work clears the former justification and can be accepted by its new technician', async () => {
+  const f = await setup();
+  const id = await f.t.run(ctx => ctx.db.insert('maintenanceTasks', { equipmentId: f.equipment, departmentId: f.a, assigneeId: f.tech, state: 'In progress', workflowPhase: 'awaiting_parts', workflowReason: 'Former technician waiting', workflowRevision: 4, diagnosis: 'Existing findings', notes: 'Existing notes', parts: [], cycle: 1, revision: 3, dueAt: Date.now() + 10000, createdAt: 1, updatedAt: 1 }));
+  await f.user('supervisor').mutation(api.operations.assign, { id, expectedRevision: 3, assigneeId: f.verifier, dueAt: Date.now() + 100000, reason: 'Handover' });
+  const handover = (await f.t.run(ctx => ctx.db.get(id)))!;
+  expect(handover.workflowPhase).toBeUndefined();
+  expect(handover.workflowReason).toBeUndefined();
+  expect(handover.diagnosis).toBe('Existing findings');
+  const accept = { id, expectedRevision: 4, expectedWorkflowRevision: 5, action: 'accept' as const, reason: 'Reviewed handover' };
+  await expect(f.user('tech').mutation(api.extensions.transition, accept)).rejects.toThrow(/assigned/);
+  await f.user('verifier').mutation(api.extensions.transition, accept);
+  expect((await f.t.run(ctx => ctx.db.get(id)))?.workflowPhase).toBe('accepted');
+  await expect(f.user('verifier').mutation(api.extensions.transition, accept)).rejects.toThrow(/revision/);
+  await expect(f.t.mutation(api.extensions.transition, accept)).rejects.toThrow(/Sign in/);
 });
 
 test('continuation: waiting for parts blocks stale clients from work and closure never bypasses unapproved safety', async () => {
@@ -75,6 +116,39 @@ test('continuation: inventory imports are atomic, idempotent, scoped and never v
   await expect(f.user('admin').mutation(api.extensions.importInventory, { ...batch, departmentId: f.b })).rejects.toThrow(/scope/);
   await expect(f.user('admin').mutation(api.extensions.importInventory, { ...batch, operationId: 'NEW', rows: [{ ...batch.rows[0], assetId: 'BEFORE-COLLISION' }, { ...batch.rows[0], assetId: 'TEST-DEVICE' }] })).rejects.toThrow(/exists/);
   expect(await f.t.run((ctx) => ctx.db.query('equipment').withIndex('by_asset', (q) => q.eq('assetId', 'BEFORE-COLLISION')).first())).toBeNull();
+});
+
+test('management metrics exclude private drafts and reauthorize every page beyond 100 records', async () => {
+  const f = await setup();
+  const draft = await f.t.run(async ctx => {
+    for (let i = 0; i < 125; i++) await ctx.db.insert('faultReports', { equipmentId: f.equipment, departmentId: f.a, reporterId: f.reporter, operationId: `METRICS-${i}`, category: 'Other/Unknown', symptoms: 'TEST', description: '', priority: 'High', condition: 'Unknown', inUse: false, noticedAt: 1, createdAt: i + 1, submissionState: 'submitted' });
+    return await ctx.db.insert('faultReports', { equipmentId: f.equipment, departmentId: f.a, reporterId: f.reporter, operationId: 'PRIVATE-METRICS', category: 'Other/Unknown', symptoms: 'PRIVATE', description: '', priority: 'Urgent', condition: 'Unknown', inUse: false, noticedAt: 1, createdAt: 126, submissionState: 'draft' });
+  });
+  const { collectManagementMetrics } = await import('../../src/domain/management-metrics');
+  const result = await collectManagementMetrics([f.a], (departmentId, source, cursor) => f.user('admin').query(api.extensions.metricsPage, { departmentId, source, paginationOpts: { cursor, numItems: 20 } }), () => true);
+  expect(result.reports).toBe(125); expect(result.High).toBe(125); expect(result.Urgent).toBe(0);
+  const args = { departmentId: f.a, source: 'faultReports' as const, paginationOpts: { cursor: null, numItems: 100 } };
+  const first = await f.user('admin').query(api.extensions.metricsPage, args);
+  expect(first.ids).not.toContain(draft);
+  const second = await f.user('admin').query(api.extensions.metricsPage, { ...args, paginationOpts: { cursor: first.continueCursor, numItems: 100 } });
+  expect(second.ids).toHaveLength(25); expect(second.ids).not.toContain(draft);
+  await expect(f.user('other').query(api.extensions.metricsPage, args)).rejects.toThrow();
+  await f.t.run(ctx => ctx.db.patch(f.admin, { status: 'suspended' }));
+  await expect(f.user('admin').query(api.extensions.metricsPage, { ...args, paginationOpts: { cursor: first.continueCursor, numItems: 100 } })).rejects.toThrow(/approved/);
+});
+
+test('administrative updates cannot inflate recorded repair duration and legacy times are left unknown', async () => {
+  const f = await setup();
+  const id = await f.t.run(async ctx => {
+    const taskId = await ctx.db.insert('maintenanceTasks', { equipmentId: f.equipment, departmentId: f.a, assigneeId: f.tech, state: 'Completed', diagnosis: 'TEST', notes: '', parts: [], cycle: 1, revision: 2, dueAt: 10000, createdAt: 1000, updatedAt: 9000000 });
+    await ctx.db.insert('workEntries', { taskId, departmentId: f.a, actorId: f.tech, revision: 2, state: 'Completed', diagnosis: 'TEST', notes: '', parts: [], at: 5000 });
+    await ctx.db.insert('maintenanceTasks', { equipmentId: f.equipment, departmentId: f.a, state: 'Completed', diagnosis: 'Legacy', notes: '', parts: [], cycle: 1, revision: 1, dueAt: 10000, createdAt: 1000, updatedAt: 9000000 });
+    return taskId;
+  });
+  const args = { departmentId: f.a, source: 'maintenanceTasks' as const, paginationOpts: { cursor: null, numItems: 20 } };
+  expect((await f.user('admin').query(api.extensions.metricsPage, args)).counts).toMatchObject({ completedRepairs: 2, timedRepairs: 1, recordedRepairElapsedMs: 4000 });
+  await f.t.run(ctx => ctx.db.patch(id, { updatedAt: 20000000, workflowPhase: 'closed' }));
+  expect((await f.user('admin').query(api.extensions.metricsPage, args)).counts.recordedRepairElapsedMs).toBe(4000);
 });
 
 test('continuation: overdue notices deduplicate repeated sweeps and due/cancel events remain recipient scoped', async () => {
@@ -306,6 +380,32 @@ test("private drafts survive reload, detect conflicts and publish once without e
   await f.user("reporter").mutation(api.reporting.publish, { id: draft.id, expectedRevision: 2 });
   expect((await f.user("reporter").query(api.workflows.reportDetail, { id: draft.id })).submissionState).toBe("submitted");
   const paginationOpts = { cursor: null, numItems: 20 }; expect((await f.user("reporter").query(api.workflows.inbox, { paginationOpts })).page).toHaveLength(1);
+});
+
+test("a different field revision published by another session cannot acknowledge the older reviewed attempt", async () => {
+  const f = await setup(); const fields = draftFields(f.equipment);
+  const draft = await f.user('reporter').mutation(api.reporting.saveDraft, fields);
+  const older = { id: draft.id, expectedRevision: draft.revision, expectedAttachmentRevision: 0 };
+  const changed = await f.user('reporter').mutation(api.reporting.saveDraft, { ...fields, expectedRevision: draft.revision, symptoms: 'Changed in another session' });
+  const reviewed = { ...older, expectedRevision: changed.revision };
+  expect(await f.user('reporter').mutation(api.reporting.publish, reviewed)).toBe(draft.id);
+  await expect(f.user('reporter').mutation(api.reporting.publish, older)).rejects.toThrow(/revision conflict/);
+  await expect(f.user('reporter').query(api.reporting.publicationReceipt, older)).rejects.toThrow(/revision conflict/);
+  expect(await f.user('reporter').mutation(api.reporting.publish, reviewed)).toBe(draft.id);
+  expect(await f.user('reporter').query(api.reporting.publicationReceipt, reviewed)).toBe(draft.id);
+  expect((await f.user('reporter').query(api.workflows.reportDetail, { id: draft.id })).symptoms).toBe('Changed in another session');
+  expect((await f.user('reporter').query(api.workflows.inbox, { paginationOpts: { cursor: null, numItems: 20 } })).page).toHaveLength(1);
+});
+
+test("a changed photo revision cannot acknowledge the older reviewed attachment snapshot", async () => {
+  const f = await setup(); const draft = await f.user('reporter').mutation(api.reporting.saveDraft, draftFields(f.equipment));
+  await f.user('reporter').action(api.attachments.upload, { reportId: draft.id, operationId: 'RECEIPT-PHOTO', contentType: 'image/png', base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/pZkAAAAASUVORK5CYII=' });
+  const current = { id: draft.id, expectedRevision: draft.revision, expectedAttachmentRevision: 1 };
+  await f.user('reporter').mutation(api.reporting.publish, current);
+  const stale = { ...current, expectedAttachmentRevision: 0 };
+  await expect(f.user('reporter').mutation(api.reporting.publish, stale)).rejects.toThrow(/revision conflict/);
+  await expect(f.user('reporter').query(api.reporting.publicationReceipt, stale)).rejects.toThrow(/revision conflict/);
+  expect(await f.user('reporter').query(api.reporting.publicationReceipt, current)).toBe(draft.id);
 });
 test("equipment photos require authenticated report ownership, validate content and never return public URLs", async () => {
   const f = await setup(); const draft = await f.user("reporter").mutation(api.reporting.saveDraft, draftFields(f.equipment));

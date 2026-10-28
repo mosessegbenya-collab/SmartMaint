@@ -21,6 +21,7 @@ export function AccountProfile() {
     <SettingLink title="Notification Preferences" detail="Manage what you are notified about" icon="notifications-outline" onPress={() => go("notification-settings")} />
     <SettingLink title="App Settings" detail="Appearance and accessibility preferences" icon="settings-outline" onPress={() => go("settings")} />
     <SettingLink title="Help & Support" detail="Guides, support and application information" icon="help-circle-outline" onPress={() => go("help")} />
+    {__DEV__ && <SettingLink title="Design system" detail="Component examples and accessibility settings" icon="color-palette-outline" onPress={() => router.push("/design-system")} />}
     {app.mode === "live" && account.capabilities.includes("report") && <SettingLink title="Device Drafts" detail="Restore encrypted drafts and pending photos" icon="document-text-outline" onPress={() => go("device-drafts")} />}
     {account.capabilities.includes("report") && <SettingLink title="Synchronization" detail="Review pending reports and submission issues" icon="sync-outline" onPress={() => go("sync")} />}
     {app.mode === "preview" && <Notice>{pending} pending operation(s) in this synthetic account. Restarting the app resets preview changes.</Notice>}

@@ -1,0 +1,9 @@
+﻿{
+    "device":  "emulator-5554",
+    "package":  "com.anonymous.SmartMaint",
+    "beforePid":  "3068",
+    "stopped":  true,
+    "at":  "2026-10-28T00:05:38.1360884Z",
+    "afterPid":  "7387",
+    "restarted":  true
+}

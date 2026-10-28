@@ -1,6 +1,6 @@
 import { Pressable, Switch, View } from "react-native";
 import { Card, Icon, Row, Txt, usePalette, type IconName } from "./ui";
-import { tokens } from "@/design/tokens";
+import { layout, tokens } from "@/design/tokens";
 
 function SettingIcon({ name }: { name: IconName }) {
   const p = usePalette();
@@ -15,7 +15,7 @@ export function SettingToggle({ title, detail, icon, value, disabled = false, on
   const p = usePalette();
   return <Card style={{ minHeight: 108, justifyContent: "center" }}><Row style={{ gap: 12, alignItems: "flex-start" }}>
     <SettingIcon name={icon} /><View style={{ flex: 1, gap: 5 }}><Txt size={16} weight="700">{title}</Txt><Txt size={13} muted>{detail}</Txt></View>
-    <View style={{ alignItems: "center", gap: 4 }}><Switch accessibilityLabel={title} accessibilityHint={detail} disabled={disabled} value={value} onValueChange={onChange} trackColor={{ false: p.border, true: tokens.blue }} ios_backgroundColor={p.border} /><Txt size={11} muted>{disabled ? "Unavailable" : value ? "On" : "Off"}</Txt></View>
+    <View style={{ alignItems: "center", gap: 4 }}><Pressable accessibilityRole="switch" accessibilityLabel={title} accessibilityHint={detail} accessibilityState={{ checked: value, disabled }} disabled={disabled} onPress={() => onChange(!value)} style={{ minWidth: layout.touchTarget, minHeight: layout.touchTarget, alignItems: "center", justifyContent: "center" }}><View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Switch accessible={false} disabled={disabled} value={value} trackColor={{ false: p.border, true: tokens.blue }} ios_backgroundColor={p.border} /></View></Pressable><Txt size={11} muted>{disabled ? "Unavailable" : value ? "On" : "Off"}</Txt></View>
   </Row></Card>;
 }
 export function ProfileIdentity({ name, role, staffId, department, email }: { name: string; role: string; staffId: string; department: string; email?: string }) {

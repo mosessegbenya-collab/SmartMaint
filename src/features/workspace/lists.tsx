@@ -8,6 +8,7 @@ import type { Equipment } from "@/domain/models";
 import { useApp } from "@/state/app-state";
 import { go } from "@/navigation/go";
 import { useCurrentTime } from '@/hooks/use-current-time';
+import { MaintenanceBadge } from '@/components/smart/status-ui';
 export function EquipmentCard({
   item,
   onPress,
@@ -240,10 +241,7 @@ export function TasksList() {
               label="Due date"
               value={new Date(t.dueAt).toLocaleString()}
             />
-            <Badge
-              label={t.state}
-              tone={t.state === "Completed" ? "success" : "warning"}
-            />
+            <MaintenanceBadge task={t} />
             {Date.parse(t.dueAt) < now &&
               !["Completed", "Cancelled"].includes(t.state) && (
                 <Badge label="Overdue" tone="danger" />

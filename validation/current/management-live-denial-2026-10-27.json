@@ -1,0 +1,7 @@
+{
+  "target": "dev:greedy-bat-971",
+  "function": "extensions:metricsPage",
+  "authenticated": false,
+  "result": "PASS: unsigned access denied before records returned",
+  "at": "2026-10-27T23:35:40.109Z"
+}

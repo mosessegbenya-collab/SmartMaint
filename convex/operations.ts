@@ -114,7 +114,7 @@ export const assign = mutation({ args: { id: v.id("maintenanceTasks"), expectedR
   const demoAdministrator = actor.classification === "development-demo" && assignee?.classification === "development-demo" && assignee.role === "Administrator";
   if (!assignee || assignee.status !== "approved" || (assignee.role !== "Biomedical Technician" && !demoAdministrator) || !assignee.capabilities.includes("repair") || !assignee.scope.includes(task.departmentId)) deny("Choose an authorized technician in scope.");
   if (!Number.isFinite(args.dueAt) || args.dueAt <= Date.now()) deny("Choose a future due date.");
-  await ctx.db.patch(task._id, { workflowPhase: undefined, workflowRevision: (task.workflowRevision ?? 0) + 1, assigneeId: assignee._id, dueAt: args.dueAt, state: task.state === "Unassigned" ? "Assigned" : task.state, revision: task.revision + 1, updatedAt: Date.now() });
+  await ctx.db.patch(task._id, { workflowPhase: undefined, workflowReason: undefined, workflowRevision: (task.workflowRevision ?? 0) + 1, assigneeId: assignee._id, dueAt: args.dueAt, state: task.state === "Unassigned" ? "Assigned" : task.state, revision: task.revision + 1, updatedAt: Date.now() });
   await taskNotice(ctx, task._id, "Maintenance assigned", "A maintenance task has been assigned to you.");
   await audit(ctx, actor, "task.assign", task._id, args.reason, task.departmentId, task.assigneeId, assignee._id);
 } });
@@ -134,7 +134,9 @@ export const recordWork = mutation({ args: { id: v.id("maintenanceTasks"), expec
     await ctx.db.insert("workEntries", { taskId: task._id, departmentId: task.departmentId, baseline: true, revision: task.revision, diagnosis: task.diagnosis, diagnosisEvidence: task.diagnosisEvidence, causeAssessment: task.causeAssessment, notes: task.notes, parts: task.parts, state: task.state, at: task.updatedAt });
   }
   await ctx.db.insert("workEntries", { taskId: task._id, departmentId: task.departmentId, actorId: actor._id, revision: task.revision + 1, diagnosis: args.diagnosis, diagnosisEvidence, causeAssessment: cause, notes: args.notes, parts: args.parts, state: next, at: Date.now(), preventiveResults: args.preventiveResults });
-  await ctx.db.patch(task._id, { workflowPhase: args.complete ? "awaiting_verification" : task.workflowPhase, workflowRevision: args.complete ? (task.workflowRevision ?? 0) + 1 : task.workflowRevision, diagnosis: args.diagnosis, diagnosisEvidence, causeAssessment: cause, notes: args.notes, parts: args.parts, state: next, revision: task.revision + 1, updatedAt: Date.now(), preventiveResults: args.preventiveResults });
+  const workflowPhase = args.complete ? "awaiting_verification" as const : "accepted" as const;
+  const workflowChanged = task.workflowPhase !== workflowPhase;
+  await ctx.db.patch(task._id, { workflowPhase, workflowReason: workflowChanged ? (args.complete ? "Repair recorded complete; independent verification pending." : "Assignment accepted by recording maintenance work.") : task.workflowReason, workflowRevision: workflowChanged ? (task.workflowRevision ?? 0) + 1 : task.workflowRevision, diagnosis: args.diagnosis, diagnosisEvidence, causeAssessment: cause, notes: args.notes, parts: args.parts, state: next, revision: task.revision + 1, updatedAt: Date.now(), preventiveResults: args.preventiveResults });
   if (args.complete && task.reportId) await reportNotice(ctx, task.reportId, "Repair completed — verification pending", "Repair work was recorded as complete. Independent verification and authorized release are still required.");
   await audit(ctx, actor, "task.work", task._id, "Maintenance work recorded; no equipment release granted", task.departmentId, task.state, next);
 } });

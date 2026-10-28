@@ -5,11 +5,18 @@ import { equipmentAccess } from "./operations";
 import { priority } from "./lib/validators";
 
 const fields = { equipmentId: v.id("equipment"), operationId: v.string(), category: v.string(), symptoms: v.string(), description: v.string(), priority, condition: v.string(), inUse: v.boolean(), noticedAt: v.number(), emergency: v.boolean() };
+function reviewedRevisions(revision: number, attachmentRevision: number) {
+  if (!Number.isSafeInteger(revision) || revision < 1 || !Number.isSafeInteger(attachmentRevision) || attachmentRevision < 0) deny("Invalid reviewed report or photo revision.");
+}
 /** Read-only reconciliation never publishes or creates a report. */
-export const publicationReceipt = query({ args: { id: v.id("faultReports"), expectedRevision: v.number(), expectedAttachmentRevision: v.number() }, handler: async (ctx, args) => {
+export const publicationReceipt = query({ args: { id: v.id("faultReports"), expectedRevision: v.number(), expectedAttachmentRevision: v.number() }, returns: v.union(v.id("faultReports"), v.null()), handler: async (ctx, args) => {
   const actor = await requireAccount(ctx, "report"); const report = await ctx.db.get(args.id);
   if (!report || report.reporterId !== actor._id || !actor.scope.includes(report.departmentId)) deny();
-  if (report.submissionState === "submitted") return report._id;
+  reviewedRevisions(args.expectedRevision, args.expectedAttachmentRevision);
+  if (report.submissionState === "submitted") {
+    if (report.revision !== args.expectedRevision + 1 || (report.attachmentRevision ?? 0) !== args.expectedAttachmentRevision) deny("Publication revision conflict: the submitted report differs from this reviewed draft or photos. Open the current report.");
+    return report._id;
+  }
   if (report.submissionState !== "draft" || report.revision !== args.expectedRevision || (report.attachmentRevision ?? 0) !== args.expectedAttachmentRevision) deny("Draft or photo revision conflict: review the current server report.");
   return null;
 } });
@@ -40,10 +47,14 @@ export const saveDraft = mutation({ args: { ...fields, expectedRevision: v.optio
   if (args.expectedRevision !== undefined) deny("Draft no longer exists. Review synchronization state.");
   const id = await ctx.db.insert("faultReports", { ...data, submissionState: "draft", revision: 1, createdAt: Date.now() }); return { id, revision: 1 };
 } });
-export const publish = mutation({ args: { id: v.id("faultReports"), expectedRevision: v.number(), expectedAttachmentRevision: v.optional(v.number()) }, handler: async (ctx, args) => {
+export const publish = mutation({ args: { id: v.id("faultReports"), expectedRevision: v.number(), expectedAttachmentRevision: v.optional(v.number()) }, returns: v.id("faultReports"), handler: async (ctx, args) => {
   const actor = await requireAccount(ctx, "report"); const report = await ctx.db.get(args.id);
   if (!report || report.reporterId !== actor._id || !actor.scope.includes(report.departmentId)) deny();
-  if (report.submissionState === "submitted") return report._id; // Idempotent retry after a lost receipt.
+  reviewedRevisions(args.expectedRevision, args.expectedAttachmentRevision ?? 0);
+  if (report.submissionState === "submitted") {
+    if (report.revision !== args.expectedRevision + 1 || (report.attachmentRevision ?? 0) !== (args.expectedAttachmentRevision ?? 0)) deny("Publication revision conflict: the submitted report differs from this reviewed draft or photos. Open the current report.");
+    return report._id; // Exact reviewed retry after a lost receipt.
+  }
   if (report.submissionState !== "draft" || report.revision !== args.expectedRevision) deny("Draft conflict: review the current report before submitting.");
   if ((report.attachmentRevision ?? 0) !== (args.expectedAttachmentRevision ?? 0)) deny("Photo conflict: review the current attachments before submitting.");
   await equipmentAccess(ctx, report.equipmentId);

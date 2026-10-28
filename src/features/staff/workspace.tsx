@@ -7,7 +7,8 @@ import { Badge, Button, Card, Choices, Detail, Field, Icon, LinkRow, Notice, Row
 import { DateTimeField } from "@/components/smart/date-time-field";
 import { useApp } from "@/state/app-state";
 import { useCurrentTime } from "@/hooks/use-current-time";
-import { StatusPanel } from "@/components/smart/status-ui";
+import { maintenanceStatus } from "@/domain/maintenance-workflow";
+import { MaintenanceBadge, StatusPanel } from "@/components/smart/status-ui";
 import { AccountProfile } from "@/features/workspace/profile";
 import { ManagementAnalytics, ReportsExport } from "./management-screens";
 import { DeviceDrafts } from "./device-drafts";
@@ -90,7 +91,7 @@ function TaskForm({ task, view }: { task: FunctionReturnType<typeof staffApi.ope
   const terminal = ["Completed", "Cancelled"].includes(task.state);
   const canRepair = account?.capabilities.includes("repair") && task.assigneeId === account.id && !terminal && task.workflowPhase !== "awaiting_parts";
   const saveWork = (complete: boolean) => save({ id: task._id, expectedRevision: task.revision, diagnosis, diagnosisEvidence, causeAssessment: cause, notes, parts: parts.split(',').map((p) => p.trim()).filter(Boolean), complete, preventiveResults });
-  const summary = <Card style={{ gap: 10 }}><Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}><View style={{ flex: 1, minWidth: 180 }}><Txt muted size={13}>Work Order</Txt><Txt size={23} weight="800">{task._id}</Txt></View><Badge label={task.state} tone={task.state === 'Completed' ? 'success' : 'warning'} /></Row><Txt size={18} weight="600">{equipment?.name ?? 'Loading equipment…'}</Txt><Txt muted>{equipment?.assetId}</Txt><Txt muted>{equipment?.location}</Txt>{task.parentTaskId && <Badge label="Follow-up rework" tone="danger" />}<MaintenanceFlow task={task} /></Card>;
+  const summary = <Card style={{ gap: 10 }}><Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}><View style={{ flex: 1, minWidth: 180 }}><Txt muted size={13}>Work Order</Txt><Txt size={23} weight="800">{task._id}</Txt></View><MaintenanceBadge task={task} /></Row><Txt size={18} weight="600">{equipment?.name ?? 'Loading equipment…'}</Txt><Txt muted>{equipment?.assetId}</Txt><Txt muted>{equipment?.location}</Txt>{task.parentTaskId && <Badge label="Follow-up rework" tone="danger" />}<MaintenanceFlow task={task} /></Card>;
   if (['task-detail', 'rework', 'live-task'].includes(view)) return <Screen title={view === 'rework' ? 'Follow-up Rework' : 'Maintenance Task Details'} subtitle={view === 'rework' ? 'Review the work linked to a previous maintenance cycle.' : 'Review the fault, assigned work and recorded activity.'}>
     {summary}
     {!!task.parentTaskId && <Card style={{ gap: 10 }}><Detail label="Original maintenance task" value={task.parentTaskId} /><Detail label="Linked verification decision" value={task.failureAttemptId ?? "Not recorded"} /></Card>}
@@ -105,7 +106,7 @@ function TaskForm({ task, view }: { task: FunctionReturnType<typeof staffApi.ope
   if (['assignment', 'due-date', 'cancellation'].includes(view)) return <Screen title={view === 'assignment' ? 'Assign Technician' : view === 'due-date' ? 'Change Due Date' : 'Cancel Work Order'}>{summary}{account?.capabilities.includes('assign') && !terminal ? <TaskAssignment task={task} focus={view} /> : <Notice>This task cannot be changed with your current access or its current state.</Notice>}</Screen>;
   if (view === 'maintenance-history') return <Screen title="Repair Timeline">{summary}<WorkHistory id={task._id} /><Button label="View task" onPress={() => go('task-detail', task._id)} /></Screen>;
   if (view === 'completion') return <Screen>
-    <StatusPanel title={task.state === "Completed" ? "Repair complete" : "Complete maintenance repair"} detail={task.state === "Completed" ? "Maintenance is recorded. Equipment remains subject to independent verification and a current return-to-service decision." : "Review the recorded diagnosis, repair notes and parts before completing this task."} icon={task.state === "Completed" ? "checkmark-circle" : "time-outline"} tone={task.state === "Completed" ? "success" : "warning"} />
+    <StatusPanel title={task.state === "Completed" ? maintenanceStatus(task).label : "Complete maintenance repair"} detail={task.state === "Completed" ? "Maintenance is recorded. Equipment remains subject to independent verification and a current return-to-service decision." : "Review the recorded diagnosis, repair notes and parts before completing this task."} icon={task.state === "Completed" ? "checkmark-circle" : "time-outline"} tone={maintenanceStatus(task).tone} />
     {summary}<Card style={{ gap: 10 }}><TaskText label="Diagnosis" value={task.diagnosis} /><TaskText label="Repair notes" value={task.notes} /><TaskText label="Parts used" value={task.parts.join(', ')} /></Card>
     <Notice tone="warning">Repair completion does not release this equipment. Review the current equipment record for release status and required independent checks.</Notice>
     {canRepair && <ConfirmAction label="Complete maintenance" title="Complete this repair?" detail="Completion is retained in history and does not release the equipment." disabled={!diagnosis.trim() || !notes.trim()} onConfirm={() => saveWork(true)} />}

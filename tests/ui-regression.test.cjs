@@ -47,3 +47,14 @@ test('dark semantic text colors meet normal-text contrast on dark card and input
     assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5, `${color} on ${background}`);
   }
 });
+
+test('status text meets normal-text contrast on every explicit light and dark semantic surface', () => {
+  const source = ts.transpileModule(fs.readFileSync('src/design/tokens.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+  const stub = { exports: {} }; new Function('module', 'exports', source)(stub, stub.exports);
+  const luminance = (hex) => hex.slice(1).match(/../g).map(v => parseInt(v, 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+  for (const dark of [false, true]) for (const tone of ['info', 'success', 'warning', 'danger', 'neutral']) {
+    const { foreground, surface } = stub.exports.semanticStyle(tone, dark);
+    const a = luminance(foreground), b = luminance(surface);
+    assert.ok((Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 4.5, `${tone}, dark=${dark}: ${foreground} on ${surface}`);
+  }
+});

@@ -7,6 +7,7 @@ import { eligibility } from "./safety";
 import { taskNotice, reportNotice } from "./lib/notifications";
 import { csvCell } from "../src/domain/policy";
 import { priority } from "./lib/validators";
+import { canTransitionTask } from "../src/domain/maintenance-workflow";
 
 export const importInventory = mutation({ args: { departmentId: v.id("departments"), operationId: v.string(), rows: v.array(v.object({ assetId: v.string(), name: v.string(), model: v.string(), location: v.string() })), reason: v.string() }, returns: v.array(v.id("equipment")), handler: async (ctx, args) => {
   const actor = await requireAccount(ctx, "reconcile", args.departmentId);
@@ -47,14 +48,12 @@ export const transition = mutation({ args: { id: v.id("maintenanceTasks"), expec
   const { actor, task } = await taskAccess(ctx, args.id, args.action === "close" ? "assign" : "repair");
   if (task.revision !== args.expectedRevision || (task.workflowRevision ?? 0) !== args.expectedWorkflowRevision) deny("Maintenance revision changed; reload before changing workflow.");
   const reason = requiredText(args.reason, "workflow reason", 500);
+  if (!canTransitionTask(task, args.action)) deny("This workflow action is unavailable in the current task state. Reload the work order.");
   if (args.action === "close") {
     const state = await eligibility(ctx, task.equipmentId);
     if (task.state !== "Completed" || task.workflowPhase === "closed" || state.blockers.length) deny("All repair chains and approved independent checks must pass before administrative closure.");
   } else {
     if (task.assigneeId !== actor._id || !["Assigned", "In progress"].includes(task.state)) deny("Only the current assigned technician can change active workflow.");
-    if (args.action === "accept" && (task.state !== "Assigned" || task.workflowPhase)) deny("Only a new assignment can be accepted.");
-    if (args.action === "resume" && task.workflowPhase !== "awaiting_parts") deny("This task is not awaiting parts.");
-    if (args.action === "await_parts" && task.workflowPhase !== "accepted") deny("Accept or resume this assignment before awaiting parts.");
   }
   const workflowPhase = args.action === "close" ? "closed" as const : args.action === "await_parts" ? "awaiting_parts" as const : "accepted" as const;
   await ctx.db.patch(task._id, { workflowPhase, workflowRevision: (task.workflowRevision ?? 0) + 1, workflowReason: reason, updatedAt: Date.now() });
@@ -98,7 +97,7 @@ export const exportPage = query({ args: { departmentId: v.id("departments"), pag
   return { isDone: page.isDone, continueCursor: page.continueCursor, count: page.page.length, ids: page.page.map((r) => String(r._id)), csv: page.page.map((r) => [r._id, r.equipmentId, r.category, r.triagedPriority ?? r.priority].map(csvCell).join(",")).join("\r\n") };
 } });
 
-export const metricsPage = query({ args: { departmentId: v.id("departments"), source: v.union(v.literal("equipment"), v.literal("faultReports"), v.literal("maintenanceTasks"), v.literal("safetyHolds"), v.literal("releaseRecords")), paginationOpts: paginationOptsValidator }, returns: v.object({ isDone: v.boolean(), continueCursor: v.string(), counts: v.record(v.string(), v.number()) }), handler: async (ctx, args) => {
+export const metricsPage = query({ args: { departmentId: v.id("departments"), source: v.union(v.literal("equipment"), v.literal("faultReports"), v.literal("maintenanceTasks"), v.literal("safetyHolds"), v.literal("releaseRecords")), paginationOpts: paginationOptsValidator }, returns: v.object({ isDone: v.boolean(), continueCursor: v.string(), counts: v.record(v.string(), v.number()), ids: v.array(v.string()) }), handler: async (ctx, args) => {
   await requireAccount(ctx, "analytics", args.departmentId);
   if (args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 100) deny("Invalid metrics page size.");
   const page = await ctx.db.query(args.source).withIndex("by_department", (q) => q.eq("departmentId", args.departmentId)).paginate(args.paginationOpts);
@@ -107,9 +106,21 @@ export const metricsPage = query({ args: { departmentId: v.id("departments"), so
   for (const row of page.page) {
     if ("identityVerified" in row) { add("equipment"); if (row.identityVerified) add("verifiedIdentities"); if (![row.assetId, row.name, row.model, row.location].every((s) => s.trim())) add("incompleteRecords"); }
     else if ("symptoms" in row) { if (row.submissionState !== "draft") { add("reports"); add(row.triagedPriority ?? row.priority); } }
-    else if ("diagnosis" in row) { if (row.state === "Completed") { add("completedRepairs"); add("recordedRepairElapsedMs", Math.max(0, row.updatedAt - row.createdAt)); } else if (row.state !== "Cancelled") add("openTasks"); }
+    else if ("diagnosis" in row) {
+      if (row.state === "Completed") {
+        add("completedRepairs");
+        const completion = await ctx.db.query("workEntries").withIndex("by_task", q => q.eq("taskId", row._id)).order("desc").first();
+        // Administrative workflow updates also change task.updatedAt. Only an
+        // immutable authored completion is evidence of repair completion time.
+        if (completion?.state === "Completed" && completion.actorId && !completion.baseline && completion.at >= row.createdAt) {
+          add("timedRepairs"); add("recordedRepairElapsedMs", completion.at - row.createdAt);
+        }
+      } else if (row.state !== "Cancelled") add("openTasks");
+    }
     else if ("active" in row) { if (row.active) add("activeHolds"); }
     else if ("technicalAttemptId" in row) add("releaseDecisions");
   }
-  return { isDone: page.isDone, continueCursor: page.continueCursor, counts };
+  // Private report drafts contribute neither counts nor identifiers.
+  const visible = page.page.filter(row => !("symptoms" in row) || row.submissionState !== "draft");
+  return { isDone: page.isDone, continueCursor: page.continueCursor, counts, ids: visible.map(row => String(row._id)) };
 } });
