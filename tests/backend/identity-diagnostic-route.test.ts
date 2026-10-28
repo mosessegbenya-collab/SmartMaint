@@ -5,6 +5,8 @@ import ts from 'typescript';
 import type { ReactElement } from 'react';
 import { accessCacheKey, type StaffResolution } from '../../src/domain/staff-access';
 import { diagnosticErrorStatus } from '../../src/features/access/identity-diagnostic-service';
+import { canOpenPreviewWorkspace } from '../../src/features/access/auth-policy';
+import { canUseTrustedAccount } from '../../src/domain/staff-access';
 
 // Evaluate the actual layout boundaries with controlled hook values. No Clerk
 // credentials, native renderer, network calls or fabricated backend are needed.
@@ -25,7 +27,46 @@ const Navigation = () => null;
 const StaffAccessProvider = () => null;
 const ReportQueueBoundary = () => null;
 const SessionBoundary = () => null;
-const components = { AppProvider, Navigation, StaffAccessProvider, ReportQueueBoundary, SessionBoundary };
+const SessionRestoration = () => null;
+const components = { AppProvider, Navigation, StaffAccessProvider, ReportQueueBoundary, SessionBoundary, SessionRestoration };
+
+test('only public welcome and explicit development tools render during restoration; normal protected routes still wait', () => {
+  let pathname = '/';
+  let dev = false;
+  const retry = () => {};
+  const identity = { loaded: false, signedIn: false, sessionId: null, restoreTimedOut: true, retry };
+  const render = () => boundary('SessionBoundary', { ...components, __DEV__: dev,
+    useIdentity: () => identity, useStaffAccess: () => ({ status: 'loading', account: null }), usePathname: () => pathname, accessCacheKey })();
+  expect((render().props as { children: ReactElement }).children.type).toBe(Navigation);
+  for (const route of ['/access/sign-in', '/access/pending', '/workspace/home', '/flow/live-task', '/flow/review', '/design-system', '/diagnostics', '/unknown']) {
+    pathname = route;
+    const pending = (render().props as { children: ReactElement }).children;
+    expect(pending.type).toBe(SessionRestoration);
+    expect(pending.props).toMatchObject({ timedOut: true, onRetry: retry });
+  }
+  dev = true;
+  for (const route of ['/design-system', '/diagnostics']) {
+    pathname = route;
+    expect((render().props as { children: ReactElement }).children.type).toBe(Navigation);
+  }
+  pathname = '/workspace/home';
+  expect((render().props as { children: ReactElement }).children.type).toBe(SessionRestoration);
+  identity.loaded = true;
+  expect((render().props as { children: ReactElement }).children.type).toBe(Navigation);
+});
+
+test('public navigation during restoration keeps the real workspace guard closed, including retained synthetic accounts', () => {
+  const Protected = () => null;
+  const Stack = Object.assign(() => null, { Screen: () => null, Protected });
+  const ThemeProvider = () => null;
+  const tree = boundary('Navigation', { Stack, ThemeProvider, StatusBar: () => null, DefaultTheme: {}, DarkTheme: {}, palette: { light: { background: '#fff' } },
+    useApp: () => ({ account: { status: 'approved' }, dark: false, preferences: { reducedMotion: true } }),
+    useIdentity: () => ({ loaded: false, signedIn: false }), useStaffAccess: () => ({ status: 'loading', account: null, connected: false }),
+    canOpenPreviewWorkspace, canUseTrustedAccount })();
+  const stack = (tree.props as { children: ReactElement[] }).children.find(child => child.type === Stack)!;
+  const guarded = (stack.props as { children: ReactElement[] }).children.find(child => child.type === Protected)!;
+  expect((guarded.props as { guard: boolean }).guard).toBe(false);
+});
 
 test('diagnostic route stays outside authorization remounts while normal routes retain their guards', () => {
   let pathname = '/identity-connection';

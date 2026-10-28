@@ -10,7 +10,8 @@ import { go } from "@/navigation/go";
 import { useStaffAccess } from "./provider";
 import { ConfirmAction } from "./ui";
 import { OperationalList, ScopeSelect } from "./operational-screens";
-import { ScheduleStatus, ScheduleActivityAction } from '@/components/smart/schedule-activity';
+import { ScheduleStatus } from '@/components/smart/schedule-activity';
+import { ScheduleEditorControls } from './schedule-editor';
 import { useCurrentTime } from "@/hooks/use-current-time";
 
 export function PreventiveSchedules() {
@@ -20,13 +21,13 @@ export function PreventiveSchedules() {
 }
 function SchedulePage({ department }: { department: GenericId<"departments"> }) {
   const page = usePaginatedQuery(staffApi.preventive.page, { departmentId: department }, { initialNumItems: 20 });
-  return <>{page.results.map((r) => <ScheduleRow key={`${r._id}:${r.revision}`} schedule={r} />)}{page.status === "LoadingFirstPage" && <Notice>Loading authorized schedules…</Notice>}{page.status !== "Exhausted" && <Button label="Load more schedules" loading={page.isLoading} disabled={page.status !== "CanLoadMore"} onPress={() => page.loadMore(20)} />}</>;
+  return <>{page.results.map((r) => <ScheduleRow key={r._id} schedule={r} />)}{page.status === "LoadingFirstPage" && <Notice>Loading authorized schedules…</Notice>}{page.status !== "Exhausted" && <Button label="Load more schedules" loading={page.isLoading} disabled={page.status !== "CanLoadMore"} onPress={() => page.loadMore(20)} />}</>;
 }
 function ScheduleRow({ schedule }: { schedule: FunctionReturnType<typeof staffApi.preventive.page>["page"][number] }) {
   const now = useCurrentTime();
-  const { account } = useStaffAccess(); const create = useMutation(staffApi.preventive.materialize); const reschedule = useMutation(staffApi.preventive.reschedule); const setActivity = useMutation(staffApi.preventive.setActivity); const [due, setDue] = useState(new Date(schedule.nextDueAt).toISOString()); const [reason, setReason] = useState("");
+  const { account } = useStaffAccess(); const create = useMutation(staffApi.preventive.materialize); const reschedule = useMutation(staffApi.preventive.reschedule); const setActivity = useMutation(staffApi.preventive.setActivity);
   return <Card style={{ gap: 10 }}><Txt weight="700" size={20}>{schedule.title}</Txt><ScheduleStatus active={schedule.active} nextDueAt={schedule.nextDueAt} now={now} /><Detail label="Next due" value={new Date(schedule.nextDueAt).toLocaleString()} /><Detail label="Interval" value={`${schedule.intervalDays} days`} /><Detail label="Approved procedure" value={schedule.approvedReference} /><Detail label="Checklist" value={schedule.checklist.join("\n")} />
-    {account?.capabilities.includes("assign") && <><ConfirmAction label="Create scheduled task" title="Create preventive maintenance task?" detail="The occurrence is deduplicated and the next scheduled date advances. Technician assignment remains required." disabled={!schedule.active} onConfirm={async () => { const taskId = await create({ id: schedule._id, expectedRevision: schedule.revision, scheduledDueAt: schedule.nextDueAt }); go("live-task", taskId); }} /><DateTimeField label="Rescheduled next due" value={due} onChange={setDue} /><Field label="Rescheduling / pause reason" value={reason} onChangeText={setReason} maxLength={500} /><ConfirmAction label="Save next due date" title="Reschedule future maintenance?" detail="Existing work orders retain their own due dates." disabled={!reason.trim()} onConfirm={() => reschedule({ id: schedule._id, expectedRevision: schedule.revision, nextDueAt: Date.parse(due), active: schedule.active, reason })} /><ScheduleActivityAction active={schedule.active} revision={schedule.revision} reason={reason} onChange={(active) => setActivity({ id: schedule._id, expectedRevision: schedule.revision, active, reason })} /></>}
+    {account?.capabilities.includes("assign") && <ScheduleEditorControls schedule={schedule} createTask={async () => { const taskId = await create({ id: schedule._id, expectedRevision: schedule.revision, scheduledDueAt: schedule.nextDueAt }); go("live-task", taskId); }} saveDate={(nextDueAt, reason) => reschedule({ id: schedule._id, expectedRevision: schedule.revision, nextDueAt, active: schedule.active, reason })} setActivity={(active, reason) => setActivity({ id: schedule._id, expectedRevision: schedule.revision, active, reason })} />}
   </Card>;
 }
 export function PreventiveCreate({ id }: { id?: string }) {

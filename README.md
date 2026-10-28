@@ -10,6 +10,16 @@ Work editor continuation: [preserved local findings and work/workflow revision r
 
 Work exit continuation: [unsaved-field and pending-save navigation protection](docs/WORK_EXIT_INTEGRATION.md), with [267-test and Android back-navigation evidence](validation/current/WORK_EXIT_INTEGRATION_2026-10-28.md). The same work preview exercises the actual exit guard.
 
+Preventive activity continuation: [pause/resume without moving the due date](docs/PREVENTIVE_ACTIVITY_INTEGRATION.md), with [270-test, development sync and Android evidence](validation/current/PREVENTIVE_ACTIVITY_INTEGRATION_2026-10-28.md). Preview at `/design-system?example=preventive` during development.
+
+Schedule review continuation: [preserved prepared fields and explicit revision review](docs/SCHEDULE_REVIEW_INTEGRATION.md), with [273-test and Android evidence](validation/current/SCHEDULE_REVIEW_INTEGRATION_2026-10-28.md). Preview at `/design-system?example=schedule-review` in development.
+
+Equipment notice continuation: [equipment destinations and historical-event presentation](docs/EQUIPMENT_NOTICES_INTEGRATION.md), with [275-test, development sync and Android evidence](validation/current/EQUIPMENT_NOTICES_INTEGRATION_2026-10-28.md). Preview at `/design-system?example=notification` in development.
+
+Welcome restoration continuation: [public welcome and inline session recovery](docs/WELCOME_RESTORATION_INTEGRATION.md), with [277-test, protected-route and 200% system-text evidence](validation/current/WELCOME_RESTORATION_INTEGRATION_2026-10-28.md).
+
+Protected restoration continuation: [shared branded waiting and retry surface](docs/SESSION_SURFACE_INTEGRATION.md), with [layout-boundary checks and compact dark/200% system-text evidence](validation/current/SESSION_SURFACE_INTEGRATION_2026-10-28.md).
+
 Shared dialog continuation: [scrollable confirmations, selectors and adaptive date selection](docs/DIALOGS_INTEGRATION.md), with [200% system-text and short-screen evidence](validation/current/DIALOGS_INTEGRATION_2026-10-28.md). Preview at `/design-system?example=confirmation` in development.
 
 Private queue continuation: [verified receipt batches and recoverable loading](docs/QUEUE_LOADING_INTEGRATION.md), with [260-test and Android evidence](validation/current/QUEUE_LOADING_INTEGRATION_2026-10-28.md). Preview at `/design-system?example=queue-loading` in development.

@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { IdentityProvider, useIdentity } from "@/features/access/identity";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { useFonts } from "expo-font";
-import { Txt, Button } from "@/components/smart/ui";
+import { SessionRestoration } from "@/features/access/session-restoration";
 import { canOpenPreviewWorkspace } from "@/features/access/auth-policy";
 import { StaffAccessProvider, useStaffAccess } from "@/features/staff/provider";
 import { accessCacheKey, canUseTrustedAccount } from "@/domain/staff-access";
@@ -65,12 +65,11 @@ function SessionBoundary() {
   // These development tools contain synthetic examples only. They remain
   // inspectable while identity restores and never grant operational access.
   const developmentTool = __DEV__ && ["/diagnostics", "/design-system"].includes(pathname);
+  // Public, fictional welcome content does not require a restored identity.
+  // Every other normal route still waits, and workspace guards stay authoritative.
+  const publicWelcome = pathname === "/";
   // Discard synthetic account data when the real identity/session changes.
   return <AppProvider key={identity.signedIn ? accessCacheKey(identity.sessionId, access) : "signed-out-preview"}>
-    {identity.loaded || developmentTool ? <Navigation /> : <View style={{ flex: 1, gap: 12, alignItems: "center", justifyContent: "center" }}>
-      <ActivityIndicator accessibilityLabel="Restoring secure session" />
-      <Txt>Restoring secure session…</Txt>
-      {identity.restoreTimedOut && <><Txt>Identity services are taking too long to respond.</Txt><Button label="Retry secure sign-in" onPress={identity.retry} /></>}
-    </View>}
+    {identity.loaded || developmentTool || publicWelcome ? <Navigation /> : <SessionRestoration timedOut={identity.restoreTimedOut} onRetry={identity.retry} />}
   </AppProvider>;
 }

@@ -1,5 +1,7 @@
 # SmartMaint current acceptance checklist
 
+28 October continuation: [public welcome restoration](WELCOME_RESTORATION_INTEGRATION_2026-10-28.md) adds native pending/timeout/retry, protected-route and 200% system-text evidence. It does not establish the welcome reference's exact matching state or change any of the 73 acceptance statuses below.
+
 Updated 2026-10-24T18:50:08.430Z. All 73 references remain tracked. Native variants and denial captures do not establish matching-state, accessibility or live acceptance. See `ACCEPTANCE_PLAN.md`, `FINAL_ACCEPTANCE_PASS.md` and `screens.json` for scenarios, prerequisites and evidence.
 
 | No. | Reference | Route | Native Android evidence | Matching state | iOS / live |

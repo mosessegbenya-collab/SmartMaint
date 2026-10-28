@@ -1,3 +1,4 @@
+import { InventoryIdentityBadge } from '@/components/smart/inventory-identity';
 import { useState } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { useDeviceDraft } from "./use-device-draft";
@@ -8,7 +9,7 @@ import { randomUUID } from "expo-crypto";
 import { useMutation, useQuery } from "convex/react";
 import type { GenericId } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
-import { Badge, Button, Card, Choices, Detail, Field, Notice, Row, Screen, Select, Txt } from "@/components/smart/ui";
+import { Button, Card, Choices, Detail, Field, Notice, Row, Screen, Select, Txt } from "@/components/smart/ui";
 import { View } from 'react-native';
 import { ReportSteps } from '@/components/smart/report-steps';
 import { DateTimeField } from "@/components/smart/date-time-field";
@@ -92,7 +93,7 @@ function Journey({ equipmentId, emergency: initialEmergency, initial, initialSta
   return <Screen>
     <ReportSteps current={stage} onChange={(next) => { if (busy) return; if (stage === 2 && next !== 2 && pendingPhotoCount !== 0) { setMessage("Upload or remove pending photos before leaving this step."); return; } if (next === 1) setStage(1); else if (next === 3 && pendingPhotoCount !== 0) setMessage("Review photos and upload or remove every pending photo before continuing."); else if (draft && savedFingerprint === fingerprint) setStage(next); else setMessage('Save your latest details before continuing.'); }} />
     <View style={{ gap: 5 }}><Txt size={27} weight="800">{emergency ? 'Emergency Fault Report' : stage === 1 ? 'Report a Fault' : stage === 2 ? 'Equipment Photos' : 'Review Fault Report'}</Txt><Txt size={16} muted>{stage === 1 ? 'Provide accurate details about the issue.' : stage === 2 ? 'Add clear photos of the equipment and fault.' : 'Check the details below before submitting.'}</Txt></View>
-    {equipment && <Card style={{ gap: 7 }}><Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}><Txt size={19} weight="700">{equipment.assetId}</Txt><Badge label={equipment.identityVerified ? 'Identified' : 'Identity unverified'} tone={equipment.identityVerified ? 'success' : 'warning'} /></Row><Txt size={16}>{equipment.name}</Txt><Txt muted>{equipment.location}</Txt></Card>}
+    {equipment && <Card style={{ gap: 7 }}><Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}><Txt size={19} weight="700">{equipment.assetId}</Txt><InventoryIdentityBadge verified={equipment.identityVerified} /></Row><Txt size={16}>{equipment.name}</Txt><Txt muted>{equipment.location}</Txt></Card>}
     {emergency && <Notice tone="danger">Urgent reporting does not replace your approved emergency response process. External alert delivery is not configured.</Notice>}
     {!!message && <Notice>{message}</Notice>}
     {!!device.error && <Notice tone="warning">Device save failed: {device.error}. Do not assume this work will survive a restart.</Notice>}

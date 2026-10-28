@@ -214,6 +214,55 @@ test('an uncertain draft update retries the identical snapshot without another r
   await f.t.run((ctx) => ctx.db.patch(f.reporter, { status: 'revoked' }));
   await expect(f.user('reporter').mutation(api.reporting.saveDraft, update)).rejects.toThrow();
 });
+test('inventory lookup preserves unverified identity without granting maintenance or release eligibility', async () => {
+  const f = await setup();
+  const id = await f.t.run(ctx => ctx.db.insert('equipment', { assetId: 'TEST-UNVERIFIED-MATCH', name: 'TEST device', model: 'TEST model', location: 'TEST room', departmentId: f.a, identityVerified: false }));
+  expect(await f.user('reporter').query(api.workflows.lookup, { identifier: 'TEST-UNVERIFIED-MATCH' })).toMatchObject({ _id: id, identityVerified: false });
+  expect(await f.user('other').query(api.workflows.lookup, { identifier: 'TEST-UNVERIFIED-MATCH' })).toBeNull();
+  const status = await f.user('reporter').query(api.safety.releaseStatus, { equipmentId: id });
+  expect(status.available).toBe(false);
+  expect(status.blockers).toContain('Equipment identity is unverified.');
+  const reportId = await f.user('reporter').mutation(api.operations.submitReport, { equipmentId: id, operationId: 'unverified-match', category: 'Electrical/Power', symptoms: 'TEST', description: 'TEST ONLY', priority: 'Routine', condition: 'Unknown', inUse: false, noticedAt: Date.now() });
+  await expect(f.user('supervisor').mutation(api.operations.createTask, { reportId, dueAt: Date.now() + 86400000 })).rejects.toThrow(/Verified equipment identity/);
+  expect(await f.t.run(ctx => ctx.db.get(id))).toMatchObject({ identityVerified: false });
+});
+
+test('equipment safety notices populate the equipment filter and link directly to current equipment', async () => {
+  const f = await setup();
+  const reportId = await f.user('reporter').mutation(api.operations.submitReport, { equipmentId: f.equipment, operationId: 'equipment-notice', category: 'Electrical/Power', symptoms: 'TEST', description: 'TEST ONLY', priority: 'Routine', condition: 'Not functioning (reported)', inUse: false, noticedAt: Date.now() });
+  const taskId = await f.user('supervisor').mutation(api.operations.createTask, { reportId, dueAt: Date.now() + 86400000 });
+  await f.user('supervisor').mutation(api.operations.assign, { id: taskId, expectedRevision: 1, assigneeId: f.tech, dueAt: Date.now() + 86400000, reason: 'TEST assignment' });
+  await f.user('supervisor').mutation(api.operations.placeHold, { equipmentId: f.equipment, reason: 'TEST hold' });
+  const args = { targetKind: 'equipment' as const, paginationOpts: { cursor: null, numItems: 20 } };
+  for (const user of ['reporter', 'tech']) {
+    const page = await f.user(user).query(api.workflows.inbox, args);
+    expect(page.page).toHaveLength(1);
+    expect(page.page[0]).toMatchObject({ title: 'Equipment safety hold placed', targetKind: 'equipment', targetId: f.equipment, departmentId: f.a });
+    expect(await f.user(user).query(api.workflows.equipmentDetail, { id: f.equipment })).toMatchObject({ _id: f.equipment });
+  }
+  expect((await f.user('other').query(api.workflows.inbox, args)).page).toHaveLength(0);
+});
+
+test('equipment notice targeting deduplicates recipients and preserves suspension and scope guards', async () => {
+  const f = await setup();
+  const reportId = await f.user('tech').mutation(api.operations.submitReport, { equipmentId: f.equipment, operationId: 'same-recipient', category: 'Electrical/Power', symptoms: 'TEST', description: 'TEST ONLY', priority: 'Routine', condition: 'Not functioning (reported)', inUse: false, noticedAt: Date.now() });
+  const taskId = await f.user('supervisor').mutation(api.operations.createTask, { reportId, dueAt: Date.now() + 86400000 });
+  await f.user('supervisor').mutation(api.operations.assign, { id: taskId, expectedRevision: 1, assigneeId: f.tech, dueAt: Date.now() + 86400000, reason: 'TEST assignment' });
+  const hold = () => f.user('supervisor').mutation(api.operations.placeHold, { equipmentId: f.equipment, reason: 'TEST hold' });
+  await hold();
+  const records = () => f.t.run(ctx => ctx.db.query('notifications').withIndex('by_recipient', q => q.eq('recipientId', f.tech)).collect());
+  expect((await records()).filter(n => n.targetKind === 'equipment')).toHaveLength(1);
+  await f.t.run(ctx => ctx.db.patch(f.tech, { capabilities: ['repair'] }));
+  await hold(); // Reporter permission changed, but the same account can still receive its assigned-task notice.
+  expect((await records()).filter(n => n.targetKind === 'equipment')).toHaveLength(2);
+  await f.t.run(ctx => ctx.db.patch(f.tech, { status: 'suspended' }));
+  await hold();
+  await f.t.run(ctx => ctx.db.patch(f.tech, { status: 'approved', departmentId: f.b, scope: [f.b] }));
+  await hold();
+  expect((await records()).filter(n => n.targetKind === 'equipment')).toHaveLength(2);
+  await expect(f.user('tech').query(api.workflows.equipmentDetail, { id: f.equipment })).rejects.toThrow();
+});
+
 test('inbox filters paginate matching notices and preserve recipient and department isolation', async () => {
   const f = await setup();
   const unread = await f.t.run(async (ctx) => {

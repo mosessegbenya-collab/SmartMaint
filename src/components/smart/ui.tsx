@@ -11,6 +11,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
   type TextInputProps,
   type TextProps,
   type ViewStyle,
@@ -680,15 +681,18 @@ export function Detail({
   label: string;
   value: React.ReactNode;
 }) {
+  const { width, fontScale } = useWindowDimensions();
+  const { preferences } = useApp();
+  const stacked = width < 360 || fontScale * (preferences.largeText ? 1.18 : 1) >= 1.5;
   return (
-    <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
-      <Txt size={12} muted style={{ flex: 1 }}>
+    <View style={{ flexDirection: stacked ? 'column' : 'row', gap: stacked ? 4 : 10, justifyContent: "space-between", alignItems: "flex-start" }}>
+      <Txt size={12} muted style={stacked ? { alignSelf: 'stretch' } : { flex: 1 }}>
         {label}
       </Txt>
-      <Txt size={12} weight="500" style={{ flex: 1.3 }}>
+      <Txt size={12} weight="500" style={stacked ? { alignSelf: 'stretch' } : { flex: 1.3 }}>
         {value}
       </Txt>
-    </Row>
+    </View>
   );
 }
 const styles = StyleSheet.create({

@@ -1,3 +1,4 @@
+import { InventoryIdentityBadge } from '@/components/smart/inventory-identity';
 import { useState } from "react";
 import { View } from 'react-native';
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
@@ -71,7 +72,7 @@ function VerifierChoices({ id, kind, revision }: { id: GenericId<"maintenanceTas
 export function ReleaseScreen({ id, overview = false }: { id: string; overview?: boolean }) {
   const equipment = useQuery(staffApi.workflows.equipmentDetail, { id: id as GenericId<"equipment"> });
   return <Screen title={overview ? "Equipment Availability" : "Equipment Release Checklist"} subtitle={overview ? "Review current restrictions before using this equipment." : "Review current prerequisites for an authorized return-to-service decision."}>
-    {equipment && <Card style={{ gap: 7 }}><Txt size={23} weight="800">{equipment.assetId}</Txt><Txt size={17}>{equipment.name}</Txt><Txt muted>{equipment.location}</Txt><Badge label={equipment.identityVerified ? "Inventory identity verified" : "Unverified inventory identity"} tone={equipment.identityVerified ? "info" : "warning"} /></Card>}
+    {equipment && <Card style={{ gap: 7 }}><Txt size={23} weight="800">{equipment.assetId}</Txt><Txt size={17}>{equipment.name}</Txt><Txt muted>{equipment.location}</Txt><InventoryIdentityBadge verified={equipment.identityVerified} /></Card>}
     <ReleaseControls id={id} />
     <LinkRow title="Active safety holds" detail="Review restrictions and authorized resolutions" icon="lock-closed-outline" onPress={() => go("holds", id)} />
     <LinkRow title="Equipment status timeline" icon="time-outline" onPress={() => go("status-timeline", id)} />

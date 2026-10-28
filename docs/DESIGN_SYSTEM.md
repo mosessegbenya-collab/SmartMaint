@@ -16,6 +16,16 @@ The [queue-loading continuation](QUEUE_LOADING_INTEGRATION.md) prevents partial 
 
 The [event chronology continuation](EVENT_CHRONOLOGY_INTEGRATION.md) distinguishes record creation, actual submission, immutable repair completion and administrative closure, while disclosing unknown historical times.
 
+The [preventive activity continuation](PREVENTIVE_ACTIVITY_INTEGRATION.md) separates pause/resume from date editing, preserves overdue obligations and aligns paused status with backend activity.
+
+The [schedule review continuation](SCHEDULE_REVIEW_INTEGRATION.md) retains prepared date/justification across reactive changes and requires current revision review before task, date or activity actions.
+
+The [equipment notification continuation](EQUIPMENT_NOTICES_INTEGRATION.md) routes new equipment events to current equipment status and distinguishes recorded events and inbox read state from equipment clearance.
+
+The [welcome restoration continuation](WELCOME_RESTORATION_INTEGRATION.md) keeps the public fictional welcome visible during identity restoration, with inline recovery and unchanged protected-workspace gates.
+
+The [protected restoration continuation](SESSION_SURFACE_INTEGRATION.md) uses a themed, branded and scrollable session gate with readable system bars and reachable recovery on compact large-text screens.
+
 ## Product objective
 
 Help CCTH staff identify equipment, report faults, coordinate evidence-based maintenance, and distinguish completed repairs from independently verified equipment that has an authorized return-to-service decision. The approved `Design/` references remain the visual target. The existing development demo remains fictional and cannot enable clinical verification or release.

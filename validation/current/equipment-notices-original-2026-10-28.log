@@ -1,0 +1,104 @@
+
+ RUN  v3.2.4 C:/Users/Edem Segbenya/Desktop/SmartMaint/SmartMaint
+
+ ❯ tests/backend/corrective.test.ts (47 tests | 1 failed | 46 skipped) 238ms
+   ↓ continuation: notification preferences persist per owner and reject stale revisions
+   ↓ maintenance status never presents repair completion or cancellation as equipment clearance
+   ↓ recorded work accepts the assignment and permits parts pause without losing evidence
+   ↓ reassigned in-progress work clears the former justification and can be accepted by its new technician
+   ↓ continuation: waiting for parts blocks stale clients from work and closure never bypasses unapproved safety
+   ↓ work recording rejects a stale reviewed workflow even after parts pause and resume restore the same phase
+   ↓ continuation: paginated export reaches all 125 submitted reports and inventory edit preserves identity and scope
+   ↓ continuation: inventory imports are atomic, idempotent, scoped and never verify identity
+   ↓ management metrics exclude private drafts and reauthorize every page beyond 100 records
+   ↓ administrative updates cannot inflate recorded repair duration and legacy times are left unknown
+   ↓ continuation: overdue notices deduplicate repeated sweeps and due/cancel events remain recipient scoped
+   ↓ review 4: interrupted fifth publication reconciles a real saved report (server committed: false)
+   ↓ review 4: interrupted fifth publication reconciles a real saved report (server committed: true)
+   ↓ an uncertain draft update retries the identical snapshot without another revision or report
+   × equipment safety notices populate the equipment filter and link directly to current equipment 236ms
+     → expected [] to have a length of 1 but got +0
+   ↓ inbox filters paginate matching notices and preserve recipient and department isolation
+   ↓ task filters apply before pagination and overdue excludes completed and cancelled work
+   ↓ equipment name, model and exact identifier searches remain department scoped
+   ↓ diagnostic evidence and cause are revisioned, retained by older clients and require supporting evidence for confirmation
+   ↓ every new public query/mutation authenticates before reading protected records
+   ↓ report filters use triaged priority, retain legacy submissions and never expose another owner's draft
+   ↓ verifier queues exclude own and unfinished work; equipment history returns scoped summaries without work notes
+   ↓ pagination reaches equipment beyond 100 and details do not depend on list position
+   ↓ own reports remain discoverable after 100 newer reports belonging to another account
+   ↓ inventory registration is scoped, administrator-only, duplicate-safe and audited
+   ↓ provisional submissions are idempotent and never create verified inventory
+   ↓ work revisions preserve prior content and assignment inbox entries are recipient-only
+   ↓ private drafts survive reload, detect conflicts and publish once without early workflow entry
+   ↓ a different field revision published by another session cannot acknowledge the older reviewed attempt
+   ↓ a changed photo revision cannot acknowledge the older reviewed attachment snapshot
+   ↓ equipment photos require authenticated report ownership, validate content and never return public URLs
+   ↓ oversized/unsupported photos and revoked sessions cannot create attachments
+   ↓ safety decisions remain disabled without policy and repair completion never releases equipment
+   ↓ independent ordered verification and authorized release are atomic, idempotent and invalidated by new holds/faults
+   ↓ failed verification creates one linked rework and never overwrites the completed repair or failed decision
+   ↓ operational notices stay recipient-scoped, reflect rework/holds and do not claim external delivery
+   ↓ verification requests require approved policy, current repair and independent scoped recipients and deduplicate retries
+   ↓ publication requires the reviewed photo revision and submitted evidence cannot be mutated
+   ↓ preventive activity can pause and resume overdue work without moving its due date
+   ↓ preventive activity rejects unauthorized, stale and unjustified changes atomically
+   ↓ preventive schedules enforce scoped supervisor authority and occurrence generation is duplicate-safe
+   ↓ management overview counts only scoped operational records and excludes private drafts
+   ↓ report exports enforce scope, effective priority and chronological dates before generating CSV
+   ↓ equipment status orders real events while keeping drafts and other reporters private
+   ↓ publication records submission separately from draft creation and preserves it on an exact retry
+   ↓ direct publication records its own time, rejects a saved draft and does not fabricate older missing times
+   ↓ equipment history uses authored completion time rather than later administrative update time
+ ↓ tests/backend/account-email.test.ts (17 tests | 17 skipped)
+ ↓ tests/backend/client-access.test.ts (13 tests | 13 skipped)
+ ↓ tests/backend/continuation-domain.test.ts (3 tests | 3 skipped)
+ ↓ tests/backend/development-demo.test.ts (10 tests | 10 skipped)
+ ↓ tests/backend/draft-lifecycle.test.ts (8 tests | 8 skipped)
+ ↓ tests/backend/event-chronology.test.ts (3 tests | 3 skipped)
+ ↓ tests/backend/evidence-storage.test.ts (4 tests | 4 skipped)
+ ↓ tests/backend/identity-diagnostic-route.test.ts (3 tests | 3 skipped)
+ ↓ tests/backend/identity-diagnostics.test.ts (5 tests | 5 skipped)
+ ↓ tests/backend/management-metrics.test.ts (6 tests | 6 skipped)
+ ↓ tests/backend/password-reset.test.ts (3 tests | 3 skipped)
+ ↓ tests/backend/photo-validation.test.ts (1 test | 1 skipped)
+ ↓ tests/backend/preventive-status.test.ts (1 test | 1 skipped)
+ ↓ tests/backend/publication-coordinator.test.ts (24 tests | 24 skipped)
+ ↓ tests/backend/publication-queue-loader.test.ts (4 tests | 4 skipped)
+ ↓ tests/backend/recovery-capacity.test.ts (2 tests | 2 skipped)
+ ↓ tests/backend/report-queue.test.ts (6 tests | 6 skipped)
+ ↓ tests/backend/report-recovery.test.ts (17 tests | 17 skipped)
+ ↓ tests/backend/review-safety.test.ts (8 tests | 8 skipped)
+ ↓ tests/backend/schedule-editor.test.ts (3 tests | 3 skipped)
+ ↓ tests/backend/sso-callback.test.ts (6 tests | 6 skipped)
+ ↓ tests/backend/staff.test.ts (30 tests | 30 skipped)
+ ↓ tests/backend/unapproved-access-check.test.ts (3 tests | 3 skipped)
+ ↓ tests/backend/work-editor.test.ts (3 tests | 3 skipped)
+
+ Test Files  1 failed | 24 skipped (25)
+      Tests  1 failed | 229 skipped (230)
+   Start at  13:15:18
+   Duration  11.39s (transform 958ms, setup 0ms, collect 2.23s, tests 238ms, environment 1.20s, prepare 2.81s)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/backend/corrective.test.ts > equipment safety notices populate the equipment filter and link directly to current equipment
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/backend/corrective.test.ts:226:23
+    224|   for (const user of ['reporter', 'tech']) {
+    225|     const page = await f.user(user).query(api.workflows.inbox, args);
+    226|     expect(page.page).toHaveLength(1);
+       |                       ^
+    227|     expect(page.page[0]).toMatchObject({ title: 'Equipment safety hold…
+    228|     expect(await f.user(user).query(api.workflows.equipmentDetail, { i…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

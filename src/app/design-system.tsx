@@ -7,6 +7,9 @@ import { ConfirmationPreview } from "@/features/design-system/confirmation-previ
 import { QueueLoadingPreview } from "@/features/design-system/queue-loading-preview";
 import { ChronologyPreview } from "@/features/design-system/chronology-preview";
 import { PreventivePreview } from "@/features/design-system/preventive-preview";
+import { ScheduleReviewPreview } from "@/features/design-system/schedule-review-preview";
+import { NotificationPreview } from "@/features/design-system/notification-preview";
+import { InventoryIdentityPreview } from "@/features/design-system/inventory-identity-preview";
 
 export default function DesignSystemRoute() {
   const { example } = useLocalSearchParams<{ example?: string }>();
@@ -18,5 +21,8 @@ export default function DesignSystemRoute() {
   if (example === "queue-loading") return <QueueLoadingPreview />;
   if (example === "chronology") return <ChronologyPreview />;
   if (example === "preventive") return <PreventivePreview />;
+  if (example === "schedule-review") return <ScheduleReviewPreview />;
+  if (example === "notification") return <NotificationPreview />;
+  if (example === "identity") return <InventoryIdentityPreview />;
   return <DesignSystemCatalog />;
 }

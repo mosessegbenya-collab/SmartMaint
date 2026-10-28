@@ -121,11 +121,17 @@ export function WelcomeScreen() {
         <Txt size={20} muted lineHeight={21} style={{ marginHorizontal:8 }}>
           Identify equipment, report faults{"\n"}and track maintenance.
         </Txt>
+        {!identity.loaded && <View style={{ gap: 10 }}>
+          <Notice tone={identity.restoreTimedOut ? 'warning' : 'info'}>{identity.restoreTimedOut ? 'Sign-in services are taking longer than expected. The equipment shown here is fictional. Retry to continue to your account.' : 'Checking your saved sign-in. The equipment shown here is fictional; account actions will be available when this check finishes.'}</Notice>
+          {identity.restoreTimedOut && <Button label="Retry secure sign-in" variant="secondary" onPress={identity.retry} />}
+        </View>}
         {equipment.slice(0, 3).map((item) => (
           <Pressable
             key={item.id}
             accessibilityRole="button"
             accessibilityLabel={`Sign in to view ${item.id}`}
+            accessibilityState={{ disabled: !identity.loaded }}
+            disabled={!identity.loaded}
             onPress={() => router.push("/access/sign-in")}
           >
             <Card style={{ paddingVertical: 4, paddingHorizontal:8, borderRadius: 12 }}>
@@ -153,11 +159,13 @@ export function WelcomeScreen() {
         ))}
         <Button
           label="Get Started"
+          disabled={!identity.loaded}
           icon="arrow-forward"
           onPress={() => router.push("/access/register")}
         />
         <Button
           label="Staff Sign In"
+          disabled={!identity.loaded}
           variant="secondary"
           onPress={() => router.push("/access/sign-in")}
         />
