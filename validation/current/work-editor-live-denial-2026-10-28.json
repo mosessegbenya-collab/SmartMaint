@@ -1,0 +1,15 @@
+{
+  "target": "dev:greedy-bat-971",
+  "at": "2026-10-28T08:12:16.718Z",
+  "authenticated": false,
+  "checks": [
+    {
+      "check": "authorization",
+      "result": "PASS: denied as expected"
+    },
+    {
+      "check": "required workflow revision",
+      "result": "PASS: denied as expected"
+    }
+  ]
+}

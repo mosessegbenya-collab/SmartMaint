@@ -207,7 +207,7 @@ describe("revocation, role updates and record authorization", () => {
     const task = await f.supervisor.mutation(api.operations.createTask, { reportId: report, dueAt: Date.now() + 60000 });
     await expect(f.clinician.mutation(api.operations.assign, { id: task, expectedRevision: 1, assigneeId: f.technicianId, dueAt: Date.now() + 60000, reason: "Try bypass" })).rejects.toThrow();
     await f.supervisor.mutation(api.operations.assign, { id: task, expectedRevision: 1, assigneeId: f.technicianId, dueAt: Date.now() + 60000, reason: "TEST assignment" });
-    await f.technician.mutation(api.operations.recordWork, { id: task, expectedRevision: 2, diagnosis: "Test diagnosis", notes: "Test work", parts: [], complete: true });
+    await f.technician.mutation(api.operations.recordWork, { id: task, expectedRevision: 2, expectedWorkflowRevision: 1, diagnosis: "Test diagnosis", notes: "Test work", parts: [], complete: true });
     expect((await f.clinician.query(api.operations.availability, { equipmentId: f.equipment })).available).toBe(false);
     await expect(f.technician.mutation(api.operations.submitVerification, { id: task, kind: "technical" })).rejects.toThrow(/Independent/);
     await expect(f.clinician.mutation(api.operations.submitVerification, { id: task, kind: "clinical" })).rejects.toThrow(/not approved/);
@@ -282,7 +282,7 @@ test("all protected public functions reject direct unauthenticated calls before 
     ["mutation", "operations:triage", { id: report, priority: "High", reason: "Test" }], ["mutation", "operations:createTask", { reportId: report, dueAt: Date.now() + 60000 }],
     ["mutation", "operations:assign", { id: task, expectedRevision: 1, assigneeId: f.technicianId, dueAt: Date.now() + 60000, reason: "Test" }],
     ["mutation", "operations:changeDue", { id: task, expectedRevision: 1, dueAt: Date.now() + 60000, reason: "Test" }], ["mutation", "operations:cancelTask", { id: task, expectedRevision: 1, reason: "Test" }],
-    ["mutation", "operations:recordWork", { id: task, expectedRevision: 1, diagnosis: "Test", notes: "Test", parts: [], complete: true }],
+    ["mutation", "operations:recordWork", { id: task, expectedRevision: 1, expectedWorkflowRevision: 0, diagnosis: "Test", notes: "Test", parts: [], complete: true }],
     ["mutation", "operations:submitVerification", { id: task, kind: "technical" }], ["mutation", "operations:placeHold", { equipmentId: f.equipment, reason: "Test" }],
     ["mutation", "operations:clearHold", { id: hold }], ["mutation", "operations:reconcile", { equipmentId: f.equipment }],
   ];

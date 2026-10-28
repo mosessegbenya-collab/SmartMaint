@@ -2,6 +2,7 @@ export const palette = {
   light: {
     background: "#F2F8FF",
     card: "rgba(255,255,255,0.88)",
+    dialog: "#FFFFFF",
     text: "#10254D",
     secondary: "#566C8D",
     border: "#DCE8F4",
@@ -10,6 +11,7 @@ export const palette = {
   dark: {
     background: "#0C172A",
     card: "#16253B",
+    dialog: "#16253B",
     text: "#F1F7FF",
     secondary: "#B4C5DB",
     border: "#344761",

@@ -26,6 +26,8 @@ export function DesignSystemCatalog() {
     <Notice>Development reference. Sample actions update this screen only.</Notice>
     <Button label="Preview management analytics" variant="secondary" icon="stats-chart-outline" onPress={() => router.push("/design-system?example=management")} />
     <Button label="Preview report recovery" variant="secondary" icon="documents-outline" onPress={() => router.push("/design-system?example=recovery")} />
+    <Button label="Preview work revision review" variant="secondary" icon="construct-outline" onPress={() => router.push("/design-system?example=work")} />
+    <Button label="Preview confirmations" variant="secondary" icon="checkmark-circle-outline" onPress={() => router.push("/design-system?example=confirmation")} />
     <Section title="Appearance and accessibility">
       <Choices label="Theme" values={["system", "light", "dark"]} value={app.preferences.theme} onChange={(theme) => app.setPreferences((prior) => ({ ...prior, theme }))} />
       <SettingToggle title="Larger text" detail="Inspect wrapping and control heights" icon="text-outline" value={app.preferences.largeText} onChange={(largeText) => app.setPreferences((prior) => ({ ...prior, largeText }))} />

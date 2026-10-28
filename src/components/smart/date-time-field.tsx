@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Modal, Pressable, View } from "react-native";
+import { Keyboard, Modal, Pressable, View, useWindowDimensions } from "react-native";
 import {
   Button,
-  Card,
+  DialogSurface,
   Icon,
   IconButton,
   Row,
@@ -25,6 +25,8 @@ export function DateTimeField({
   disabled?: boolean;
 }) {
   const p = usePalette();
+  const { width, fontScale } = useWindowDimensions();
+  const useDayList = Math.min(width - 32, 430) - 32 < 7 * 48 || fontScale >= 1.5;
   const initial = Number.isFinite(Date.parse(value))
     ? new Date(value)
     : new Date();
@@ -51,6 +53,7 @@ export function DateTimeField({
         ),
     );
   const show = () => {
+    Keyboard.dismiss();
     const current = Number.isFinite(Date.parse(value))
       ? new Date(value)
       : new Date();
@@ -92,23 +95,8 @@ export function DateTimeField({
         animationType="none"
         onRequestClose={() => setOpen(false)}
       >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(8,20,40,0.35)",
-            justifyContent: "center",
-            padding: 16,
-          }}
-        >
-          <Card
-            style={{
-              gap: 12,
-              maxWidth: 430,
-              width: "100%",
-              alignSelf: "center",
-            }}
-          >
-            <Txt size={19} weight="700">
+        <DialogSurface style={{ maxWidth: 430 }}>
+            <Txt size={19} weight="700" accessibilityRole="header">
               {label}
             </Txt>
             <Row style={{ justifyContent: "space-between" }}>
@@ -121,7 +109,7 @@ export function DateTimeField({
                   )
                 }
               />
-              <Txt weight="600">
+              <Txt weight="600" style={{ flex: 1, textAlign: "center" }}>
                 {month.toLocaleDateString(undefined, {
                   month: "long",
                   year: "numeric",
@@ -137,7 +125,7 @@ export function DateTimeField({
                 }
               />
             </Row>
-            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            {useDayList ? <Select label="Day of month" values={Array.from({ length: count }, (_, i) => new Date(month.getFullYear(), month.getMonth(), i + 1).toDateString())} value={date.getMonth() === month.getMonth() && date.getFullYear() === month.getFullYear() ? date.toDateString() : ''} onChange={(value) => { const day = Array.from({ length: count }, (_, i) => i + 1).find(day => new Date(month.getFullYear(), month.getMonth(), day).toDateString() === value); if (day) choose(day); }} /> : <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
               {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
                 <View
                   key={day}
@@ -161,7 +149,7 @@ export function DateTimeField({
                 return day < 1 ? (
                   <View
                     key={`blank-${i}`}
-                    style={{ width: "14.285%", height: 44 }}
+                    style={{ width: "14.285%", height: 48 }}
                   />
                 ) : (
                   <Pressable
@@ -176,7 +164,7 @@ export function DateTimeField({
                     onPress={() => choose(day)}
                     style={{
                       width: "14.285%",
-                      minHeight: 44,
+                      minHeight: 48,
                       borderRadius: 22,
                       alignItems: "center",
                       justifyContent: "center",
@@ -187,7 +175,8 @@ export function DateTimeField({
                   </Pressable>
                 );
               })}
-            </View>
+            </View>}
+            <Txt muted>Selected date: {date.toLocaleDateString()}</Txt>
             <Row style={{ alignItems: "flex-start" }}>
               <View style={{ flex: 1 }}>
                 <Select
@@ -259,8 +248,7 @@ export function DateTimeField({
               variant="secondary"
               onPress={() => setOpen(false)}
             />
-          </Card>
-        </View>
+        </DialogSurface>
       </Modal>
     </View>
   );

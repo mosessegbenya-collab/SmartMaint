@@ -6,6 +6,10 @@ Management continuation: [complete analytics and guarded CSV delivery](docs/MANA
 
 Report recovery continuation (28 October 2026): [draft lifecycle, complete conflict comparison and revision-bound receipts](docs/REPORT_RECOVERY_INTEGRATION.md), with [automated and Android validation evidence](validation/current/REPORT_RECOVERY_INTEGRATION_2026-10-28.md). Preview the shared components at `/design-system?example=recovery` during development.
 
+Work editor continuation: [preserved local findings and work/workflow revision review](docs/WORK_EDITOR_INTEGRATION.md), with [validation evidence](validation/current/WORK_EDITOR_INTEGRATION_2026-10-28.md). Preview the comparison at `/design-system?example=work` in development.
+
+Shared dialog continuation: [scrollable confirmations, selectors and adaptive date selection](docs/DIALOGS_INTEGRATION.md), with [200% system-text and short-screen evidence](validation/current/DIALOGS_INTEGRATION_2026-10-28.md). Preview at `/design-system?example=confirmation` in development.
+
 Latest continuation: [fresh implementation and acceptance evidence](validation/current/FINAL_ACCEPTANCE_PASS.md), [73-reference checklist](validation/current/CHECKLIST.md), [prepared native procedure](docs/NATIVE_ACCEPTANCE_PROCEDURE.md) and [live integration prerequisites/commands](docs/LIVE_INTEGRATION_ACCEPTANCE.md). Native synthetic coverage is separate from exact-state and live acceptance.
 
 Current corrective checkpoint: [acceptance status](SMARTMAINT_FINAL_ACCEPTANCE_REPORT.md), [73-reference matrix](SMARTMAINT_73_SCREEN_MATRIX.md), [remaining issues](SMARTMAINT_REMAINING_ISSUES.md). Backend/source implementation and live/native acceptance are tracked separately. For SDK57 in-place native regeneration, use `npx expo prebuild --platform android --no-clean --no-install`; this SDK recreates native folders by default. Do not clear generated projects while builds or IDE imports hold them open.

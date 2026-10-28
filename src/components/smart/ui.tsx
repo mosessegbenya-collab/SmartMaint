@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -14,7 +15,7 @@ import {
   type TextProps,
   type ViewStyle,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, usePathname, useLocalSearchParams } from "expo-router";
 import { tabItems } from '@/navigation/tabs';
@@ -206,7 +207,7 @@ export function Screen({
     >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.frame}>
           {header ?? <Brand back={back} />}
@@ -252,6 +253,17 @@ function FlowNavigation({ view }: { view: string }) {
   const selected = ['settings', 'notification-settings', 'appearance', 'text-contrast', 'privacy', 'account-security', 'help', 'sync', 'queue', 'upload-failed', 'conflict'].includes(view) ? 'profile' : ['audit', 'staff-audit', 'role', 'staff-role', 'suspend'].includes(view) ? 'accounts' : ['report-detail', 'triage', 'analytics', 'live-analytics', 'export', 'live-export'].includes(view) ? 'reports' : ['equipment-detail', 'live-equipment', 'holds', 'hold-detail', 'status-timeline', 'equipment-history'].includes(view) ? 'equipment' : 'tasks';
   return <View accessibilityRole="tablist" style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: p.border, backgroundColor: p.card, paddingTop: 7, paddingBottom: 5 }}>{tabItems(account).map((tab) => <Pressable key={tab.name} accessibilityRole="tab" accessibilityLabel={tab.label} accessibilityState={{ selected: selected === tab.name }} onPress={() => router.replace(`/workspace/${tab.name}`)} style={{ flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 4 }}><Icon name={tab.icon} size={25} color={selected === tab.name ? tokens.blue : p.secondary} /><Txt size={10} color={selected === tab.name ? tokens.blue : p.secondary} weight={selected === tab.name ? '700' : '400'}>{tab.label}</Txt></Pressable>)}</View>;
 }
+export function DialogSurface({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
+  const p = usePalette();
+  return <SafeAreaProvider style={{ flex: 1 }}>
+    <SafeAreaView accessibilityViewIsModal style={{ flex: 1, backgroundColor: "#07172E99" }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: spacing.lg }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" bounces={false}>
+        <Card style={{ width: "100%", maxWidth: layout.contentWidth, alignSelf: "center", flexShrink: 0, gap: spacing.lg, backgroundColor: p.dialog, ...style }}>{children}</Card>
+      </ScrollView>
+    </SafeAreaView>
+  </SafeAreaProvider>;
+}
+
 export function Card({
   children,
   style,
@@ -433,7 +445,7 @@ export function Select<T extends string>({
         accessibilityLabel={`${label}: ${value || "Select an option"}`}
         accessibilityState={{ expanded: open, disabled }}
         disabled={disabled}
-        onPress={() => setOpen(true)}
+        onPress={() => { Keyboard.dismiss(); setOpen(true); }}
         style={{
           minHeight: insetLabel ? 56 : layout.touchTarget,
           borderRadius: radii.control,
@@ -456,20 +468,11 @@ export function Select<T extends string>({
         animationType="none"
         onRequestClose={() => setOpen(false)}
       >
-        <View
-          accessibilityViewIsModal
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(8,20,40,0.35)",
-            justifyContent: "center",
-            padding: 24,
-          }}
-        >
-          <Card style={{ maxHeight: "80%", gap: 12 }}>
-            <Txt size={18} weight="700">
+        <DialogSurface>
+            <Txt size={18} weight="700" accessibilityRole="header">
               {label}
             </Txt>
-            <ScrollView>
+            <View>
               {values.map((option) => (
                 <Pressable
                   key={option}
@@ -499,14 +502,13 @@ export function Select<T extends string>({
                   </Row>
                 </Pressable>
               ))}
-            </ScrollView>
+            </View>
             <Button
               label="Cancel"
               variant="secondary"
               onPress={() => setOpen(false)}
             />
-          </Card>
-        </View>
+        </DialogSurface>
       </Modal>
     </View>
   );

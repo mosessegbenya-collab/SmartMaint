@@ -50,7 +50,7 @@ test("review 1: a failed chain clears only after its linked rework and every unr
   const f = await setup(); const failed = await f.task(1); await f.verify(failed, "fail");
   const child = (await f.t.run((ctx) => ctx.db.query("maintenanceTasks").withIndex("by_parent", (q) => q.eq("parentTaskId", failed)).collect()))[0];
   await f.user("S").mutation(api.operations.assign, { id: child._id, expectedRevision: 1, assigneeId: f.b, dueAt: Date.now() + 100000, reason: "TEST rework" });
-  await f.user("B").mutation(api.operations.recordWork, { id: child._id, expectedRevision: 2, diagnosis: "TEST rework", notes: "", parts: [], complete: true });
+  await f.user("B").mutation(api.operations.recordWork, { id: child._id, expectedRevision: 2, expectedWorkflowRevision: 1, diagnosis: "TEST rework", notes: "", parts: [], complete: true });
   const unrelated = await f.task(Date.now() + 1); await f.verify(unrelated);
   expect((await f.status()).eligible).toBe(false);
   await f.verify(child._id);
@@ -63,9 +63,9 @@ test("review 2: previous contributor A cannot verify after B completes; independ
   const f = await setup(); const task = await f.task();
   await f.t.run((ctx) => ctx.db.patch(task, { state: "Assigned", revision: 1 }));
   const work = { id: task, diagnosis: "TEST", notes: "TEST", parts: [], complete: false };
-  await f.user("A").mutation(api.operations.recordWork, { ...work, expectedRevision: 1 });
+  await f.user("A").mutation(api.operations.recordWork, { ...work, expectedRevision: 1, expectedWorkflowRevision: 0, });
   await f.user("S").mutation(api.operations.assign, { id: task, expectedRevision: 2, assigneeId: f.b, dueAt: Date.now() + 100000, reason: "TEST reassignment" });
-  await f.user("B").mutation(api.operations.recordWork, { ...work, expectedRevision: 3, complete: true });
+  await f.user("B").mutation(api.operations.recordWork, { ...work, expectedRevision: 3, expectedWorkflowRevision: 2, complete: true });
   await expect(f.verify(task, "pass", "A", 4)).rejects.toThrow(/independent/);
   const page = await f.user("S").query(api.safety.verifierPage, { taskId: task, kind: "technical", paginationOpts: { cursor: null, numItems: 20 } });
   expect(page.page.map((p) => p.id)).toEqual([f.c]);

@@ -6,6 +6,10 @@ The [management integration continuation](MANAGEMENT_INTEGRATION.md) connects th
 
 The [report recovery continuation](REPORT_RECOVERY_INTEGRATION.md) connects complete field comparison, device-draft cleanup and revision-bound submission receipts.
 
+The [work editor continuation](WORK_EDITOR_INTEGRATION.md) retains unsaved findings across incoming task changes and connects explicit comparison to backend work/workflow revision checks.
+
+The [shared dialog continuation](DIALOGS_INTEGRATION.md) fixes large-text error recovery, opaque modal surfaces and narrow-screen date selection across workflows.
+
 ## Product objective
 
 Help CCTH staff identify equipment, report faults, coordinate evidence-based maintenance, and distinguish completed repairs from independently verified equipment that has an authorized return-to-service decision. The approved `Design/` references remain the visual target. The existing development demo remains fictional and cannot enable clinical verification or release.

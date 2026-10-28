@@ -8,6 +8,8 @@ import { DateTimeField } from "@/components/smart/date-time-field";
 import { useApp } from "@/state/app-state";
 import { useCurrentTime } from "@/hooks/use-current-time";
 import { maintenanceStatus } from "@/domain/maintenance-workflow";
+import { workFields, workRevision } from "@/domain/work-editor";
+import { WorkRevisionReview } from "./work-revision-review";
 import { MaintenanceBadge, StatusPanel } from "@/components/smart/status-ui";
 import { AccountProfile } from "@/features/workspace/profile";
 import { ManagementAnalytics, ReportsExport } from "./management-screens";
@@ -76,7 +78,7 @@ function TaskList() {
 function TaskLoader({ id, view = 'task-detail' }: { id: string; view?: string }) {
   const task = useQuery(staffApi.workflows.taskDetail, { id: id as GenericId<"maintenanceTasks"> });
   if (!task) return <Screen title="Maintenance task"><Notice>Loading authorized task…</Notice></Screen>;
-  return <TaskForm key={`${task._id}:${task.revision}:${task.workflowRevision ?? 0}:${view}`} task={task} view={view} />;
+  return <TaskForm key={`${task._id}:${view}`} task={task} view={view} />;
 }
 function TaskForm({ task, view }: { task: FunctionReturnType<typeof staffApi.operations.tasks>[number]; view: string }) {
   const { account } = useStaffAccess();
@@ -84,13 +86,30 @@ function TaskForm({ task, view }: { task: FunctionReturnType<typeof staffApi.ope
   const [tab, setTab] = useState<'Details' | 'Activity'>('Details');
   const [newPart, setNewPart] = useState('');
   const save = useMutation(staffApi.operations.recordWork);
+  const [reviewed, setReviewed] = useState(task);
+  const [savingWork, setSavingWork] = useState(false);
   const [diagnosis, setDiagnosis] = useState(task.diagnosis); const [notes, setNotes] = useState(task.notes); const [parts, setParts] = useState(task.parts.join(", "));
   const [diagnosisEvidence, setDiagnosisEvidence] = useState(task.diagnosisEvidence ?? '');
   const [cause, setCause] = useState(task.causeAssessment ?? 'Under investigation (unconfirmed)');
   const [preventiveResults, setPreventiveResults] = useState(task.preventiveResults ?? task.preventiveChecklist?.map((label) => ({ label, passed: false })));
   const terminal = ["Completed", "Cancelled"].includes(task.state);
   const canRepair = account?.capabilities.includes("repair") && task.assigneeId === account.id && !terminal && task.workflowPhase !== "awaiting_parts";
-  const saveWork = (complete: boolean) => save({ id: task._id, expectedRevision: task.revision, diagnosis, diagnosisEvidence, causeAssessment: cause, notes, parts: parts.split(',').map((p) => p.trim()).filter(Boolean), complete, preventiveResults });
+  const changed = workRevision(reviewed) !== workRevision(task);
+  const editing = !['task-detail', 'rework', 'live-task', 'maintenance-history', 'assignment', 'due-date', 'cancellation'].includes(view);
+  const localWork = { diagnosis, diagnosisEvidence, causeAssessment: cause, notes, parts, preventiveResults };
+  const loadCurrentWork = () => {
+    const fields = workFields(task);
+    setDiagnosis(fields.diagnosis); setDiagnosisEvidence(fields.diagnosisEvidence); setCause(fields.causeAssessment);
+    setNotes(fields.notes); setParts(fields.parts); setPreventiveResults(fields.preventiveResults); setNewPart(''); setReviewed(task);
+  };
+  const saveWork = async (complete: boolean) => {
+    if (changed || savingWork || !canRepair) throw Error('Review the current work order before recording these details. Your unsaved details remain on this screen.');
+    if (newPart.trim()) throw Error('Add or clear the pending part before recording work.');
+    setSavingWork(true);
+    try { const receipt = await save({ id: task._id, expectedRevision: reviewed.revision, expectedWorkflowRevision: reviewed.workflowRevision ?? 0, diagnosis, diagnosisEvidence, causeAssessment: cause, notes, parts: parts.split(',').map((p) => p.trim()).filter(Boolean), complete, preventiveResults }); setReviewed(prior => ({ ...prior, revision: receipt.revision, workflowRevision: receipt.workflowRevision })); }
+    finally { setSavingWork(false); }
+  };
+  const workReview = editing && changed ? <WorkRevisionReview reviewed={reviewed} current={task} local={localWork} canRepair={!!canRepair} busy={savingWork} keepLocal={() => setReviewed(task)} loadServer={loadCurrentWork} /> : null;
   const summary = <Card style={{ gap: 10 }}><Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}><View style={{ flex: 1, minWidth: 180 }}><Txt muted size={13}>Work Order</Txt><Txt size={23} weight="800">{task._id}</Txt></View><MaintenanceBadge task={task} /></Row><Txt size={18} weight="600">{equipment?.name ?? 'Loading equipment…'}</Txt><Txt muted>{equipment?.assetId}</Txt><Txt muted>{equipment?.location}</Txt>{task.parentTaskId && <Badge label="Follow-up rework" tone="danger" />}<MaintenanceFlow task={task} /></Card>;
   if (['task-detail', 'rework', 'live-task'].includes(view)) return <Screen title={view === 'rework' ? 'Follow-up Rework' : 'Maintenance Task Details'} subtitle={view === 'rework' ? 'Review the work linked to a previous maintenance cycle.' : 'Review the fault, assigned work and recorded activity.'}>
     {summary}
@@ -107,18 +126,18 @@ function TaskForm({ task, view }: { task: FunctionReturnType<typeof staffApi.ope
   if (view === 'maintenance-history') return <Screen title="Repair Timeline">{summary}<WorkHistory id={task._id} /><Button label="View task" onPress={() => go('task-detail', task._id)} /></Screen>;
   if (view === 'completion') return <Screen>
     <StatusPanel title={task.state === "Completed" ? maintenanceStatus(task).label : "Complete maintenance repair"} detail={task.state === "Completed" ? "Maintenance is recorded. Equipment remains subject to independent verification and a current return-to-service decision." : "Review the recorded diagnosis, repair notes and parts before completing this task."} icon={task.state === "Completed" ? "checkmark-circle" : "time-outline"} tone={maintenanceStatus(task).tone} />
-    {summary}<Card style={{ gap: 10 }}><TaskText label="Diagnosis" value={task.diagnosis} /><TaskText label="Repair notes" value={task.notes} /><TaskText label="Parts used" value={task.parts.join(', ')} /></Card>
+    {summary}{workReview}<Card style={{ gap: 10 }}><TaskText label="Diagnosis" value={task.diagnosis} /><TaskText label="Repair notes" value={task.notes} /><TaskText label="Parts used" value={task.parts.join(', ')} /></Card>
     <Notice tone="warning">Repair completion does not release this equipment. Review the current equipment record for release status and required independent checks.</Notice>
-    {canRepair && <ConfirmAction label="Complete maintenance" title="Complete this repair?" detail="Completion is retained in history and does not release the equipment." disabled={!diagnosis.trim() || !notes.trim()} onConfirm={() => saveWork(true)} />}
+    {canRepair && <ConfirmAction key={`complete:${workRevision(task)}`} label="Complete maintenance" title="Complete this repair?" detail="Completion is retained in history and does not release the equipment." disabled={changed || savingWork || !diagnosis.trim() || !notes.trim()} onConfirm={() => saveWork(true)} />}
     {task.state === 'Completed' && <VerificationActions id={task._id} assignee={task.assigneeId} />}<Button label="View equipment status" variant="secondary" onPress={() => go('live-equipment', task.equipmentId)} />
   </Screen>;
-  return <Screen title={view === 'diagnosis' ? 'Diagnosis and Findings' : view === 'parts' ? 'Repair Notes and Parts' : 'Work Progress'} subtitle={view === 'diagnosis' ? 'Record the observed fault and initial assessment.' : undefined}>{summary}
+  return <Screen title={view === 'diagnosis' ? 'Diagnosis and Findings' : view === 'parts' ? 'Repair Notes and Parts' : 'Work Progress'} subtitle={view === 'diagnosis' ? 'Record the observed fault and initial assessment.' : undefined}>{summary}{workReview}
     {canRepair ? <>
-      {task.preventiveChecklist && <Card style={{ gap: 8 }}><Txt weight="700">Scheduled maintenance checklist</Txt>{preventiveResults?.map((check, index) => <Choices key={check.label} label={check.label} values={["Not completed", "Completed"]} value={check.passed ? "Completed" : "Not completed"} onChange={(value) => setPreventiveResults((prior) => prior?.map((r, i) => i === index ? { ...r, passed: value === "Completed" } : r))} />)}</Card>}
-      {view === 'diagnosis' && <Card style={{ gap: 14 }}><Field label="Diagnosis" value={diagnosis} onChangeText={setDiagnosis} maxLength={2000} multiline style={{ minHeight: 110 }} /><Txt muted size={12}>{diagnosis.length} / 2000</Txt><Field label="Evidence" value={diagnosisEvidence} onChangeText={setDiagnosisEvidence} maxLength={2000} multiline style={{ minHeight: 100 }} /><Select label="Cause assessment" values={['Under investigation (unconfirmed)', 'Suspected cause', 'Confirmed by testing', 'Undetermined']} value={cause} onChange={setCause} /></Card>}
-      {view === 'parts' && <><Card style={{ gap: 12 }}><Txt size={21} weight="700">Parts Used</Txt><Txt muted>List the parts used to complete the repair.</Txt>{parts.split(',').map((p) => p.trim()).filter(Boolean).map((part, index, list) => <Row key={`${index}:${part}`}><Txt style={{ flex: 1 }}>{part}</Txt><Button label={`Remove part ${index + 1}`} variant="secondary" icon="trash-outline" onPress={() => setParts(list.filter((_, i) => i !== index).join(', '))} /></Row>)}<Field label="Part name / reference" value={newPart} onChangeText={setNewPart} maxLength={120} /><Button label="Add Part" variant="secondary" icon="add" disabled={!newPart.trim() || newPart.includes(',')} onPress={() => { setParts([parts, newPart.trim()].filter(Boolean).join(', ')); setNewPart(''); }} /></Card><Card style={{ gap: 12 }}><Txt size={21} weight="700">Repair Notes</Txt><Field label="Work performed" value={notes} onChangeText={setNotes} multiline maxLength={4000} style={{ minHeight: 125 }} /><Txt muted size={12}>{notes.length} / 4000</Txt></Card></>}
-      {!['diagnosis', 'parts'].includes(view) && <><TaskProgress state={task.state} diagnosis={task.diagnosis} notes={task.notes} /><Card style={{ gap: 10 }}><Txt size={20} weight="700">Current note</Txt><Field label="Work notes" value={notes} onChangeText={setNotes} multiline maxLength={4000} style={{ minHeight: 85 }} /></Card><LinkRow title="Diagnosis and findings" onPress={() => go('diagnosis', task._id)} /><LinkRow title="Repair notes and parts" onPress={() => go('parts', task._id)} /></>}
-      <ConfirmAction label={view === 'parts' ? 'Save and Continue' : view === 'diagnosis' ? 'Save Diagnosis' : 'Update Progress'} title="Record maintenance work?" detail="Your work will be recorded under your staff account. This does not release equipment." onConfirm={async () => { await saveWork(false); go(view === 'diagnosis' ? 'parts' : view === 'parts' ? 'completion' : 'task-detail', task._id); }} />
+      {task.preventiveChecklist && <Card style={{ gap: 8 }}><Txt weight="700">Scheduled maintenance checklist</Txt>{preventiveResults?.map((check, index) => <Choices disabled={savingWork} key={check.label} label={check.label} values={["Not completed", "Completed"]} value={check.passed ? "Completed" : "Not completed"} onChange={(value) => setPreventiveResults((prior) => prior?.map((r, i) => i === index ? { ...r, passed: value === "Completed" } : r))} />)}</Card>}
+      {view === 'diagnosis' && <Card style={{ gap: 14 }}><Field editable={!savingWork} label="Diagnosis" value={diagnosis} onChangeText={setDiagnosis} maxLength={2000} multiline style={{ minHeight: 110 }} /><Txt muted size={12}>{diagnosis.length} / 2000</Txt><Field editable={!savingWork} label="Evidence" value={diagnosisEvidence} onChangeText={setDiagnosisEvidence} maxLength={2000} multiline style={{ minHeight: 100 }} /><Select disabled={savingWork} label="Cause assessment" values={['Under investigation (unconfirmed)', 'Suspected cause', 'Confirmed by testing', 'Undetermined']} value={cause} onChange={setCause} /></Card>}
+      {view === 'parts' && <><Card style={{ gap: 12 }}><Txt size={21} weight="700">Parts Used</Txt><Txt muted>List the parts used to complete the repair.</Txt>{parts.split(',').map((p) => p.trim()).filter(Boolean).map((part, index, list) => <Row key={`${index}:${part}`}><Txt style={{ flex: 1 }}>{part}</Txt><Button label={`Remove part ${index + 1}`} disabled={savingWork} variant="secondary" icon="trash-outline" onPress={() => setParts(list.filter((_, i) => i !== index).join(', '))} /></Row>)}<Field editable={!savingWork} label="Part name / reference" value={newPart} onChangeText={setNewPart} maxLength={120} /><Button label="Add Part" variant="secondary" icon="add" disabled={savingWork || !newPart.trim() || newPart.includes(',')} onPress={() => { setParts([parts, newPart.trim()].filter(Boolean).join(', ')); setNewPart(''); }} /></Card><Card style={{ gap: 12 }}><Txt size={21} weight="700">Repair Notes</Txt><Field editable={!savingWork} label="Work performed" value={notes} onChangeText={setNotes} multiline maxLength={4000} style={{ minHeight: 125 }} /><Txt muted size={12}>{notes.length} / 4000</Txt></Card></>}
+      {!['diagnosis', 'parts'].includes(view) && <><TaskProgress state={task.state} diagnosis={task.diagnosis} notes={task.notes} /><Card style={{ gap: 10 }}><Txt size={20} weight="700">Current note</Txt><Field editable={!savingWork} label="Work notes" value={notes} onChangeText={setNotes} multiline maxLength={4000} style={{ minHeight: 85 }} /></Card><LinkRow title="Diagnosis and findings" onPress={() => go('diagnosis', task._id)} /><LinkRow title="Repair notes and parts" onPress={() => go('parts', task._id)} /></>}
+      <ConfirmAction key={`work:${workRevision(task)}`} label={view === 'parts' ? 'Save and Continue' : view === 'diagnosis' ? 'Save Diagnosis' : 'Update Progress'} title="Record maintenance work?" detail="Your work will be recorded under your staff account. This does not release equipment." disabled={changed || savingWork || !!newPart.trim()} onConfirm={async () => { await saveWork(false); go(view === 'diagnosis' ? 'parts' : view === 'parts' ? 'completion' : 'task-detail', task._id); }} />
     </> : <Card style={{ gap: 8 }}><Detail label="Diagnosis" value={task.diagnosis || "Not recorded"} /><Detail label="Notes" value={task.notes || "Not recorded"} /></Card>}
     {task.state === "Completed" && <VerificationActions id={task._id} assignee={task.assigneeId} />}
     <Notice>Completing repair does not release equipment. Current independent checks and an approved institutional policy are required.</Notice>
@@ -135,12 +154,15 @@ function TaskAssignment({ task, focus }: { task: FunctionReturnType<typeof staff
   const changeDue = useMutation(staffApi.operations.changeDue);
   const cancel = useMutation(staffApi.operations.cancelTask);
   const [selected, setSelected] = useState(task.assigneeId ?? "");
+  const [reviewed, setReviewed] = useState(task);
+  const changed = workRevision(reviewed) !== workRevision(task);
   const [due, setDue] = useState(new Date(task.dueAt).toISOString());
   const [reason, setReason] = useState("");
   const technician = technicians?.find((candidate) => candidate.id === selected);
   const validDue = Number.isFinite(Date.parse(due)) && Date.parse(due) > now;
   const backToTask = () => go("task-detail", task._id);
   return <Section title={focus === "assignment" ? "Select Technician" : focus === "due-date" ? "Maintenance Schedule" : "Cancellation Reason"}>
+    {changed && <Card style={{ gap: 12 }}><Notice tone="warning">This task changed while you were preparing the action. Your selection and justification remain here. Review the current task before continuing.</Notice><Detail label="Current assignee" value={task.assigneeId ?? 'Unassigned'} /><Detail label="Current due date" value={new Date(task.dueAt).toLocaleString()} /><ConfirmAction key={workRevision(task)} label="Review current task revision" title="Use this current task revision?" detail="Your prepared action and justification remain. Review the current assignment, due date and workflow shown above before confirming your action." onConfirm={async () => setReviewed(task)} /></Card>}
     {focus === "assignment" && <>
       <Txt muted>Choose an approved technician authorized to repair equipment in this department.</Txt>
       {technicians === undefined && <Notice>Loading eligible technicians?</Notice>}
@@ -152,9 +174,9 @@ function TaskAssignment({ task, focus }: { task: FunctionReturnType<typeof staff
     {focus !== "cancellation" && <DateTimeField label="New due date" value={due} onChange={setDue} required />}
     {focus !== "cancellation" && !validDue && <Notice tone="warning">Choose a future due date before saving.</Notice>}
     <Field label="Justification" value={reason} onChangeText={setReason} maxLength={500} multiline style={{ minHeight: 95 }} />
-    {focus === "assignment" && <ConfirmAction label="Assign Technician" title="Confirm technician assignment?" detail={"Assign this maintenance work to " + (technician?.name ?? "the selected technician") + ". Department access and the due date are rechecked by the server."} disabled={!technician || !reason.trim() || !validDue} onConfirm={async () => { await assign({ id: task._id, expectedRevision: task.revision, assigneeId: technician!.id, dueAt: Date.parse(due), reason }); backToTask(); }} />}
-    {focus === "due-date" && <ConfirmAction label="Update Due Date" title="Change the maintenance due date?" detail="The previous date and administrative justification remain in the audit history." disabled={!reason.trim() || !validDue} onConfirm={async () => { await changeDue({ id: task._id, expectedRevision: task.revision, dueAt: Date.parse(due), reason }); backToTask(); }} />}
-    {focus === "cancellation" && <ConfirmAction label="Cancel Maintenance Task" title="Cancel this maintenance task?" detail="This ends the work order and records your reason. Equipment availability is evaluated separately." danger disabled={!reason.trim()} onConfirm={async () => { await cancel({ id: task._id, expectedRevision: task.revision, reason }); backToTask(); }} />}
+    {focus === "assignment" && <ConfirmAction key={workRevision(task)} label="Assign Technician" title="Confirm technician assignment?" detail={"Assign this maintenance work to " + (technician?.name ?? "the selected technician") + ". Department access and the due date are rechecked by the server."} disabled={changed || !technician || !reason.trim() || !validDue} onConfirm={async () => { await assign({ id: task._id, expectedRevision: reviewed.revision, assigneeId: technician!.id, dueAt: Date.parse(due), reason }); backToTask(); }} />}
+    {focus === "due-date" && <ConfirmAction key={workRevision(task)} label="Update Due Date" title="Change the maintenance due date?" detail="The previous date and administrative justification remain in the audit history." disabled={changed || !reason.trim() || !validDue} onConfirm={async () => { await changeDue({ id: task._id, expectedRevision: reviewed.revision, dueAt: Date.parse(due), reason }); backToTask(); }} />}
+    {focus === "cancellation" && <ConfirmAction key={workRevision(task)} label="Cancel Maintenance Task" title="Cancel this maintenance task?" detail="This ends the work order and records your reason. Equipment availability is evaluated separately." danger disabled={changed || !reason.trim()} onConfirm={async () => { await cancel({ id: task._id, expectedRevision: reviewed.revision, reason }); backToTask(); }} />}
   </Section>;
 }
 function TaskCreation({ id }: { id: string }) {

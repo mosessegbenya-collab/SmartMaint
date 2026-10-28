@@ -46,12 +46,12 @@ test('maintenance status never presents repair completion or cancellation as equ
 test('recorded work accepts the assignment and permits parts pause without losing evidence', async () => {
   const f = await setup();
   const id = await f.t.run(ctx => ctx.db.insert('maintenanceTasks', { equipmentId: f.equipment, departmentId: f.a, assigneeId: f.tech, state: 'Assigned', diagnosis: '', notes: '', parts: [], cycle: 1, revision: 1, dueAt: Date.now() + 10000, createdAt: 1, updatedAt: 1 }));
-  await f.user('tech').mutation(api.operations.recordWork, { id, expectedRevision: 1, diagnosis: 'Observed power fault', notes: 'Inspecting supply', parts: [], complete: false });
+  await f.user('tech').mutation(api.operations.recordWork, { id, expectedRevision: 1, expectedWorkflowRevision: 0, diagnosis: 'Observed power fault', notes: 'Inspecting supply', parts: [], complete: false });
   const started = (await f.t.run(ctx => ctx.db.get(id)))!;
   expect(started).toMatchObject({ state: 'In progress', workflowPhase: 'accepted', workflowRevision: 1, revision: 2 });
   const pause = { id, expectedRevision: 2, expectedWorkflowRevision: 1, action: 'await_parts' as const, reason: 'Replacement supply required' };
   await f.user('tech').mutation(api.extensions.transition, pause);
-  await expect(f.user('tech').mutation(api.operations.recordWork, { id, expectedRevision: 2, diagnosis: 'Lost update', notes: '', parts: [], complete: true })).rejects.toThrow(/parts/);
+  await expect(f.user('tech').mutation(api.operations.recordWork, { id, expectedRevision: 2, expectedWorkflowRevision: 2, diagnosis: 'Lost update', notes: '', parts: [], complete: true })).rejects.toThrow(/parts/);
   await f.user('supervisor').mutation(api.operations.cancelTask, { id, expectedRevision: 2, reason: 'Work order withdrawn' });
   await expect(f.user('tech').mutation(api.extensions.transition, { ...pause, expectedRevision: 3, expectedWorkflowRevision: 2, action: 'resume' })).rejects.toThrow(/state/);
   expect((await f.t.run(ctx => ctx.db.get(id)))?.diagnosis).toBe('Observed power fault');
@@ -81,13 +81,30 @@ test('continuation: waiting for parts blocks stale clients from work and closure
   await expect(f.user('verifier').mutation(api.extensions.transition, change)).rejects.toThrow(/assigned/);
   await f.user('tech').mutation(api.extensions.transition, change);
   await f.user('tech').mutation(api.extensions.transition, { ...change, expectedWorkflowRevision: 1, action: 'await_parts' });
-  await expect(f.user('tech').mutation(api.operations.recordWork, { id, expectedRevision: 1, diagnosis: 'Test', notes: '', parts: [], complete: true })).rejects.toThrow(/parts/);
+  await expect(f.user('tech').mutation(api.operations.recordWork, { id, expectedRevision: 1, expectedWorkflowRevision: 2, diagnosis: 'Test', notes: '', parts: [], complete: true })).rejects.toThrow(/parts/);
   await expect(f.user('tech').mutation(api.extensions.transition, { ...change, action: 'resume' })).rejects.toThrow(/revision/);
   await f.user('tech').mutation(api.extensions.transition, { ...change, expectedWorkflowRevision: 2, action: 'resume' });
-  await f.user('tech').mutation(api.operations.recordWork, { id, expectedRevision: 1, diagnosis: 'Test', notes: '', parts: [], complete: true });
+  await f.user('tech').mutation(api.operations.recordWork, { id, expectedRevision: 1, expectedWorkflowRevision: 3, diagnosis: 'Test', notes: '', parts: [], complete: true });
   const task = (await f.t.run((ctx) => ctx.db.get(id)))!;
   expect(task.workflowPhase).toBe('awaiting_verification');
   await expect(f.user('supervisor').mutation(api.extensions.transition, { id, expectedRevision: task.revision, expectedWorkflowRevision: task.workflowRevision!, action: 'close', reason: 'TEST' })).rejects.toThrow(/independent/);
+});
+
+test('work recording rejects a stale reviewed workflow even after parts pause and resume restore the same phase', async () => {
+  const f = await setup();
+  const id = await f.t.run(ctx => ctx.db.insert('maintenanceTasks', { equipmentId: f.equipment, departmentId: f.a, assigneeId: f.tech, state: 'Assigned', diagnosis: 'Original finding', notes: 'Original notes', parts: [], cycle: 1, revision: 1, dueAt: Date.now() + 60000, createdAt: 1, updatedAt: 1 }));
+  const change = { id, expectedRevision: 1, expectedWorkflowRevision: 0, action: 'accept' as const, reason: 'Reviewed assignment' };
+  await f.user('tech').mutation(api.extensions.transition, change);
+  const stale = { id, expectedRevision: 1, expectedWorkflowRevision: 1, diagnosis: 'Local finding', notes: 'Local notes', parts: ['Local part'], complete: false };
+  await f.user('tech').mutation(api.extensions.transition, { ...change, expectedWorkflowRevision: 1, action: 'await_parts' });
+  await f.user('tech').mutation(api.extensions.transition, { ...change, expectedWorkflowRevision: 2, action: 'resume' });
+  await expect(f.user('tech').mutation(api.operations.recordWork, stale)).rejects.toThrow(/workflow revision/);
+  expect(await f.t.run(ctx => ctx.db.get(id))).toMatchObject({ revision: 1, workflowRevision: 3, diagnosis: 'Original finding', notes: 'Original notes', parts: [] });
+  expect(await f.t.run(ctx => ctx.db.query('workEntries').withIndex('by_task', q => q.eq('taskId', id)).take(10))).toHaveLength(0);
+  expect(await f.user('tech').mutation(api.operations.recordWork, { ...stale, expectedWorkflowRevision: 3 })).toEqual({ revision: 2, workflowRevision: 3 });
+  await f.user('supervisor').mutation(api.operations.changeDue, { id, expectedRevision: 2, dueAt: Date.now() + 120000, reason: 'New schedule' });
+  await expect(f.user('tech').mutation(api.operations.recordWork, { ...stale, expectedRevision: 2, expectedWorkflowRevision: 3 })).rejects.toThrow(/active work/);
+  expect((await f.t.run(ctx => ctx.db.get(id)))?.revision).toBe(3);
 });
 
 test('continuation: paginated export reaches all 125 submitted reports and inventory edit preserves identity and scope', async () => {
@@ -252,10 +269,10 @@ test('equipment name, model and exact identifier searches remain department scop
 test('diagnostic evidence and cause are revisioned, retained by older clients and require supporting evidence for confirmation', async () => {
   const f = await setup();
   const task = await f.t.run((ctx) => ctx.db.insert('maintenanceTasks', { equipmentId: f.equipment, departmentId: f.a, assigneeId: f.tech, dueAt: Date.now() + 60000, diagnosis: '', notes: '', parts: [], cycle: 1, revision: 1, createdAt: 1, updatedAt: 1, state: 'Assigned' }));
-  const args = { id: task, expectedRevision: 1, diagnosis: 'Observed failure', notes: '', parts: [], complete: false };
+  const args = { id: task, expectedRevision: 1, expectedWorkflowRevision: 0, diagnosis: 'Observed failure', notes: '', parts: [], complete: false };
   await expect(f.user('tech').mutation(api.operations.recordWork, { ...args, causeAssessment: 'Confirmed by testing' })).rejects.toThrow(/supporting evidence/);
   await f.user('tech').mutation(api.operations.recordWork, { ...args, diagnosisEvidence: 'Recorded electrical measurements', causeAssessment: 'Suspected cause' });
-  await f.user('tech').mutation(api.operations.recordWork, { ...args, expectedRevision: 2, notes: 'Further inspection' });
+  await f.user('tech').mutation(api.operations.recordWork, { ...args, expectedRevision: 2, expectedWorkflowRevision: 1, notes: 'Further inspection' });
   const current = await f.user('tech').query(api.workflows.taskDetail, { id: task });
   expect(current.diagnosisEvidence).toBe('Recorded electrical measurements');
   expect(current.causeAssessment).toBe('Suspected cause');
@@ -352,8 +369,8 @@ test("work revisions preserve prior content and assignment inbox entries are rec
   const f = await setup(); const report = await f.user("reporter").mutation(api.operations.submitReport, { equipmentId: f.equipment, operationId: "TEST-R", category: "Other/Unknown", symptoms: "Test", description: "", priority: "Routine", condition: "Unknown", inUse: false, noticedAt: Date.now() - 1 });
   const task = await f.user("supervisor").mutation(api.operations.createTask, { reportId: report, dueAt: Date.now() + 100000 });
   await f.user("supervisor").mutation(api.operations.assign, { id: task, expectedRevision: 1, assigneeId: f.tech, dueAt: Date.now() + 100000, reason: "Test assignment" });
-  await f.user("tech").mutation(api.operations.recordWork, { id: task, expectedRevision: 2, diagnosis: "Original diagnosis", notes: "Original notes", parts: ["Test part"], complete: false });
-  await f.user("tech").mutation(api.operations.recordWork, { id: task, expectedRevision: 3, diagnosis: "Updated diagnosis", notes: "Updated notes", parts: [], complete: true });
+  await f.user("tech").mutation(api.operations.recordWork, { id: task, expectedRevision: 2, expectedWorkflowRevision: 1, diagnosis: "Original diagnosis", notes: "Original notes", parts: ["Test part"], complete: false });
+  await f.user("tech").mutation(api.operations.recordWork, { id: task, expectedRevision: 3, expectedWorkflowRevision: 2, diagnosis: "Updated diagnosis", notes: "Updated notes", parts: [], complete: true });
   const paginationOpts = { cursor: null, numItems: 20 };
   const history = await f.user("tech").query(api.workflows.workHistory, { id: task, paginationOpts });
   expect(history.page.map((r) => r.notes)).toContain("Original notes"); expect(history.page.map((r) => r.notes)).toContain("Updated notes"); expect(history.page).toHaveLength(3);
@@ -435,7 +452,7 @@ async function repaired(f: Awaited<ReturnType<typeof setup>>) {
   const report = await f.user("reporter").mutation(api.operations.submitReport, fields);
   const task = await f.user("supervisor").mutation(api.operations.createTask, { reportId: report, dueAt: Date.now() + 100000 });
   await f.user("supervisor").mutation(api.operations.assign, { id: task, expectedRevision: 1, assigneeId: f.tech, dueAt: Date.now() + 100000, reason: "TEST-ONLY" });
-  await f.user("tech").mutation(api.operations.recordWork, { id: task, expectedRevision: 2, diagnosis: "Test repair", notes: "Test notes", parts: [], complete: true });
+  await f.user("tech").mutation(api.operations.recordWork, { id: task, expectedRevision: 2, expectedWorkflowRevision: 1, diagnosis: "Test repair", notes: "Test notes", parts: [], complete: true });
   return task;
 }
 async function testSafetyPolicy(f: Awaited<ReturnType<typeof setup>>) {
@@ -542,7 +559,7 @@ test("preventive schedules enforce scoped supervisor authority and occurrence ge
   const [a, b] = await Promise.all([f.user("supervisor").mutation(api.preventive.materialize, occurrence), f.user("supervisor").mutation(api.preventive.materialize, occurrence)]); expect(a).toBe(b);
   expect((await f.t.run((ctx) => ctx.db.get(a)))?.reportId).toBeUndefined(); // No fabricated fault report.
   await f.user("supervisor").mutation(api.operations.assign, { id: a, expectedRevision: 1, assigneeId: f.tech, dueAt, reason: "TEST assignment" });
-  const work = { id: a, expectedRevision: 2, diagnosis: "Test preventive work", notes: "Test observations", parts: [], complete: true };
+  const work = { id: a, expectedRevision: 2, expectedWorkflowRevision: 1, diagnosis: "Test preventive work", notes: "Test observations", parts: [], complete: true };
   await expect(f.user("tech").mutation(api.operations.recordWork, work)).rejects.toThrow(/checklist/);
   await expect(f.user("tech").mutation(api.operations.recordWork, { ...work, preventiveResults: [{ label: "TEST maintenance check", passed: false }] })).rejects.toThrow(/checklist/);
   await f.user("tech").mutation(api.operations.recordWork, { ...work, preventiveResults: [{ label: "TEST maintenance check", passed: true }] });

@@ -118,8 +118,9 @@ export const assign = mutation({ args: { id: v.id("maintenanceTasks"), expectedR
   await taskNotice(ctx, task._id, "Maintenance assigned", "A maintenance task has been assigned to you.");
   await audit(ctx, actor, "task.assign", task._id, args.reason, task.departmentId, task.assigneeId, assignee._id);
 } });
-export const recordWork = mutation({ args: { id: v.id("maintenanceTasks"), expectedRevision: v.number(), diagnosis: v.string(), diagnosisEvidence: v.optional(v.string()), causeAssessment: v.optional(causeAssessment), notes: v.string(), parts: v.array(v.string()), complete: v.boolean(), preventiveResults: v.optional(v.array(v.object({ label: v.string(), passed: v.boolean() }))) }, handler: async (ctx, args) => {
+export const recordWork = mutation({ args: { id: v.id("maintenanceTasks"), expectedRevision: v.number(), expectedWorkflowRevision: v.number(), diagnosis: v.string(), diagnosisEvidence: v.optional(v.string()), causeAssessment: v.optional(causeAssessment), notes: v.string(), parts: v.array(v.string()), complete: v.boolean(), preventiveResults: v.optional(v.array(v.object({ label: v.string(), passed: v.boolean() }))) }, returns: v.object({ revision: v.number(), workflowRevision: v.number() }), handler: async (ctx, args) => {
   const { actor, task } = await taskAccess(ctx, args.id, "repair");
+  if ((task.workflowRevision ?? 0) !== args.expectedWorkflowRevision) deny("Maintenance workflow revision changed; review the current work order before recording work.");
   if (task.workflowPhase === "awaiting_parts") deny("Resume the assignment after parts are available before recording further work.");
   if (task.assigneeId !== actor._id || task.revision !== args.expectedRevision || !["Assigned", "In progress"].includes(task.state)) deny("Only the assigned technician can update active work.");
   if (args.diagnosis.length > 2000 || args.notes.length > 4000 || args.parts.length > 30 || args.parts.some((p) => !p.trim() || p.length > 120)) deny("Invalid maintenance details.");
@@ -139,6 +140,7 @@ export const recordWork = mutation({ args: { id: v.id("maintenanceTasks"), expec
   await ctx.db.patch(task._id, { workflowPhase, workflowReason: workflowChanged ? (args.complete ? "Repair recorded complete; independent verification pending." : "Assignment accepted by recording maintenance work.") : task.workflowReason, workflowRevision: workflowChanged ? (task.workflowRevision ?? 0) + 1 : task.workflowRevision, diagnosis: args.diagnosis, diagnosisEvidence, causeAssessment: cause, notes: args.notes, parts: args.parts, state: next, revision: task.revision + 1, updatedAt: Date.now(), preventiveResults: args.preventiveResults });
   if (args.complete && task.reportId) await reportNotice(ctx, task.reportId, "Repair completed — verification pending", "Repair work was recorded as complete. Independent verification and authorized release are still required.");
   await audit(ctx, actor, "task.work", task._id, "Maintenance work recorded; no equipment release granted", task.departmentId, task.state, next);
+  return { revision: task.revision + 1, workflowRevision: (task.workflowRevision ?? 0) + (workflowChanged ? 1 : 0) };
 } });
 export const submitVerification = mutation({ args: { id: v.id("maintenanceTasks"), kind: v.union(v.literal("technical"), v.literal("clinical")) }, handler: async (ctx, args) => {
   const { actor, task } = await taskAccess(ctx, args.id, args.kind);

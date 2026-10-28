@@ -104,7 +104,7 @@ test("demo reporting, triage, assignment and repair work while clinical release 
   const taskId=await f.signed.mutation(api.operations.createTask,{reportId,dueAt:Date.now()+86400000});
   expect((await f.signed.query(api.operations.technicians,{departmentId:f.departmentId})).map(a=>a.id)).toContain(id);
   await f.signed.mutation(api.operations.assign,{id:taskId,expectedRevision:1,assigneeId:id,dueAt:Date.now()+86400000,reason:"Development assignment"});
-  await f.signed.mutation(api.operations.recordWork,{id:taskId,expectedRevision:2,diagnosis:"Fictional training diagnosis",notes:"Demo only",parts:[],complete:true});
+  await f.signed.mutation(api.operations.recordWork,{id:taskId,expectedRevision:2, expectedWorkflowRevision: 1,diagnosis:"Fictional training diagnosis",notes:"Demo only",parts:[],complete:true});
   expect((await f.signed.query(api.operations.tasks,{})).find(t=>t._id===taskId)?.state).toBe("Completed");
   const status=await f.signed.query(api.safety.releaseStatus,{equipmentId:equipment._id});
   expect(status.available).toBe(false); expect(status.canRelease).toBe(false);
